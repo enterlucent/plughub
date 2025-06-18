@@ -1,6 +1,8 @@
 # PlugHub
 
-[![License: LGPL](https://img.shields.io/badge/License-LGPL-blue.svg)](LICENSE.md) [![Join us on Discord](https://img.shields.io/badge/Discord-Join-blue?logo=discord)](https://discord.com/invite/mWDHDqkzeR) [![Release](https://img.shields.io/github/v/release/enterlucent/plughub?include_prereleases)](../../releases)
+[![License: LGPL](https://img.shields.io/badge/License-LGPL-blue.svg)](LICENSE.md) 
+[![Join us on Discord](https://img.shields.io/badge/Discord-Join-blue?logo=discord)](https://discord.com/invite/mWDHDqkzeR) 
+[![Release](https://img.shields.io/github/v/release/enterlucent/plughub?include_prereleases)](../../releases)
 
 **PlugHub** is an enterprise-grade application designed around a modular plugin architecture, enabling developers and organizations to build, manage, and deploy extensible software systems with ease. It provides a robust framework where plugins serve as independent, interchangeable components that seamlessly integrate into a unified host application.
 
