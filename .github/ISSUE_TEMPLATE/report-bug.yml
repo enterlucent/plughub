@@ -1,0 +1,48 @@
+name: Bug Report
+description: Create a report to help us improve PlugHub
+title: "<short summary of your identified issue>"
+type: bug
+labels: bug
+
+body:
+  - type: textarea
+    id: full_report
+    attributes:
+      label: Bug Report Details
+      description: Please fill out all sections below. Delete any section that does not apply.
+      value: |
+        <!--- Please ensure you are reporting this bug in the correct repository. -->
+
+        ## Description
+        <!--- Provide a detailed introduction to the issue and why you consider it a bug. -->
+
+        ## Expected Behavior
+        <!--- Tell us what you expected to happen. -->
+
+        ## Actual Behavior
+        <!--- Tell us what actually happens instead. -->
+
+        ## Steps to Reproduce
+        <!--- Provide a minimal reproducible example or clear steps to reproduce the bug. -->
+        1.
+        2.
+        3.
+        4.
+
+        ## Logs or Screenshots (if relevant)
+        <!--- Paste logs, error messages, or add screenshots to help explain your problem. -->
+
+        ## Context
+        <!--- How has this bug affected you? What were you trying to accomplish? -->
+
+        ## Possible Fix
+        <!--- Not required, but if you have an idea for a fix, let us know. -->
+
+        ## Your Environment
+        <!--- Include as many relevant details as possible. -->
+        * PlugHub version:
+        * Plugin version (if applicable):
+        * Operating System and version (desktop or mobile):
+        * .NET Runtime version (if applicable):
+    validations:
+      required: true
