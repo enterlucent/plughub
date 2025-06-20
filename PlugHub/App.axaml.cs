@@ -71,6 +71,15 @@ public partial class App : Application
 
             return new TokenService(logger);
         });
+
+        services.AddSingleton<IConfigService>(provider =>
+        {
+            ILogger<ConfigService> logger = logger = new NullLogger<ConfigService>();
+            ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+            string userRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub");
+
+            return new ConfigService(logger, tokenService, AppDomain.CurrentDomain.BaseDirectory, userRoot);
+        });
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()
