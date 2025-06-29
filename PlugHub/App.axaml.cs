@@ -7,11 +7,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Services;
 using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
 using PlugHub.ViewModels;
 using PlugHub.Views;
 using System;
-using System.IO;
 using System.Linq;
 
 namespace PlugHub;
@@ -65,12 +63,8 @@ public partial class App : Application
 
     private static void ConfigureGlobalServices(IServiceCollection services)
     {
-        services.AddSingleton<ITokenService>(provider =>
-        {
-            ILogger<TokenService> logger = logger = new NullLogger<TokenService>();
-
-            return new TokenService(logger);
-        });
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ITokenService, TokenService>();
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()
