@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Moq;
 using PlugHub.Services;
+using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 
 namespace PlugHub.UnitTests.Services
@@ -8,13 +9,13 @@ namespace PlugHub.UnitTests.Services
     [TestClass]
     public class TokenServiceTests
     {
-        private Mock<ILogger<TokenService>>? loggerMock;
+        private Mock<ILogger<ITokenService>>? loggerMock;
         private TokenService? tokenService;
 
         [TestInitialize]
         public void Setup()
         {
-            this.loggerMock = new Mock<ILogger<TokenService>>();
+            this.loggerMock = new Mock<ILogger<ITokenService>>();
             this.tokenService = new TokenService(this.loggerMock.Object);
         }
 
@@ -31,7 +32,7 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorPublicSourcePublicAccessorReturnsTrue()
+        public void ValidateAccessor_PublicSource_PublicAccessorReturnsTrue()
         {
             // Arrange
             Token source = Token.Public;
@@ -45,7 +46,7 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorBlockedSourceAnyAccessorThrowsException()
+        public void ValidateAccessor_BlockedSourceAnyAccessor_ThrowsException()
         {
             // Arrange
             Token source = Token.Blocked;
@@ -57,11 +58,11 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorCustomTokenValidAccessorReturnsTrue()
+        public void ValidateAccessor_CustomTokenValidAccessor_ReturnsTrue()
         {
             // Arrange
             Token source = Token.New();
-            Token accessor = source; // Same token
+            Token accessor = source;
 
             // Act
             bool result = this.tokenService!.ValidateAccessor(source, accessor);
@@ -71,11 +72,11 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorCustomTokenInvalidAccessorThrowsException()
+        public void ValidateAccessor_CustomTokenInvalidAccessor_ThrowsException()
         {
             // Arrange
             Token source = Token.New();
-            Token accessor = Token.New(); // Different token
+            Token accessor = Token.New();
 
             // Act & Assert
             Assert.ThrowsException<UnauthorizedAccessException>(
@@ -83,7 +84,7 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorPublicSourceBlockedAccessorThrowsException()
+        public void ValidateAccessor_PublicSourceBlockedAccessor_ThrowsException()
         {
             // Arrange
             Token source = Token.Blocked;
@@ -95,11 +96,11 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorNonThrowingModeReturnsFalseForInvalid()
+        public void ValidateAccessor_NonThrowingModeReturnsFalseForInvalid()
         {
             // Arrange
             Token source = Token.New();
-            Token accessor = Token.New(); // Different token
+            Token accessor = Token.New();
 
             // Act
             bool result = this.tokenService!.ValidateAccessor(source, accessor, false);
@@ -109,7 +110,7 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void ValidateAccessorSameTokenDifferentInstancesReturnsTrue()
+        public void ValidateAccessor_SameTokenDifferentInstances_ReturnsTrue()
         {
             // Arrange
             Guid tokenId = Guid.NewGuid();
@@ -124,7 +125,7 @@ namespace PlugHub.UnitTests.Services
         }
 
         [TestMethod]
-        public void TokenImplicitConversionReturnsCorrectGuid()
+        public void Token_ImplicitConversion_ReturnsCorrectGuid()
         {
             // Arrange
             Guid expected = Guid.NewGuid();
