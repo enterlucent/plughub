@@ -1,7 +1,7 @@
 ﻿namespace PlugHub.Shared.Models
 {
     /// <summary>
-    /// Represents an immutable security token, backed by a <see cref="Guid"/>, used for access control and identification.
+    /// Represents an immutable security token, backed by a <see cref="Guid"/>, used for access control.
     /// </summary>
     public readonly struct Token : IEquatable<Token>
     {
