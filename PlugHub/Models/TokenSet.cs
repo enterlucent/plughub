@@ -3,12 +3,13 @@ using PlugHub.Shared.Models;
 
 namespace PlugHub.Models
 {
-    public readonly record struct TokenSet(Token Read, Token Write) : ITokenSet
+    public readonly record struct TokenSet(Token Owner, Token Read, Token Write) : ITokenSet
     {
-        public readonly void Deconstruct(out Token read, out Token write)
+        public readonly void Deconstruct(out Token ownerToken, out Token readToken, out Token writeToken)
         {
-            read = this.Read;
-            write = this.Write;
+            ownerToken = this.Owner;
+            readToken = this.Read;
+            writeToken = this.Write;
         }
     }
 }
