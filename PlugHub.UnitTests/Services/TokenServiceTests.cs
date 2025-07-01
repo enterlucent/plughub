@@ -114,11 +114,11 @@ namespace PlugHub.UnitTests.Services
         public void ValidateAccessor_CustomTokenValidAccessor_ReturnsTrue()
         {
             // Arrange
-            Token source = Token.New();
-            Token accessor = source;
+            ITokenSet source = this.tokenService!.CreateTokenSet(this.tokenService.CreateToken(), this.tokenService.CreateToken(), this.tokenService.CreateToken());
+            ITokenSet accessor = this.tokenService.CreateTokenSet(source.Owner, this.tokenService.CreateToken(), this.tokenService.CreateToken());
 
             // Act
-            bool result = this.tokenService!.AllowAccess(null, source, null, accessor);
+            bool result = this.tokenService!.AllowAccess(source.Owner, source.Read, accessor.Owner, accessor.Read);
 
             // Assert
             Assert.IsTrue(result);
@@ -155,11 +155,11 @@ namespace PlugHub.UnitTests.Services
         public void ValidateAccessor_NonThrowingModeReturnsFalseForInvalid()
         {
             // Arrange
-            Token source = Token.New();
-            Token accessor = Token.New();
+            ITokenSet source = this.tokenService!.CreateTokenSet();
+            ITokenSet accessor = this.tokenService.CreateTokenSet();
 
             // Act
-            bool result = this.tokenService!.AllowAccess(null, source, null, accessor, false);
+            bool result = this.tokenService!.AllowAccess(source.Owner, source.Write, accessor.Owner, accessor.Write, false);
 
             // Assert
             Assert.IsFalse(result);
