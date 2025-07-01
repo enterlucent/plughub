@@ -2,17 +2,36 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Services;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Models;
 using PlugHub.ViewModels;
 using PlugHub.Views;
 using System;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace PlugHub;
+
+
+internal sealed class AppConfig
+{
+    public string BaseDirectory { get; init; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub");
+
+    public string ConfigDirectory { get; init; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
+
+    public JsonSerializerOptions JsonSerializationOptions { get; set; } = new JsonSerializerOptions();
+
+    public bool HotReloadOnChange { get; set; } = false;
+}
+
 
 public partial class App : Application
 {
@@ -22,7 +41,7 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
 
-        this.serviceProvider = ConfigureServices().BuildServiceProvider();
+        this.serviceProvider = BuildServices().BuildServiceProvider();
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -52,29 +71,56 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static IServiceCollection ConfigureServices()
+    private static IServiceCollection BuildServices()
     {
         IServiceCollection services = new ServiceCollection();
 
-        ConfigureGlobalServices(services);
+        BuildGlobalServices(services);
 
         return services;
     }
 
-    private static void ConfigureGlobalServices(IServiceCollection services)
+    private static void BuildGlobalServices(IServiceCollection services)
     {
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<ITokenService, TokenService>();
+
+        services.AddSingleton<IConfigService>(provider =>
+        {
+            ILogger<ConfigService> logger = new NullLogger<ConfigService>();
+            ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+
+            string rootDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
+            string userDir = rootDir;
+
+            ConfigService tempConfig = new(logger, tokenService, rootDir, userDir);
+
+            IConfiguration envConfig = tempConfig.GetEnvConfig();
+            AppConfig appConfig = new();
+            envConfig.Bind(appConfig);
+
+            ConfigService config = new(logger, tokenService, appConfig.ConfigDirectory, appConfig.ConfigDirectory);
+
+            config.RegisterConfig(
+                typeof(AppConfig),
+                tokenService.CreateToken(),
+                Token.Public,
+                Token.Blocked,
+                appConfig.JsonSerializationOptions,
+                appConfig.HotReloadOnChange);
+
+            return config;
+        });
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()
     {
         // Get an array of plugins to remove
-        var dataValidationPluginsToRemove =
-            BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
+        DataAnnotationsValidationPlugin[] dataValidationPluginsToRemove =
+            [.. BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>()];
 
         // remove each entry found
-        foreach (var plugin in dataValidationPluginsToRemove)
+        foreach (DataAnnotationsValidationPlugin? plugin in dataValidationPluginsToRemove)
         {
             BindingPlugins.DataValidators.Remove(plugin);
         }
