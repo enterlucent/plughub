@@ -16,7 +16,7 @@ namespace PlugHub.Services
 
         public ITokenSet CreateTokenSet(Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
         {
-            var nOwner = ownerToken ?? new Token();
+            var nOwner = ownerToken ?? Token.New();
             var nRead = readToken ?? writeToken ?? Token.Public;
             var nWrite = writeToken ?? Token.Blocked;
 
