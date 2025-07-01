@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Services;
+using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 
@@ -38,7 +39,7 @@ namespace PlugHub.UnitTests.Services
         public void CreateTokenSet_Defaults_ReturnsExpectedTokens()
         {
             // Act
-            var tokenSet = this.tokenService!.CreateTokenSet();
+            ITokenSet tokenSet = this.tokenService!.CreateTokenSet();
 
             // Assert
             Assert.AreEqual(Token.Public, tokenSet.Read);
@@ -50,10 +51,10 @@ namespace PlugHub.UnitTests.Services
         public void CreateTokenSet_WriteOverridesRead_Defaults()
         {
             // Arrange
-            var write = Token.New();
+            Token write = Token.New();
 
             // Act
-            var tokenSet = this.tokenService!.CreateTokenSet(write: write);
+            ITokenSet tokenSet = this.tokenService!.CreateTokenSet(writeToken: write);
 
             // Assert
             Assert.AreEqual(write, tokenSet.Read);   // Read inherits write if read is null
@@ -65,11 +66,11 @@ namespace PlugHub.UnitTests.Services
         public void CreateTokenSet_ReadAndWrite_AreDistinct()
         {
             // Arrange
-            var read = Token.New();
-            var write = Token.New();
+            Token read = Token.New();
+            Token write = Token.New();
 
             // Act
-            var tokenSet = this.tokenService!.CreateTokenSet(read: read, write: write);
+            ITokenSet tokenSet = this.tokenService!.CreateTokenSet(readToken: read, writeToken: write);
 
             // Assert
             Assert.AreEqual(read, tokenSet.Read);
@@ -89,7 +90,7 @@ namespace PlugHub.UnitTests.Services
             Token accessor = Token.Public;
 
             // Act
-            bool result = this.tokenService!.AllowAccess(source, accessor);
+            bool result = this.tokenService!.AllowAccess(null, source, null, accessor);
 
             // Assert
             Assert.IsTrue(result);
@@ -105,7 +106,7 @@ namespace PlugHub.UnitTests.Services
 
             // Act & Assert
             Assert.ThrowsException<UnauthorizedAccessException>(
-                () => this.tokenService!.AllowAccess(source, accessor, true));
+                () => this.tokenService!.AllowAccess(null, source, null, accessor, true));
         }
 
         [TestMethod]
@@ -117,7 +118,7 @@ namespace PlugHub.UnitTests.Services
             Token accessor = source;
 
             // Act
-            bool result = this.tokenService!.AllowAccess(source, accessor);
+            bool result = this.tokenService!.AllowAccess(null, source, null, accessor);
 
             // Assert
             Assert.IsTrue(result);
@@ -133,7 +134,7 @@ namespace PlugHub.UnitTests.Services
 
             // Act & Assert
             Assert.ThrowsException<UnauthorizedAccessException>(
-                () => this.tokenService!.AllowAccess(source, accessor, true));
+                () => this.tokenService!.AllowAccess(null, source, null, accessor, true));
         }
 
         [TestMethod]
@@ -146,7 +147,7 @@ namespace PlugHub.UnitTests.Services
 
             // Act & Assert
             Assert.ThrowsException<UnauthorizedAccessException>(
-                () => this.tokenService!.AllowAccess(source, accessor, true));
+                () => this.tokenService!.AllowAccess(null, source, null, accessor, true));
         }
 
         [TestMethod]
@@ -158,7 +159,7 @@ namespace PlugHub.UnitTests.Services
             Token accessor = Token.New();
 
             // Act
-            bool result = this.tokenService!.AllowAccess(source, accessor, false);
+            bool result = this.tokenService!.AllowAccess(null, source, null, accessor, false);
 
             // Assert
             Assert.IsFalse(result);
@@ -174,23 +175,7 @@ namespace PlugHub.UnitTests.Services
             Token accessor = Token.FromGuid(tokenId);
 
             // Act
-            bool result = this.tokenService!.AllowAccess(source, accessor);
-
-            // Assert
-            Assert.IsTrue(result);
-        }
-
-
-        [TestCategory("Security")]
-        public void AllowAny_AnyMatchingToken_ReturnsTrue()
-        {
-            // Arrange
-            var token = Token.New();
-            var required = this.tokenService!.CreateTokenSet(read: token);
-            var provided = this.tokenService.CreateTokenSet(read: token);
-
-            // Act
-            bool result = this.tokenService.AllowAny(required, provided);
+            bool result = this.tokenService!.AllowAccess(null, source, null, accessor);
 
             // Assert
             Assert.IsTrue(result);
@@ -198,30 +183,83 @@ namespace PlugHub.UnitTests.Services
 
         [TestMethod]
         [TestCategory("Security")]
-        public void AllowAny_NoMatchingToken_ReturnsFalse()
+        public void ValidateAccessor_OwnerMatch_ReturnsTrue()
         {
             // Arrange
-            var required = this.tokenService!.CreateTokenSet(read: Token.New());
-            var provided = this.tokenService.CreateTokenSet(read: Token.New());
+            Token ownerToken = Token.New();
+            Token resourcePermission = Token.New();
+            Token accessor = ownerToken;
 
             // Act
-            bool result = this.tokenService.AllowAny(required, provided, throwIfInvalid: false);
+            bool result = this.tokenService!.AllowAccess(
+                resourceOwner: ownerToken,
+                resourcePermission: resourcePermission,
+                accessor: accessor,
+                accessorPermission: null,
+                throwException: false
+            );
 
             // Assert
-            Assert.IsFalse(result);
+            Assert.IsTrue(result, "Owner token should grant access");
         }
 
         [TestMethod]
         [TestCategory("Security")]
-        public void AllowAny_NoMatch_ThrowsWhenRequested()
+        public void ValidateAccessor_OwnerMismatch_ReturnsFalse()
         {
             // Arrange
-            var required = this.tokenService!.CreateTokenSet(read: Token.New());
-            var provided = this.tokenService.CreateTokenSet(read: Token.New());
+            Token resourceOwner = Token.New();
+            Token resourcePermission = Token.New();
+            Token accessor = Token.New();
 
-            // Act & Assert
-            Assert.ThrowsException<UnauthorizedAccessException>(() =>
-                this.tokenService.AllowAny(required, provided, throwIfInvalid: true));
+            // Act
+            bool result = this.tokenService!.AllowAccess(
+                resourceOwner: resourceOwner,
+                resourcePermission: resourcePermission,
+                accessor: accessor,
+                accessorPermission: Token.New(),
+                throwException: false
+            );
+
+            // Assert
+            Assert.IsFalse(result, "Non-owner without matching permissions should be denied");
+        }
+
+        [TestMethod]
+        [TestCategory("Security")]
+        public void ValidateAccessor_NullOwner_FallsBackToPermissions()
+        {
+            // Act
+            bool result = this.tokenService!.AllowAccess(
+                resourceOwner: null, // No owner
+                resourcePermission: Token.Public,
+                accessor: Token.New(),
+                accessorPermission: null,
+                throwException: false
+            );
+
+            // Assert
+            Assert.IsTrue(result); // Public resource access
+        }
+
+        [TestMethod]
+        [TestCategory("Security")]
+        public void ValidateAccessor_OwnerBypassesBlockedResource_ReturnsTrue()
+        {
+            // Arrange
+            Token owner = Token.New();
+
+            // Act
+            bool result = tokenService!.AllowAccess(
+                resourceOwner: owner,
+                resourcePermission: Token.Blocked,
+                accessor: owner,
+                accessorPermission: null,
+                throwException: true
+            );
+
+            // Assert: Owner should bypass blocked state
+            Assert.IsTrue(result);
         }
 
         #endregion

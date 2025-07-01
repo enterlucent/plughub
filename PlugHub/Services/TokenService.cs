@@ -14,32 +14,32 @@ namespace PlugHub.Services
         public Token CreateToken()
             => Token.New();
 
-        public ITokenSet CreateTokenSet(Token? read = null, Token? write = null)
+        public ITokenSet CreateTokenSet(Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
         {
-            var secRead = read ?? write ?? Token.Public;
-            var secWrite = write ?? Token.Blocked;
+            var nOwner = ownerToken ?? new Token();
+            var nRead = readToken ?? writeToken ?? Token.Public;
+            var nWrite = writeToken ?? Token.Blocked;
 
-            return new TokenSet(secRead, secWrite);
+            return new TokenSet(nOwner, nRead, nWrite);
         }
 
-        public bool AllowAccess(Token source, Token accessor, bool throwException = true)
+        public bool AllowAccess(Token? resourceOwner, Token? resourcePermission, Token? accessor, Token? accessorPermission, bool throwException = true)
         {
-            if (source != Token.Blocked && (source == Token.Public || source == accessor))
-                return true;
+            if (accessor != null && accessor != Token.Public && resourceOwner == accessor) return true;
 
-            if (throwException)
-                ThrowUniformException();
+            if (resourcePermission == Token.Blocked)
+            {
+                if (throwException) ThrowUniformException();
 
-            return false;
-        }
+                return false;
+            }
 
-        public bool AllowAny(ITokenSet required, ITokenSet provided, bool throwIfInvalid = true)
-        {
-            if (this.AllowAccess(required.Read, provided.Read, false) || this.AllowAccess(required.Write, provided.Write, false))
-                return true;
+            bool isPublic = resourcePermission == Token.Public;
+            bool permissionsMatch = (resourcePermission != null && resourcePermission == accessorPermission);
 
-            if (throwIfInvalid)
-                ThrowUniformException();
+            if (isPublic || permissionsMatch) return true;
+
+            if (throwException) ThrowUniformException();
 
             return false;
         }
