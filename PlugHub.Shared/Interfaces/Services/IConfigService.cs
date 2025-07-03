@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Configuration;
-using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Models;
 using System.Text.Json;
@@ -140,56 +139,6 @@ namespace PlugHub.Shared.Interfaces.Services
 
 
         /// <summary>
-        /// Creates an <see cref="IConfigAccessor"/> for a single configuration type,
-        /// using dedicated tokens for access control operations.
-        /// </summary>
-        /// <param name="configType">The configuration type to access.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// <returns>
-        /// An <see cref="IConfigAccessor"/> scoped to the specified type and tokens.
-        /// </returns>
-        public IConfigAccessor CreateAccessor(Type configType, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null);
-
-        /// <summary>
-        /// Creates an <see cref="IConfigAccessor"/> for a single configuration type,
-        /// using dedicated tokens for access control operations.
-        /// </summary>
-        /// <param name="configType">The configuration type to access.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>
-        /// An <see cref="IConfigAccessor"/> scoped to the specified type and tokens.
-        /// </returns>
-        public IConfigAccessor CreateAccessor(Type configType, ITokenSet tokenSet);
-
-
-        /// <summary>
-        /// Creates an <see cref="IConfigAccessor"/> for multiple configuration types,
-        /// using the specified tokens for access control.
-        /// </summary>
-        /// <param name="configTypes">The configuration types to access.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// <returns>
-        /// An <see cref="IConfigAccessor"/> scoped to the specified types and tokens.
-        /// </returns>
-        public IConfigAccessor CreateAccessor(IList<Type> configTypes, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null);
-
-        /// <summary>
-        /// Creates an <see cref="IConfigAccessor"/> for multiple configuration types,
-        /// using the specified tokens for access control.
-        /// </summary>
-        /// <param name="configTypes">The configuration types to access.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>
-        /// An <see cref="IConfigAccessor"/> scoped to the specified types and tokens.
-        /// </returns>
-        public IConfigAccessor CreateAccessor(IList<Type> configTypes, ITokenSet tokenSet);
-
-
-        /// <summary>
         /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
         /// </summary>
         /// <param name="configType">The type representing the configuration.</param>
@@ -202,23 +151,18 @@ namespace PlugHub.Shared.Interfaces.Services
         public void RegisterConfig(Type configType, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
 
         /// <summary>
-        /// Registers a configuration type using a token set for consolidated access control,
-        /// with type-specific JSON serialization settings and change reloading.
+        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
         /// </summary>
         /// <param name="configType">The type representing the configuration structure.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         /// <param name="jsonOptions">Custom JSON serialization settings for this configuration type, overriding global options for property naming, converters, and formatting.</param>
         /// <param name="reloadOnChange">Enables automatic reloading when underlying configuration files change.</param>
-        /// <exception cref="UnauthorizedAccessException">Thrown when invalid tokens are provided</exception>
-        /// <remarks>
-        /// Provides a consolidated interface for token management while maintaining identical security 
-        /// and serialization behavior as the granular token overload.
-        /// </remarks>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void RegisterConfig(Type configType, ITokenSet tokenSet, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
 
 
         /// <summary>
-        /// Registers multiple configuration types with shared token policies and type-specific JSON serialization settings.
+        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
         /// </summary>
         /// <param name="configTypes">The types representing configurations.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
@@ -230,13 +174,13 @@ namespace PlugHub.Shared.Interfaces.Services
         public void RegisterConfigs(IEnumerable<Type> configTypes, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
 
         /// <summary>
-        /// Registers multiple configuration types using a consolidated token set for access control, with optional JSON serialization settings.
+        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
         /// </summary>
         /// <param name="configTypes">The configuration types to register.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         /// <param name="jsonOptions">Custom JSON serialization settings applied to all specified configuration types.</param>
         /// <param name="reloadOnChange">Enables automatic reload when underlying configuration files change.</param>
-        /// <exception cref="UnauthorizedAccessException">Thrown if current context lacks permission to register configurations.</exception>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void RegisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
 
 
@@ -245,11 +189,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configType">The <see cref="Type"/> of the configuration to unregister.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the provided token does not have write access to the configuration.</exception>
-        /// <remarks>
-        /// This method is thread-safe. If the configuration type is not registered, the operation is a no-op.
-        /// Any registered reload callbacks for the configuration will be disposed.
-        /// </remarks>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfig(Type configType, Token? ownerToken = null);
 
         /// <summary>
@@ -257,11 +197,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configType">The <see cref="Type"/> of the configuration to unregister.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the provided token does not have write access to the configuration.</exception>
-        /// <remarks>
-        /// This method is thread-safe. If the configuration type is not registered, the operation is a no-op.
-        /// Any registered reload callbacks for the configuration will be disposed.
-        /// </remarks>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfig(Type configType, ITokenSet tokenSet);
 
 
@@ -270,12 +206,8 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configTypes">A collection of <see cref="Type"/> objects representing the configurations to unregister.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="configTypes"/> is null.</exception>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the provided token does not have write access to any configuration in the collection.</exception>
-        /// <remarks>
-        /// This method is thread-safe. If a configuration type in the collection is not registered, it is skipped.
-        /// Any registered reload callbacks for each configuration will be disposed.
-        /// </remarks>
+        /// <exception cref="ArgumentNullException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfigs(IEnumerable<Type> configTypes, Token? ownerToken = null);
 
         /// <summary>
@@ -283,12 +215,8 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configTypes">A collection of <see cref="Type"/> objects representing the configurations to unregister.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="configTypes"/> is null.</exception>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the provided token does not have write access to any configuration in the collection.</exception>
-        /// <remarks>
-        /// This method is thread-safe. If a configuration type in the collection is not registered, it is skipped.
-        /// Any registered reload callbacks for each configuration will be disposed.
-        /// </remarks>
+        /// <exception cref="ArgumentNullException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet);
 
 
@@ -335,14 +263,6 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
         /// <param name="contents">The raw JSON contents to write to the default config file.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the write are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveDefaultConfigFileContentsAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
         public void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null);
 
         /// <summary>
@@ -351,14 +271,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
         /// <param name="contents">The raw JSON contents to write to the default config file.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the write are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveDefaultConfigFileContentsAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>        
         public void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet);
 
 
@@ -371,8 +284,8 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
         /// <returns>A populated instance of the requested configuration type</returns>
-        /// <exception cref="KeyNotFoundException">Thrown if configType is not registered</exception>
-        /// <exception cref="InvalidOperationException">Thrown if instance creation fails</exception>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="InvalidOperationException"/>
         public object GetConfigInstance(Type configType, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
@@ -383,8 +296,8 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="configType">The Type of configuration class to retrieve</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         /// <returns>A populated instance of the requested configuration type</returns>
-        /// <exception cref="KeyNotFoundException">Thrown if configType is not registered</exception>
-        /// <exception cref="InvalidOperationException">Thrown if instance creation fails</exception>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="InvalidOperationException"/>
         public object GetConfigInstance(Type configType, ITokenSet tokenSet);
 
 
@@ -397,7 +310,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="updatedConfig">Instance containing new property values</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// <exception cref="ArgumentNullException">Thrown if updatedConfig is null</exception>
+        /// <exception cref="ArgumentNullException"/>
         public Task SaveConfigInstanceAsync(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default);
 
         /// <summary>
@@ -408,7 +321,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="configType">The Type of configuration being updated</param>
         /// <param name="updatedConfig">Instance containing new property values</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <exception cref="ArgumentNullException">Thrown if updatedConfig is null</exception>
+        /// <exception cref="ArgumentNullException"/>
         public Task SaveConfigInstanceAsync(Type configType, object updatedConfig, ITokenSet tokenSet, CancellationToken cancellationToken = default);
 
 
@@ -420,13 +333,6 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="updatedConfig">The updated configuration object to persist.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the save are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveConfigInstanceAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
         public void SaveConfigInstance(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null);
 
         /// <summary>
@@ -436,13 +342,6 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="configType">The configuration type whose settings should be updated.</param>
         /// <param name="updatedConfig">The updated configuration object to persist.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the save are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveConfigInstanceAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
         public void SaveConfigInstance(Type configType, object updatedConfig, ITokenSet tokenSet);
 
 
@@ -455,7 +354,6 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Returns the *baseline* value that was loaded from
-        /// <c>&lt;{configType.Name}&gt;.DefaultSettings.json</c> for the property named
         /// <paramref name="key"/> – ignoring any user-override that might currently exist.
         /// </summary>
         /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
@@ -464,18 +362,12 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
         /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException">Thrown when <paramref name="configType"/> has not been registered.</exception>
-        /// <exception cref="KeyNotFoundException">Thrown when the supplied <paramref name="key"/> does not exist in the defaults file.</exception>
-        /// <remarks>
-        /// For properties marked *secure*, the return value is a <c>SecureValue</c> instance
-        /// containing the encrypted Base-64 payload.
-        /// The method is crypto-agnostic; no decryption occurs inside <c>ConfigService</c>.
-        /// </remarks>
+        /// <exception cref="ConfigTypeNotFoundException"/>
+        /// <exception cref="KeyNotFoundException"/>
         T? GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
         /// Returns the *baseline* value that was loaded from
-        /// <c>&lt;{configType.Name}&gt;.DefaultSettings.json</c> for the property named
         /// <paramref name="key"/> – ignoring any user-override that might currently exist.
         /// </summary>
         /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
@@ -483,19 +375,13 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException">Thrown when <paramref name="configType"/> has not been registered.</exception>
-        /// <exception cref="KeyNotFoundException">Thrown when the supplied <paramref name="key"/> does not exist in the defaults file.</exception>
-        /// <remarks>
-        /// For properties marked *secure*, the return value is a <c>SecureValue</c> instance
-        /// containing the encrypted Base-64 payload.
-        /// The method is crypto-agnostic; no decryption occurs inside <c>ConfigService</c>.
-        /// </remarks>
+        /// <exception cref="ConfigTypeNotFoundException"/>
+        /// <exception cref="KeyNotFoundException"/>
         T? GetDefault<T>(Type configType, string key, ITokenSet tokenSet);
 
 
         /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>,
-        /// i.e.&nbsp;<c>UserValue ?? DefaultValue</c>, using the merge order defined by PlugHub.
+        /// Returns the *effective* value for the property named <paramref name="key"/>
         /// </summary>
         /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
         /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
@@ -503,33 +389,22 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
         /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException">Thrown when <paramref name="configType"/> has not been registered.</exception>
-        /// <exception cref="KeyNotFoundException">Thrown when the supplied <paramref name="key"/> does not exist in the configuration.</exception>
-        /// <exception cref="UnauthorizedAccessException">Thrown when the caller, as identified by <paramref name="readToken"/>, does not have read access to the requested setting.</exception>
-        /// <remarks>
-        /// For properties marked *secure*, the returned value is a <c>SecureValue</c> object
-        /// containing the encrypted Base-64 payload unless the caller explicitly requests a
-        /// decrypted type via a secure accessor.
-        /// </remarks>
+        /// <exception cref="ConfigTypeNotFoundException"/>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
         public T? GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>,
-        /// i.e.&nbsp;<c>UserValue ?? DefaultValue</c>, using the merge order defined by PlugHub.
+        /// Returns the *effective* value for the property named <paramref name="key"/>
         /// </summary>
         /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
         /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
         /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException">Thrown when <paramref name="configType"/> has not been registered.</exception>
-        /// <exception cref="KeyNotFoundException">Thrown when the supplied <paramref name="key"/> does not exist in the configuration.</exception>
-        /// <exception cref="UnauthorizedAccessException">Thrown when the caller, as identified by <paramref name="readToken"/>, does not have read access to the requested setting.</exception>
-        /// <remarks>
-        /// For properties marked *secure*, the returned value is a <c>SecureValue</c> object
-        /// containing the encrypted Base-64 payload unless the caller explicitly requests a
-        /// decrypted type via a secure accessor.
-        /// </remarks>
+        /// <exception cref="ConfigTypeNotFoundException"/>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
         public T? GetSetting<T>(Type configType, string key, ITokenSet tokenSet);
 
 
@@ -561,14 +436,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the save are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveSettingsAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
+        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>        
         public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null);
 
         /// <summary>
@@ -577,13 +445,6 @@ namespace PlugHub.Shared.Interfaces.Services
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// Optional access token for write authorization. If not specified, defaults to <see cref="Token.Public"/>.
-        /// </param>
-        /// <remarks>
-        /// - This is a fire-and-forget operation; exceptions are not thrown synchronously.
-        /// - Errors that occur during the save are surfaced via the <see cref="SyncSaveOpErrors"/> event handler.
-        /// - Use <see cref="SaveSettingsAsync"/> for awaitable, exception-aware saving.
-        /// </remarks>
         public void SaveSettings(Type configType, ITokenSet tokenSet);
 
 

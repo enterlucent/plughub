@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using PlugHub.Accessors;
 using PlugHub.Shared.Extensions;
-using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
@@ -69,7 +67,6 @@ namespace PlugHub.Services
 
         private readonly ConcurrentDictionary<Type, ReaderWriterLockSlim> configLock = new();
 
-
         public ConfigService(ILogger<IConfigService> logger, ITokenService tokenService, string configRootDirectory, string configUserDirectory)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -84,27 +81,7 @@ namespace PlugHub.Services
             };
         }
 
-
-        public IConfigAccessor CreateAccessor(Type configTypes, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
-        {
-            return this.CreateAccessor([configTypes], ownerToken, readToken, writeToken);
-        }
-        public IConfigAccessor CreateAccessor(Type configType, ITokenSet tokenSet)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IConfigAccessor CreateAccessor(IList<Type> configTypes, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
-        {
-            (Token nOwner, Token nRead, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, readToken, writeToken);
-
-            return new ConfigAccessor(this, this.tokenService, configTypes, nOwner, nRead, nWrite);
-        }
-        public IConfigAccessor CreateAccessor(IList<Type> configTypes, ITokenSet tokenSet)
-        {
-            throw new NotImplementedException();
-        }
-
+        #region ConfigService: Registration
 
         public void RegisterConfig(Type configType, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false)
         {
@@ -117,16 +94,16 @@ namespace PlugHub.Services
             {
                 if (this.configs.ContainsKey(configType))
                 {
-                    throw new InvalidOperationException(
-                        $"Configuration for {configType.Name} is already registered. " +
-                        "Use UnregisterConfig before re-registering.");
+                    throw new InvalidOperationException($"Configuration for {configType.Name} is already registered. Use UnregisterConfig before re-registering.");
                 }
+
+                jsonOptions ??= this.jsonOptions;
 
                 string defaultConfigFilePath = this.GetDefaultSettingsPath(configType);
                 string userConfigFilePath = this.GetUserSettingsPath(configType);
 
-                this.EnsureFileExists(defaultConfigFilePath, configType, this.jsonOptions);
-                this.EnsureFileExists(userConfigFilePath, options: this.jsonOptions);
+                this.EnsureFileExists(defaultConfigFilePath, configType, jsonOptions);
+                this.EnsureFileExists(userConfigFilePath, options: jsonOptions);
 
                 IConfiguration defaultConfig = BuildConfig(defaultConfigFilePath, reloadOnChange);
                 IConfiguration userConfig = BuildConfig(userConfigFilePath, reloadOnChange);
@@ -135,7 +112,7 @@ namespace PlugHub.Services
                     defaultConfig,
                     userConfig,
                     BuildSettings(configType, defaultConfig, userConfig),
-                    jsonOptions ?? this.jsonOptions,
+                    jsonOptions,
                     nOwner,
                     nRead,
                     nWrite,
@@ -214,6 +191,7 @@ namespace PlugHub.Services
             this.UnregisterConfigs(configTypes, tokenSet.Owner);
         }
 
+        #endregion
 
         public IConfiguration GetEnvConfig()
         {
@@ -224,6 +202,7 @@ namespace PlugHub.Services
                 .Build();
         }
 
+        #region ConfigService: Value Accessors and Mutators
 
         public T? GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
@@ -284,6 +263,26 @@ namespace PlugHub.Services
         {
             return this.GetSetting<T>(configType, key, tokenSet.Owner, tokenSet.Read);
         }
+
+
+        private static T? CastStoredValue<T>(object? raw)
+        {
+            if (raw is null) return default;
+
+            if (raw is T typed) return typed;
+
+            try
+            {
+                if (raw is IConvertible)
+                    return (T)Convert.ChangeType(raw, typeof(T));
+            }
+            catch (InvalidCastException) { }
+            catch (FormatException) { }
+            catch (OverflowException) { }
+
+            return default;
+        }
+
 
         public void SetSetting<T>(Type configType, string key, T? newValue, Token? ownerToken = null, Token? writeToken = null)
         {
@@ -427,6 +426,9 @@ namespace PlugHub.Services
             await this.SaveSettingsAsync(configType, tokenSet.Owner, tokenSet.Write, cancellationToken);
         }
 
+        #endregion
+
+        #region ConfigService: Instance Accesors and Mutators
 
         public object GetConfigInstance(Type configType, Token? ownerToken = null, Token? readToken = null)
         {
@@ -582,6 +584,9 @@ namespace PlugHub.Services
             await this.SaveConfigInstanceAsync(configType, updatedConfig, tokenSet.Owner, tokenSet.Write, cancellationToken);
         }
 
+        #endregion
+
+        #region ConfigService: Default Config Mutation/Migration
 
         public string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null)
         {
@@ -683,6 +688,8 @@ namespace PlugHub.Services
             await this.SaveDefaultConfigFileContentsAsync(configType, contents, tokenSet.Owner, cancellationToken);
         }
 
+        #endregion
+
         void IDisposable.Dispose()
         {
             if (this.isDesposed) return;
@@ -716,6 +723,7 @@ namespace PlugHub.Services
             GC.SuppressFinalize(this);
         }
 
+        #region ConfigService: Event Handlers
 
         private void OnConfigChanged(object? state)
         {
@@ -735,30 +743,12 @@ namespace PlugHub.Services
                     Timeout.InfiniteTimeSpan);
             }
         }
+
         private void OnSaveOperationError(Exception ex, ConfigSaveOperation operation, Type configType)
         {
             this.SyncSaveOpErrors?.Invoke(this, new ConfigServiceSaveErrorEventArgs(ex, operation, configType));
         }
 
-
-        private ReaderWriterLockSlim GetConfigTypeLock(Type sectionType)
-            => this.configLock.GetOrAdd(sectionType, _ => new ReaderWriterLockSlim());
-        private static T? CastStoredValue<T>(object? raw)
-        {
-            try
-            {
-                if (raw is T typed)
-                    return typed;
-
-                if (raw is IConvertible)
-                    return (T)Convert.ChangeType(raw, typeof(T));
-            }
-            catch (InvalidCastException) { }
-            catch (FormatException) { }
-            catch (OverflowException) { }
-
-            return default;
-        }
         private void HandleReload(Type configType)
         {
             ConfigServiceConfig? config = null;
@@ -818,36 +808,10 @@ namespace PlugHub.Services
                 this.logger.LogWarning("Unregistered config type – Type {Type}", configType.Name);
         }
 
+        #endregion
 
-        private static void EnsureDirectoryExists(string filePath)
-        {
-            string? directory = Path.GetDirectoryName(filePath);
-
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                Directory.CreateDirectory(directory);
-        }
-        private void EnsureFileExists(string filePath, Type? configType = null, JsonSerializerOptions? options = null)
-        {
-            EnsureDirectoryExists(filePath);
-
-            if (!File.Exists(filePath))
-            {
-                try
-                {
-                    string content = "{}";
-
-                    if (configType != null)
-                        content = configType.SerializeToJson(options ?? this.jsonOptions);
-
-                    Atomic.Write(filePath, content);
-                }
-                catch (Exception ex)
-                {
-                    throw new IOException($"Failed to create the required configuration file at '{filePath}'.", ex);
-                }
-            }
-        }
-
+        private ReaderWriterLockSlim GetConfigTypeLock(Type sectionType)
+            => this.configLock.GetOrAdd(sectionType, _ => new ReaderWriterLockSlim());
 
         private static IConfiguration BuildConfig(string filePath, bool reloadOnChange = false)
         {
@@ -903,11 +867,39 @@ namespace PlugHub.Services
             }
         }
 
-
         private string GetDefaultSettingsPath(Type configType)
             => Path.Combine(this.configRootDirectory, $"{configType.Name}.DefaultSettings.json");
         private string GetUserSettingsPath(Type configType)
             => Path.Combine(this.configUserDirectory, $"{configType.Name}.UserSettings.json");
+
+        private static void EnsureDirectoryExists(string filePath)
+        {
+            string? directory = Path.GetDirectoryName(filePath);
+
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+        }
+        private void EnsureFileExists(string filePath, Type? configType = null, JsonSerializerOptions? options = null)
+        {
+            EnsureDirectoryExists(filePath);
+
+            if (!File.Exists(filePath))
+            {
+                try
+                {
+                    string content = "{}";
+
+                    if (configType != null)
+                        content = configType.SerializeToJson(options ?? this.jsonOptions);
+
+                    Atomic.Write(filePath, content);
+                }
+                catch (Exception ex)
+                {
+                    throw new IOException($"Failed to create the required configuration file at '{filePath}'.", ex);
+                }
+            }
+        }
 
         private static async Task SaveSettingsToFileAsync(string filePath, Dictionary<string, object?> settings, JsonSerializerOptions options, CancellationToken cancellationToken = default)
         {
