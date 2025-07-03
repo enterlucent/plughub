@@ -6,7 +6,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PlugHub.Accessors;
 using PlugHub.Services;
+using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.ViewModels;
@@ -84,6 +86,7 @@ public partial class App : Application
     {
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<ITokenService, TokenService>();
+        services.AddTransient<IConfigAccessor, ConfigAccessor>();
 
         services.AddSingleton<IConfigService>(provider =>
         {
