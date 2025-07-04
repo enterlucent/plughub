@@ -89,6 +89,7 @@ public partial class App : Application
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<ISecureStorage, InsecureStorage>();
+        services.AddSingleton<IEncryptionService, EncryptionService>();
 
         services.AddTransient<IConfigAccessor, ConfigAccessor>();
 
