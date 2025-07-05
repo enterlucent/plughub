@@ -369,7 +369,7 @@ namespace PlugHub.UnitTests.Services
                 tokenService, this.msTestHelpers.
                 TempDirectory,
                 this.msTestHelpers.TempDirectory);
-            var storage = new InsecureStorage(new NullLogger<InsecureStorage>(), tokenService, configService);
+            var storage = new InsecureStorage(new NullLogger<InsecureStorage>(), tokenService, configService, this.msTestHelpers.TempDirectory);
 
             this.encryptionService = new EncryptionService(new NullLogger<EncryptionService>(), storage);
             IEncryptionContext encryptionContext =
