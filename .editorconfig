@@ -236,3 +236,8 @@ dotnet_naming_style.camel_case.required_prefix =
 dotnet_naming_style.camel_case.required_suffix =
 dotnet_naming_style.camel_case.word_separator =
 dotnet_naming_style.camel_case.capitalization = camel_case
+
+
+# Ignored Suggestions
+
+dotnet_diagnostic.IDE0063.severity = none

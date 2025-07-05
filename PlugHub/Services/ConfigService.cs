@@ -49,19 +49,20 @@ namespace PlugHub.Services
 
     public class ConfigService : IConfigService, IDisposable
     {
-        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveOpErrors;
+        public event EventHandler<ConfigServiceSaveCompletedEventArgs>? SyncSaveCompleted;
+        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveErrors;
         public event EventHandler<ConfigServiceConfigReloadedEventArgs>? ConfigReloaded;
         public event EventHandler<ConfigServiceSettingChangeEventArgs>? SettingChanged;
 
-        private readonly ILogger<IConfigService> logger;
-        private readonly ITokenService tokenService;
+        protected readonly ILogger<IConfigService> Logger;
+        protected readonly ITokenService TokenService;
 
         private readonly ConcurrentDictionary<Type, Timer> reloadTimers = new();
-        private readonly ConcurrentDictionary<Type, ConfigServiceConfig> configs = [];
+        private protected readonly ConcurrentDictionary<Type, ConfigServiceConfig> configs = [];
 
-        private readonly JsonSerializerOptions jsonOptions;
-        private readonly string configRootDirectory;
-        private readonly string configUserDirectory;
+        private protected readonly JsonSerializerOptions jsonOptions;
+        private protected readonly string configRootDirectory;
+        private protected readonly string configUserDirectory;
 
         private bool isDesposed = false;
 
@@ -69,8 +70,8 @@ namespace PlugHub.Services
 
         public ConfigService(ILogger<IConfigService> logger, ITokenService tokenService, string configRootDirectory, string configUserDirectory)
         {
-            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this.tokenService = tokenService;
+            this.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.TokenService = tokenService;
 
             this.configRootDirectory = configRootDirectory;
             this.configUserDirectory = configUserDirectory;
@@ -85,7 +86,7 @@ namespace PlugHub.Services
 
         public void RegisterConfig(Type configType, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false)
         {
-            (Token nOwner, Token nRead, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, readToken, writeToken);
+            (Token nOwner, Token nRead, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, readToken, writeToken);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterWriteLock();
@@ -111,7 +112,7 @@ namespace PlugHub.Services
                 this.configs[configType] = new(
                     defaultConfig,
                     userConfig,
-                    BuildSettings(configType, defaultConfig, userConfig),
+                    this.BuildSettings(configType, defaultConfig, userConfig),
                     jsonOptions,
                     nOwner,
                     nRead,
@@ -147,10 +148,9 @@ namespace PlugHub.Services
             this.RegisterConfigs(configTypes, tokenSet?.Owner, tokenSet?.Read, tokenSet?.Write, jsonOptions, reloadOnChange);
         }
 
-
         public void UnregisterConfig(Type configType, Token? token = null)
         {
-            (Token nOwner, _, _) = this.tokenService.CreateTokenSet(token, null, null);
+            (Token nOwner, _, _) = this.TokenService.CreateTokenSet(token, null, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterWriteLock();
@@ -160,7 +160,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, null, nOwner, null);
+                this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
                 config.DefaultOnChange?.Dispose();
                 config.UserOnChange?.Dispose();
@@ -206,7 +206,7 @@ namespace PlugHub.Services
 
         public T? GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
-            (Token nOwner, Token nRead, _) = this.tokenService.CreateTokenSet(ownerToken, readToken, null);
+            (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterReadLock();
@@ -217,7 +217,7 @@ namespace PlugHub.Services
                     throw new ConfigTypeNotFoundException(
                         $"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
+                this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
                 if (!config.Values.TryGetValue(key, out ConfigServiceSettingValue? setting))
                     throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
@@ -233,7 +233,7 @@ namespace PlugHub.Services
 
         public T? GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
-            (Token nOwner, Token nRead, _) = this.tokenService.CreateTokenSet(ownerToken, readToken, null);
+            (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterReadLock();
@@ -244,7 +244,7 @@ namespace PlugHub.Services
                     throw new ConfigTypeNotFoundException(
                         $"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
+                this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
                 if (!config.Values.TryGetValue(key, out ConfigServiceSettingValue? setting))
                     throw new KeyNotFoundException(
@@ -271,6 +271,14 @@ namespace PlugHub.Services
 
             if (raw is T typed) return typed;
 
+            if (typeof(T) == typeof(SecureValue) && raw is SecureValue sv)
+                return (T)(object)sv;
+
+            if (raw is SecureValue)
+                throw new InvalidCastException(
+                    $"Setting contains a SecureValue but was requested as {typeof(T).Name}. " +
+                    "Use a SecureConfigAccessor or request SecureValue directly.");
+
             try
             {
                 if (raw is IConvertible)
@@ -286,7 +294,7 @@ namespace PlugHub.Services
 
         public void SetSetting<T>(Type configType, string key, T? newValue, Token? ownerToken = null, Token? writeToken = null)
         {
-            (Token nOwner, _, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, null, writeToken);
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterWriteLock();
@@ -296,7 +304,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+                this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                 if (!config.Values.TryGetValue(key, out ConfigServiceSettingValue? settingValue))
                     throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
@@ -345,7 +353,7 @@ namespace PlugHub.Services
 
         public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null)
         {
-            (Token nOwner, _, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, null, writeToken);
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             Task.Run(async () =>
             {
@@ -354,13 +362,15 @@ namespace PlugHub.Services
                     if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                         throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                    this.tokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+                    this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                     await this.SaveSettingsAsync(configType, nOwner, nWrite);
+
+                    SyncSaveCompleted?.Invoke(this, new ConfigServiceSaveCompletedEventArgs(typeof(AppConfig)));
                 }
                 catch (Exception ex)
                 {
-                    this.OnSaveOperationError(ex, ConfigSaveOperation.SaveSettings, configType);
+                    this.SyncSaveErrors?.Invoke(this, new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveSettings, configType));
                 }
             });
         }
@@ -373,7 +383,7 @@ namespace PlugHub.Services
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            (Token nOwner, _, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, null, writeToken);
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             Dictionary<string, object?> defaultSettings;
             Dictionary<string, object?> userSettings;
@@ -390,7 +400,7 @@ namespace PlugHub.Services
                     throw new ConfigTypeNotFoundException(
                         $"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+                this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                 defaultSettings = config.Values.ToDictionary(
                     kvp => kvp.Key,
@@ -432,7 +442,7 @@ namespace PlugHub.Services
 
         public object GetConfigInstance(Type configType, Token? ownerToken = null, Token? readToken = null)
         {
-            (Token nOwner, Token nRead, _) = this.tokenService.CreateTokenSet(ownerToken, readToken, null);
+            (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterReadLock();
@@ -442,7 +452,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
+                this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
                 object instance = Activator.CreateInstance(configType)
                     ?? throw new InvalidOperationException($"Failed to create instance of {configType.Name}");
@@ -482,7 +492,7 @@ namespace PlugHub.Services
                         }
                         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
                         {
-                            this.logger.LogError(ex,
+                            this.Logger.LogError(ex,
                                 "Failed to set property {PropertyName} for type {ConfigType}",
                                 prop.Name, configType.Name);
                         }
@@ -500,7 +510,7 @@ namespace PlugHub.Services
 
         public void SaveConfigInstance(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null)
         {
-            (Token nOwner, _, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, null, writeToken);
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             Task.Run(async () =>
             {
@@ -509,13 +519,15 @@ namespace PlugHub.Services
                     if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                         throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                    this.tokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+                    this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                     await this.SaveConfigInstanceAsync(configType, updatedConfig, nOwner, nWrite);
+
+                    this.OnSaveOperationComplete(configType);
                 }
                 catch (Exception ex)
                 {
-                    this.OnSaveOperationError(ex, ConfigSaveOperation.SaveConfigInstance, configType);
+                    this.SyncSaveErrors?.Invoke(this, new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveSettings, configType));
                 }
             });
         }
@@ -530,7 +542,7 @@ namespace PlugHub.Services
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            (Token nOwner, _, Token nWrite) = this.tokenService.CreateTokenSet(ownerToken, null, writeToken);
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterWriteLock();
@@ -540,7 +552,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+                this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                 foreach (PropertyInfo prop in configType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
@@ -560,7 +572,7 @@ namespace PlugHub.Services
                     }
                     catch (Exception ex)
                     {
-                        this.logger.LogWarning(ex, "Comparison fallback failed for key '{Key}' on type {ConfigType}. Value: {Value}", key, configType.Name, newValue);
+                        this.Logger.LogWarning(ex, "Comparison fallback failed for key '{Key}' on type {ConfigType}. Value: {Value}", key, configType.Name, newValue);
                     }
 
                     if (isDefaultValue)
@@ -590,7 +602,7 @@ namespace PlugHub.Services
 
         public string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null)
         {
-            (Token nOwner, _, _) = this.tokenService.CreateTokenSet(ownerToken, null, null);
+            (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
 
             string filePath;
 
@@ -602,7 +614,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, null, nOwner, null);
+                this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
             }
             finally { if (rwLock.IsReadLockHeld) rwLock.ExitReadLock(); }
 
@@ -622,7 +634,7 @@ namespace PlugHub.Services
 
         public void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null)
         {
-            (Token nOwner, _, _) = this.tokenService.CreateTokenSet(ownerToken, null, null);
+            (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
 
             Task.Run(async () =>
             {
@@ -631,7 +643,7 @@ namespace PlugHub.Services
                     if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                         throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                    this.tokenService.AllowAccess(config.Owner, null, nOwner, null);
+                    this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
                     await this.SaveDefaultConfigFileContentsAsync(configType, contents, nOwner);
                 }
@@ -650,7 +662,7 @@ namespace PlugHub.Services
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            (Token nOwner, _, _) = this.tokenService.CreateTokenSet(ownerToken, null, null);
+            (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
             rwLock.EnterWriteLock();
@@ -660,7 +672,7 @@ namespace PlugHub.Services
                 if (!this.configs.TryGetValue(configType, out ConfigServiceConfig? config))
                     throw new ConfigTypeNotFoundException($"Type configuration for {configType.Name} was not registered.");
 
-                this.tokenService.AllowAccess(config.Owner, null, nOwner, null);
+                this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
@@ -744,9 +756,14 @@ namespace PlugHub.Services
             }
         }
 
-        private void OnSaveOperationError(Exception ex, ConfigSaveOperation operation, Type configType)
+        public void OnSaveOperationComplete(Type configType)
         {
-            this.SyncSaveOpErrors?.Invoke(this, new ConfigServiceSaveErrorEventArgs(ex, operation, configType));
+            this.SyncSaveCompleted?.Invoke(this, new ConfigServiceSaveCompletedEventArgs(configType));
+        }
+
+        public void OnSaveOperationError(Exception ex, ConfigSaveOperation operation, Type configType)
+        {
+            this.SyncSaveErrors?.Invoke(this, new ConfigServiceSaveErrorEventArgs(ex, operation, configType));
         }
 
         private void HandleReload(Type configType)
@@ -765,7 +782,7 @@ namespace PlugHub.Services
                 if (this.configs.TryGetValue(configType, out config))
                 {
                     Dictionary<string, ConfigServiceSettingValue> newSettings =
-                        BuildSettings(configType, config.DefaultConfig, config.UserConfig);
+                        this.BuildSettings(configType, config.DefaultConfig, config.UserConfig);
 
                     config.Values = newSettings;
 
@@ -790,11 +807,11 @@ namespace PlugHub.Services
             }
             catch (FileNotFoundException ex)
             {
-                this.logger.LogWarning(ex, "Config directory missing – Type {Type}", configType.Name);
+                this.Logger.LogWarning(ex, "Config directory missing – Type {Type}", configType.Name);
             }
             catch (Exception ex)
             {
-                this.logger.LogError(ex, "Config reload failed – Type {Type}", configType.Name);
+                this.Logger.LogError(ex, "Config reload failed – Type {Type}", configType.Name);
             }
             finally
             {
@@ -805,7 +822,7 @@ namespace PlugHub.Services
                 ConfigReloaded?.Invoke(this, new ConfigServiceConfigReloadedEventArgs(configType));
 
             if (!found)
-                this.logger.LogWarning("Unregistered config type – Type {Type}", configType.Name);
+                this.Logger.LogWarning("Unregistered config type – Type {Type}", configType.Name);
         }
 
         #endregion
@@ -826,17 +843,17 @@ namespace PlugHub.Services
                 throw new IOException($"Failed to build configuration from file '{filePath}'.", ex);
             }
         }
-        private static Dictionary<string, ConfigServiceSettingValue> BuildSettings(Type configType, IConfiguration defaultConfig, IConfiguration userConfig)
+        private Dictionary<string, ConfigServiceSettingValue> BuildSettings(Type configType, IConfiguration defaultConfig, IConfiguration userConfig)
         {
-            Dictionary<string, ConfigServiceSettingValue> settings = [];
+            var settings = new Dictionary<string, ConfigServiceSettingValue>();
             PropertyInfo[] properties = configType.GetProperties();
 
             foreach (PropertyInfo prop in properties)
             {
                 string key = prop.Name;
 
-                object? defaultValue = GetConfigurationValue(defaultConfig, key, prop.PropertyType);
-                object? userValue = GetConfigurationValue(userConfig, key, prop.PropertyType);
+                object? defaultValue = this.GetBuildSettingsValue(defaultConfig, prop);
+                object? userValue = this.GetBuildSettingsValue(userConfig, prop);
 
                 bool isReadable = prop.CanRead;
                 bool isWritable = prop.CanWrite;
@@ -852,34 +869,34 @@ namespace PlugHub.Services
 
             return settings;
         }
-        private static object? GetConfigurationValue(IConfiguration config, string key, Type targetType)
+        private protected virtual object? GetBuildSettingsValue(IConfiguration config, PropertyInfo prop)
         {
-            IConfigurationSection section = config.GetSection(key);
+            IConfigurationSection section = config.GetSection(prop.Name);
             if (!section.Exists()) return null;
 
             try
             {
-                return section.Get(targetType);
+                return section.Get(prop.PropertyType);
             }
             catch
             {
-                return Convert.ChangeType(section.Value, targetType);
+                return Convert.ChangeType(section.Value, prop.PropertyType);
             }
         }
 
-        private string GetDefaultSettingsPath(Type configType)
+        private protected string GetDefaultSettingsPath(Type configType)
             => Path.Combine(this.configRootDirectory, $"{configType.Name}.DefaultSettings.json");
-        private string GetUserSettingsPath(Type configType)
+        private protected string GetUserSettingsPath(Type configType)
             => Path.Combine(this.configUserDirectory, $"{configType.Name}.UserSettings.json");
 
-        private static void EnsureDirectoryExists(string filePath)
+        private protected static void EnsureDirectoryExists(string filePath)
         {
             string? directory = Path.GetDirectoryName(filePath);
 
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
         }
-        private void EnsureFileExists(string filePath, Type? configType = null, JsonSerializerOptions? options = null)
+        protected void EnsureFileExists(string filePath, Type? configType = null, JsonSerializerOptions? options = null)
         {
             EnsureDirectoryExists(filePath);
 
