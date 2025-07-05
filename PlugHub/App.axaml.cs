@@ -92,6 +92,7 @@ public partial class App : Application
         services.AddSingleton<IEncryptionService, EncryptionService>();
 
         services.AddTransient<IConfigAccessor, ConfigAccessor>();
+        services.AddTransient<ISecureConfigAccessor, SecureConfigAccessor>();
 
         services.AddSingleton<IConfigService>(provider =>
         {
@@ -118,6 +119,17 @@ public partial class App : Application
                 appConfig.HotReloadOnChange);
 
             return config;
+        });
+        services.AddSingleton<ISecureConfigService>(provider =>
+        {
+            ILogger<SecureConfigService> logger = new NullLogger<SecureConfigService>();
+            ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+            IConfigService configService = provider.GetRequiredService<IConfigService>();
+
+            string configDirectory = configService.GetSetting<string>(typeof(AppConfig), "ConfigDirectory", readToken: Token.Public)
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
+
+            return new SecureConfigService(logger, tokenService, configDirectory, configDirectory);
         });
     }
 

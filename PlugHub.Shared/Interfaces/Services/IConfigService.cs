@@ -71,6 +71,20 @@ namespace PlugHub.Shared.Interfaces.Services
         public Type? ConfigType = configType;
     }
 
+    /// <summary>
+    /// Event args for the SaveCompleted event.
+    /// Carries info about what was saved, where, and how.
+    /// </summary>
+    /// <remarks>
+    /// Create a new event args for a completed save.
+    /// </remarks>
+    public class ConfigServiceSaveCompletedEventArgs(Type configType) : EventArgs
+    {
+        /// <summary>
+        /// The type of config that was saved (e.g., AppConfig).
+        /// </summary>
+        public Type ConfigType { get; } = configType;
+    }
 
     /// <summary>
     /// Event arguments for when a configuration file is reloaded in the <see cref="ConfigService"/>.
@@ -123,9 +137,14 @@ namespace PlugHub.Shared.Interfaces.Services
     public interface IConfigService
     {
         /// <summary>
+        /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> completes.
+        /// </summary>
+        public event EventHandler<ConfigServiceSaveCompletedEventArgs>? SyncSaveCompleted;
+
+        /// <summary>
         /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> fails.
         /// </summary>
-        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveOpErrors;
+        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveErrors;
 
         /// <summary>
         /// Occurs when a configuration file is reloaded from disk (for example, due to an external file change).
@@ -258,7 +277,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
         /// <param name="contents">The raw JSON contents to write to the default config file.</param>
@@ -267,7 +286,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
         /// <param name="contents">The raw JSON contents to write to the default config file.</param>
@@ -327,7 +346,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Saves the provided configuration object instance to the user settings file for the specified type asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be updated.</param>
         /// <param name="updatedConfig">The updated configuration object to persist.</param>
@@ -337,7 +356,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Saves the provided configuration object instance to the user settings file for the specified type asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be updated.</param>
         /// <param name="updatedConfig">The updated configuration object to persist.</param>
@@ -432,7 +451,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
@@ -441,7 +460,7 @@ namespace PlugHub.Shared.Interfaces.Services
 
         /// <summary>
         /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveOpErrors"/> event.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
@@ -462,5 +481,22 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="configType">The configuration type.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         public Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default);
+
+
+        /// <summary>
+        /// Raises the <see cref="SyncSaveCompleted"/> event after a configuration save operation completes successfully.
+        /// Call this from within the implementing class to notify subscribers that a save has finished.
+        /// </summary>
+        /// <param name="configType">The type of configuration that was saved.</param>
+        void OnSaveOperationComplete(Type configType);
+
+        /// <summary>
+        /// Raises the <see cref="SyncSaveErrors"/> event when a configuration save operation fails.
+        /// Call this from within the implementing class to notify subscribers of the error.
+        /// </summary>
+        /// <param name="ex">The exception that occurred during the save operation.</param>
+        /// <param name="operation">The kind of save operation that failed.</param>
+        /// <param name="configType">The type of configuration involved in the failed operation.</param>
+        void OnSaveOperationError(Exception ex, ConfigSaveOperation operation, Type configType);
     }
 }

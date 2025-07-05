@@ -4,6 +4,7 @@ using PlugHub.Services;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Models;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -33,6 +34,27 @@ namespace PlugHub.UnitTests.Services
         private InsecureStorage? storage;
         private IConfigService? configService;
         private EncryptionService? encryptionService;
+
+
+        internal class UnitTestSecureAConfig
+        {
+            public required Guid FieldA { get; set; } = Guid.Empty;
+
+            [Secure]
+            public string FieldB { get; set; } = "Secrets!";
+
+            public SecureValue FieldC { get; set; } = new SecureValue("More Secrets!");
+        }
+        internal class UnitTestSecureBConfig
+        {
+            [Secure]
+            public required string FieldA { get; set; } = "plughub";
+
+            public int FieldB { get; set; } = 100;
+
+            [Secure]
+            public float FieldC { get; } = 3.14f;
+        }
 
 
         private void RestartEncryptionService(bool rebuildFiles = true)
@@ -224,8 +246,8 @@ namespace PlugHub.UnitTests.Services
             Guid contextID = Guid.NewGuid();
 
             // Act
-            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync<EncryptionServiceTests>(contextID);
-            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync<EncryptionService>(contextID);
+            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync<UnitTestSecureAConfig>(contextID);
+            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync<UnitTestSecureBConfig>(contextID);
 
             byte[] keyA = context1.Key;
             byte[] keyB = context2.Key;
