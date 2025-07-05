@@ -53,7 +53,7 @@ namespace PlugHub.UnitTests.Accessors
                 this.msTestHelpers.TempDirectory,
                 this.msTestHelpers.TempDirectory);
 
-            this.secureStorage = new InsecureStorage(new NullLogger<InsecureStorage>(), this.tokenService, this.configService);
+            this.secureStorage = new InsecureStorage(new NullLogger<InsecureStorage>(), this.tokenService, this.configService, this.msTestHelpers.TempDirectory);
             this.encryptionService = new EncryptionService(new NullLogger<EncryptionService>(), this.secureStorage);
             this.encryptionContext = this.encryptionService.GetEncryptionContext<SecureConfigAccessorTests>(
                 new("EFFFFFFF-FFFF-EEEE-FFFF-FFFFFFFFFFFE"));

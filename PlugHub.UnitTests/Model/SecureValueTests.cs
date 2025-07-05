@@ -9,7 +9,7 @@ namespace PlugHub.UnitTests.Model
     [TestClass]
     public sealed class SecureValueTests : IDisposable
     {
-        private readonly MSTestHelpers helpers = new();
+        private readonly MSTestHelpers msTestHelpers = new();
         private EncryptionService? encryptionService;
         private IEncryptionContext? encryptionContext;
 
@@ -20,9 +20,9 @@ namespace PlugHub.UnitTests.Model
             TokenService tokenService = new(new NullLogger<TokenService>());
             ConfigService configService = new(new NullLogger<ConfigService>(),
                 tokenService,
-                this.helpers.TempDirectory,
-                this.helpers.TempDirectory);
-            InsecureStorage storage = new(new NullLogger<InsecureStorage>(), tokenService, configService);
+                this.msTestHelpers.TempDirectory,
+                this.msTestHelpers.TempDirectory);
+            InsecureStorage storage = new(new NullLogger<InsecureStorage>(), tokenService, configService, this.msTestHelpers.TempDirectory);
 
             this.encryptionService = new EncryptionService(new NullLogger<EncryptionService>(), storage);
             this.encryptionContext = this.encryptionService.GetEncryptionContext<SecureValueTests>(Guid.NewGuid());
@@ -32,7 +32,7 @@ namespace PlugHub.UnitTests.Model
         public void Dispose()
         {
             (this.encryptionService as IDisposable)?.Dispose();
-            this.helpers.Dispose();
+            this.msTestHelpers.Dispose();
         }
 
 
