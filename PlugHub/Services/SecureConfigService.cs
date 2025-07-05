@@ -33,7 +33,7 @@ namespace PlugHub.Services
             w.WriteStringValue(v.EncryptedBase64);
     }
 
-    public class SecureConfigService(ILogger<IConfigService> logger, ITokenService tokenService, string configRootDirectory, string configUserDirectory)
+    public class SecureConfigService(ILogger<ISecureConfigService> logger, ITokenService tokenService, string configRootDirectory, string configUserDirectory)
         : ConfigService(logger, tokenService, configRootDirectory, configUserDirectory), ISecureConfigService, IDisposable
     {
         #region SecureConfigService: Registration

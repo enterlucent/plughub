@@ -86,7 +86,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -99,7 +99,7 @@ namespace PlugHub.UnitTests.Accessors
         public void For_InvalidType_ThrowsTypeAccessException()
         {
             // Arrange
-            ISecureConfigAccessor accessor = new SecureConfigAccessor(this.configService!)
+            ISecureConfigAccessor accessor = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write);
 
             // Act & Assert
@@ -115,7 +115,7 @@ namespace PlugHub.UnitTests.Accessors
         public void Set_WithUnknownKey_ThrowsKeyNotFoundException()
         {
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext)
                     .For<UnitTestSecureAConfig>();
 
@@ -129,7 +129,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -159,7 +159,7 @@ namespace PlugHub.UnitTests.Accessors
 
             // Act
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.tokenService.CreateToken(), badRead, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -173,7 +173,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -191,7 +191,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -216,7 +216,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -241,7 +241,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -262,7 +262,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -286,7 +286,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 
@@ -308,7 +308,7 @@ namespace PlugHub.UnitTests.Accessors
         {
             // Arrange
             ISecureConfigAccessorFor<UnitTestSecureAConfig> accessor
-                = new SecureConfigAccessor(this.configService!)
+                = new SecureConfigAccessor(new NullLogger<ISecureConfigAccessor>(), this.configService!)
                     .Init([typeof(UnitTestSecureAConfig)], this.encryptionContext, this.validTokenSet!.Owner, this.validTokenSet!.Read, this.validTokenSet!.Write)
                     .For<UnitTestSecureAConfig>();
 

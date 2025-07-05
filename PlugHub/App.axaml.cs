@@ -5,7 +5,6 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Accessors;
 using PlugHub.Platform.Storage;
 using PlugHub.Services;
@@ -15,9 +14,11 @@ using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.ViewModels;
 using PlugHub.Views;
+using Serilog;
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace PlugHub;
@@ -28,12 +29,27 @@ internal sealed class AppConfig
     public string BaseDirectory { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub");
 
+    #region AppConfig: Logging Settings
+
+    public string LoggingDirectory { get; init; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Logging");
+
+    public RollingInterval LoggingRolloverInterval { get; init; } = RollingInterval.Day;
+
+    public string LoggingFileName { get; init; } = "application-.log";
+
+    #endregion
+
+    #region AppConfig: Config Settings
+
     public string ConfigDirectory { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
 
-    public JsonSerializerOptions JsonSerializationOptions { get; set; } = new JsonSerializerOptions();
+    public JsonSerializerOptions ConfigJsonOptions { get; set; } = new JsonSerializerOptions();
 
     public bool HotReloadOnChange { get; set; } = false;
+
+    #endregion
 }
 
 
@@ -45,7 +61,7 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
 
-        this.serviceProvider = BuildServices().BuildServiceProvider();
+        this.serviceProvider = BuildServices();
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -75,18 +91,41 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static IServiceCollection BuildServices()
+    private static IServiceProvider BuildServices()
     {
         IServiceCollection services = new ServiceCollection();
 
         BuildGlobalServices(services);
 
-        return services;
+        IServiceProvider provider = services.BuildServiceProvider();
+
+        PostBuildConfiguration(provider);
+
+        return provider;
+    }
+    private static void PostBuildConfiguration(IServiceProvider provider)
+    {
+        ConfigureSystemLogs(provider);
     }
 
     private static void BuildGlobalServices(IServiceCollection services)
     {
-        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddLogging(builder =>
+        {
+            AppConfig appConfig = new();
+
+            Directory.CreateDirectory(appConfig.LoggingDirectory);
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File(Path.Combine(appConfig.LoggingDirectory, appConfig.LoggingFileName),
+                    rollingInterval: appConfig.LoggingRolloverInterval)
+                .CreateLogger();
+
+            builder.ClearProviders();
+            builder.AddSerilog(Log.Logger, dispose: true);
+        });
+
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<ISecureStorage, InsecureStorage>();
         services.AddSingleton<IEncryptionService, EncryptionService>();
@@ -96,7 +135,7 @@ public partial class App : Application
 
         services.AddSingleton<IConfigService>(provider =>
         {
-            ILogger<ConfigService> logger = new NullLogger<ConfigService>();
+            ILogger<ConfigService> logger = provider.GetRequiredService<ILogger<ConfigService>>();
             ITokenService tokenService = provider.GetRequiredService<ITokenService>();
 
             string rootDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
@@ -115,14 +154,14 @@ public partial class App : Application
                 tokenService.CreateToken(),
                 Token.Public,
                 Token.Blocked,
-                appConfig.JsonSerializationOptions,
+                appConfig.ConfigJsonOptions,
                 appConfig.HotReloadOnChange);
 
             return config;
         });
         services.AddSingleton<ISecureConfigService>(provider =>
         {
-            ILogger<SecureConfigService> logger = new NullLogger<SecureConfigService>();
+            ILogger<SecureConfigService> logger = provider.GetRequiredService<ILogger<SecureConfigService>>();
             ITokenService tokenService = provider.GetRequiredService<ITokenService>();
             IConfigService configService = provider.GetRequiredService<IConfigService>();
 
@@ -131,6 +170,79 @@ public partial class App : Application
 
             return new SecureConfigService(logger, tokenService, configDirectory, configDirectory);
         });
+    }
+    private static void ConfigureSystemLogs(IServiceProvider provider)
+    {
+        string keyRollover = "LoggingRolloverInterval";
+        string keyFileName = "LoggingFileName";
+        string keyLogDir = "LoggingDirectory";
+
+        IConfigService configService = provider.GetRequiredService<IConfigService>();
+
+        RollingInterval rolloverInterval =
+            configService.GetSetting<RollingInterval>(typeof(AppConfig), keyRollover, readToken: Token.Public);
+
+        string? defaultFileName =
+            configService.GetDefault<string>(typeof(AppConfig), keyFileName, readToken: Token.Public);
+
+        if (string.IsNullOrWhiteSpace(defaultFileName))
+        {
+            Log.Warning("ConfigureSystemLogs: Default log file name is missing or empty. Exiting log configuration.");
+            return;
+        }
+
+        string? logFileName =
+            configService.GetSetting<string>(typeof(AppConfig), keyFileName, readToken: Token.Public);
+
+        if (string.IsNullOrWhiteSpace(logFileName))
+        {
+            Log.Warning("ConfigureSystemLogs: Runtime log file name is missing or empty. Exiting log configuration.");
+            return;
+        }
+
+        string? defaultDir = configService.GetDefault<string>(typeof(AppConfig), keyLogDir, readToken: Token.Public);
+
+        if (string.IsNullOrWhiteSpace(defaultDir))
+        {
+            Log.Warning("ConfigureSystemLogs: Default log directory is missing or empty. Exiting log configuration.");
+            return;
+        }
+
+        string standardLogPath
+            = Path.GetFullPath(Path.Combine(defaultDir, defaultFileName))
+                  .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        string? runtimeDir = configService.GetSetting<string>(typeof(AppConfig), keyLogDir, readToken: Token.Public);
+
+        if (string.IsNullOrWhiteSpace(runtimeDir))
+        {
+            Log.Warning("ConfigureSystemLogs: Runtime log directory is missing or empty. Exiting log configuration.");
+            return;
+        }
+
+        string configLogPath
+            = Path.GetFullPath(Path.Combine(runtimeDir, logFileName))
+                  .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        StringComparison comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!string.Equals(configLogPath, standardLogPath, comparison))
+        {
+            Directory.CreateDirectory(runtimeDir);
+
+            Log.Information("ConfigureSystemLogs: Log file location changed to {Path}", configLogPath);
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File(configLogPath, rollingInterval: rolloverInterval)
+                .CreateLogger();
+
+            Log.Information("ConfigureSystemLogs: Log file location changed from {Path}", standardLogPath);
+
+            Log.CloseAndFlush();
+        }
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()

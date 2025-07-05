@@ -4,14 +4,14 @@ using PlugHub.Shared.Models;
 namespace PlugHub.Shared.Interfaces.Accessors
 {
     /// <summary>Entry-point for encryption-aware configuration access.</summary>
-    public interface ISecureConfigAccessor
+    public interface ISecureConfigAccessor : IConfigAccessor
     {
         public ISecureConfigAccessor Init(IList<Type> configTypes, IEncryptionContext encryptionContext, Token? ownerToken, Token? readToken, Token? writeToken);
 
         /// <summary>Returns a strongly-typed secure accessor for <typeparamref name="TConfig"/>.</summary>
         /// <typeparam name="TConfig">Configuration POCO.</typeparam>
         /// <returns>Secure accessor scoped to <typeparamref name="TConfig"/>.</returns>
-        public ISecureConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class;
+        public new ISecureConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class;
     }
 
     /// <summary>Strongly-typed accessor that transparently encrypts / decrypts secure fields.</summary>

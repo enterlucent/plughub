@@ -56,7 +56,7 @@ namespace PlugHub.UnitTests.Accessors
         public void For_UnregisteredType_Throws()
         {
             // Arrange & Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
 
             // Assert
@@ -70,7 +70,7 @@ namespace PlugHub.UnitTests.Accessors
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig));
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
 
             // Act
@@ -91,7 +91,7 @@ namespace PlugHub.UnitTests.Accessors
             //Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig));
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -115,7 +115,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
             this.configService.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], owner, read, write);
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
@@ -140,7 +140,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();
@@ -164,7 +164,7 @@ namespace PlugHub.UnitTests.Accessors
             // Act
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -187,7 +187,7 @@ namespace PlugHub.UnitTests.Accessors
             Token write = this.tokenService.CreateToken();
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], owner, read, write);
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
@@ -223,7 +223,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService.CreateToken(), read, Token.Public);
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
@@ -248,7 +248,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService.CreateToken(), Token.Public, write);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();
@@ -271,7 +271,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -295,7 +295,7 @@ namespace PlugHub.UnitTests.Accessors
             Token write = this.tokenService.CreateToken();
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -327,7 +327,7 @@ namespace PlugHub.UnitTests.Accessors
             Token write = this.tokenService.CreateToken();
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -382,7 +382,7 @@ namespace PlugHub.UnitTests.Accessors
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
@@ -406,7 +406,7 @@ namespace PlugHub.UnitTests.Accessors
 
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(this.configService!)
+            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
                 .Init([typeof(UnitTestAConfig)], owner, read, write);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();

@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Interfaces.Accessors;
+﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
@@ -10,8 +11,9 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Accessors
 {
-    public class ConfigAccessor(IConfigService configService) : IConfigAccessor
+    public class ConfigAccessor(ILogger<IConfigAccessor> logger, IConfigService configService) : IConfigAccessor
     {
+        protected readonly ILogger<IConfigAccessor> Logger = logger;
         protected readonly IConfigService ConfigService = configService;
         protected readonly List<Type> ConfigTypes = [];
 
