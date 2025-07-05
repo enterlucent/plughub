@@ -75,6 +75,8 @@ public partial class App : Application
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
 
+            desktop.ShutdownRequested += this.OnShutdownRequested;
+
             desktop.MainWindow = new MainWindow
             {
                 DataContext = new MainViewModel()
@@ -89,6 +91,14 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+    private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        // Dispose DI container and all services
+        (this.serviceProvider as IDisposable)?.Dispose();
+
+        // Flush and dispose Serilog
+        Serilog.Log.CloseAndFlush();
     }
 
     private static IServiceProvider BuildServices()
