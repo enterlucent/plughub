@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Interfaces.Accessors;
+﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
@@ -12,8 +13,10 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Accessors
 {
-    public class SecureConfigAccessor(IConfigService configService) : ConfigAccessor(configService), ISecureConfigAccessor
+    public class SecureConfigAccessor(ILogger<ISecureConfigAccessor> logger, IConfigService configService) 
+        : ConfigAccessor((ILogger<IConfigAccessor>)logger, configService), ISecureConfigAccessor
     {
+        protected new readonly ILogger<ISecureConfigAccessor> Logger = logger;
         public IEncryptionContext? EncryptionContext;
 
         public ISecureConfigAccessor Init(IList<Type> configTypes, IEncryptionContext encryptionContext, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
