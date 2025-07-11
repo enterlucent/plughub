@@ -5,10 +5,12 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PlugHub.Accessors;
+using PlugHub.Accessors.Configuration;
 using PlugHub.Platform.Storage;
 using PlugHub.Services;
+using PlugHub.Services.Configuration;
 using PlugHub.Shared.Interfaces.Accessors;
+using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
@@ -16,12 +18,14 @@ using PlugHub.ViewModels;
 using PlugHub.Views;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace PlugHub;
+
 
 
 internal sealed class AppConfig
@@ -48,6 +52,13 @@ internal sealed class AppConfig
     public JsonSerializerOptions ConfigJsonOptions { get; set; } = new JsonSerializerOptions();
 
     public bool HotReloadOnChange { get; set; } = false;
+
+    #endregion
+
+    #region AppConfig: Local Storage
+
+    public string StorageFolderPath { get; set; }
+        = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Storage");
 
     #endregion
 }
@@ -115,7 +126,9 @@ public partial class App : Application
     }
     private static void PostBuildConfiguration(IServiceProvider provider)
     {
+        ConfigureBranding(provider);
         ConfigureSystemLogs(provider);
+        ConfigureStorageLocation(provider);
     }
 
     private static void BuildGlobalServices(IServiceCollection services)
@@ -140,46 +153,36 @@ public partial class App : Application
         services.AddSingleton<ISecureStorage, InsecureStorage>();
         services.AddSingleton<IEncryptionService, EncryptionService>();
 
-        services.AddTransient<IConfigAccessor, ConfigAccessor>();
-        services.AddTransient<ISecureConfigAccessor, SecureConfigAccessor>();
+        services.AddSingleton<IConfigServiceProvider, FileConfigService>();
+        services.AddSingleton<IConfigServiceProvider, SecureFileConfigService>();
+        services.AddSingleton<IConfigServiceProvider, UserFileConfigService>();
+        services.AddSingleton<IConfigServiceProvider, SecureUserFileConfigService>();
+
+        services.AddTransient<IConfigAccessor, FileConfigAccessor>();
+        services.AddTransient<IConfigAccessor, SecureFileConfigAccessor>();
 
         services.AddSingleton<IConfigService>(provider =>
         {
-            ILogger<ConfigService> logger = provider.GetRequiredService<ILogger<ConfigService>>();
+            IEnumerable<IConfigServiceProvider> configProviders = provider.GetRequiredService<IEnumerable<IConfigServiceProvider>>();
+            IEnumerable<IConfigAccessor> configAccessors = provider.GetRequiredService<IEnumerable<IConfigAccessor>>();
+            ILogger<IConfigService> logger = provider.GetRequiredService<ILogger<IConfigService>>();
             ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+            IConfiguration envConfig = ConfigService.GetEnvConfig();
 
-            string rootDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
-            string userDir = rootDir;
-
-            ConfigService tempConfig = new(logger, tokenService, rootDir, userDir);
-
-            IConfiguration envConfig = tempConfig.GetEnvConfig();
             AppConfig appConfig = new();
             envConfig.Bind(appConfig);
 
-            ConfigService config = new(logger, tokenService, appConfig.ConfigDirectory, appConfig.ConfigDirectory);
-
-            config.RegisterConfig(
-                typeof(AppConfig),
-                tokenService.CreateToken(),
-                Token.Public,
-                Token.Blocked,
-                appConfig.ConfigJsonOptions,
-                appConfig.HotReloadOnChange);
-
-            return config;
+            return new ConfigService(configProviders, configAccessors, logger, tokenService, AppContext.BaseDirectory, appConfig.ConfigDirectory, appConfig.ConfigJsonOptions);
         });
-        services.AddSingleton<ISecureConfigService>(provider =>
-        {
-            ILogger<SecureConfigService> logger = provider.GetRequiredService<ILogger<SecureConfigService>>();
-            ITokenService tokenService = provider.GetRequiredService<ITokenService>();
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
+    }
 
-            string configDirectory = configService.GetSetting<string>(typeof(AppConfig), "ConfigDirectory", readToken: Token.Public)
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
+    private static void ConfigureBranding(IServiceProvider provider)
+    {
+        IConfigService configService = provider.GetRequiredService<IConfigService>();
+        ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+        ITokenSet tokenSet = tokenService.CreateTokenSet();
 
-            return new SecureConfigService(logger, tokenService, configDirectory, configDirectory);
-        });
+        configService.RegisterConfig(typeof(AppConfig), new FileConfigServiceParams(Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write));
     }
     private static void ConfigureSystemLogs(IServiceProvider provider)
     {
@@ -253,6 +256,17 @@ public partial class App : Application
 
             Log.CloseAndFlush();
         }
+    }
+    private static void ConfigureStorageLocation(IServiceProvider provider)
+    {
+        string keyStoragePath = "StorageFolderPath";
+
+        IConfigService configService = provider.GetRequiredService<IConfigService>();
+        ISecureStorage secureStorage = provider.GetRequiredService<ISecureStorage>();
+
+        string storagePath = configService.GetSetting<string>(typeof(AppConfig), keyStoragePath, readToken: Token.Public);
+
+        secureStorage.Initialize(storagePath);
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()

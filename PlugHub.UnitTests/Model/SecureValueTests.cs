@@ -17,15 +17,11 @@ namespace PlugHub.UnitTests.Model
         [TestInitialize]
         public void Initialize()
         {
-            TokenService tokenService = new(new NullLogger<TokenService>());
-            ConfigService configService = new(new NullLogger<ConfigService>(),
-                tokenService,
-                this.msTestHelpers.TempDirectory,
-                this.msTestHelpers.TempDirectory);
-            InsecureStorage storage = new(new NullLogger<InsecureStorage>(), tokenService, configService, this.msTestHelpers.TempDirectory);
+            InsecureStorage storage = new(new NullLogger<InsecureStorage>());
+            storage.Initialize(this.msTestHelpers.TempDirectory);
 
             this.encryptionService = new EncryptionService(new NullLogger<EncryptionService>(), storage);
-            this.encryptionContext = this.encryptionService.GetEncryptionContext<SecureValueTests>(Guid.NewGuid());
+            this.encryptionContext = this.encryptionService.GetEncryptionContext(typeof(SecureValueTests), Guid.NewGuid());
         }
 
         [TestCleanup]
@@ -62,6 +58,31 @@ namespace PlugHub.UnitTests.Model
             // Act & Assert
             secure.Dispose();
             secure.Dispose();
+        }
+
+        [TestMethod]
+        [TestCategory("Dispose")]
+        public void SecureValue_Dispose_ClearsDecryptedBytesAndPreventsFurtherUse()
+        {
+            // Arrange
+            string original = "SensitiveData";
+            SecureValue secureValue = SecureValue.From(original, this.encryptionContext!);
+
+            // Act
+            string decrypted = secureValue.As<string>(this.encryptionContext!);
+            Assert.AreEqual(original, decrypted, "Decryption must yield the original value before disposal.");
+
+            secureValue.Dispose();
+
+            // Assert
+            Assert.ThrowsException<ObjectDisposedException>(() =>
+            {
+                secureValue.As<string>(this.encryptionContext!);
+            }, "Using As<T> after disposal should throw.");
+
+            System.Reflection.FieldInfo? field = typeof(SecureValue).GetField("decryptedBytes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            byte[]? value = (byte[]?)field?.GetValue(secureValue);
+            Assert.IsNull(value, "decryptedBytes should be null after disposal.");
         }
 
         #endregion

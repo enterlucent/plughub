@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Platform.Storage;
-using PlugHub.Services;
 using PlugHub.Shared.Interfaces.Platform.Storage;
 
 namespace PlugHub.UnitTests.Platform.Storage
@@ -19,8 +18,6 @@ namespace PlugHub.UnitTests.Platform.Storage
     public sealed partial class InsecureStorageTests
     {
         private MSTestHelpers msTestHelpers = null!;
-        private TokenService tokenService = null!;
-        private ConfigService configService = null!;
         private InsecureStorage storage = null!;
         private static readonly string[] expected = ["alpha1", "alpha2"];
 
@@ -28,21 +25,15 @@ namespace PlugHub.UnitTests.Platform.Storage
         public void Setup()
         {
             this.msTestHelpers = new MSTestHelpers();
-            this.tokenService = new TokenService(new NullLogger<TokenService>());
-            this.configService = new ConfigService(
-                new NullLogger<ConfigService>(),
-                this.tokenService,
-                this.msTestHelpers.TempDirectory,
-                this.msTestHelpers.TempDirectory);
 
-            this.storage = new InsecureStorage(new NullLogger<InsecureStorage>(), this.tokenService, this.configService, this.msTestHelpers.TempDirectory);
+            this.storage = new InsecureStorage(new NullLogger<InsecureStorage>());
+            this.storage.Initialize(this.msTestHelpers.TempDirectory, false, false);
         }
 
         [TestCleanup]
         public void Cleanup()
         {
-            ((IDisposable)this.storage).Dispose();
-            ((IDisposable)this.configService).Dispose();
+            this.storage.Dispose();
             this.msTestHelpers.Dispose();
         }
 
@@ -146,7 +137,8 @@ namespace PlugHub.UnitTests.Platform.Storage
 
             // Dispose first instance
             this.storage.Dispose();
-            this.storage = new InsecureStorage(new NullLogger<InsecureStorage>(), this.tokenService, this.configService, this.msTestHelpers.TempDirectory);
+            this.storage = new InsecureStorage(new NullLogger<InsecureStorage>());
+            this.storage.Initialize(this.msTestHelpers.TempDirectory);
 
             byte[]? loaded = (await this.storage.TryLoadAsync(id))?.ToArray();
             CollectionAssert.AreEqual(buf, loaded, "Second instance should read persisted blob.");
@@ -184,7 +176,6 @@ namespace PlugHub.UnitTests.Platform.Storage
         #region InsecureStorageTests: Security
 
         // Currently no crypto logic in the store itself – left as a placeholder
-        // for future tamper-proof or ACL tests.
 
         #endregion
     }

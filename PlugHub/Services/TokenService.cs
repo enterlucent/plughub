@@ -7,7 +7,7 @@ using System;
 
 namespace PlugHub.Services
 {
-    public class TokenService(ILogger<ITokenService> logger) : ITokenService
+    public sealed class TokenService(ILogger<ITokenService> logger) : ITokenService
     {
         private readonly ILogger<ITokenService> logger = logger;
 
