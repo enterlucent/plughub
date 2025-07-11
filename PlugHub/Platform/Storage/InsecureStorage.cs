@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Platform.Storage;
-using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Utility;
 using System;
 using System.Collections.Concurrent;
@@ -14,63 +12,62 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Platform.Storage
 {
-    public sealed class InsecureStorageConfig
-    {
-        public string BinaryDirectory { get; init; } =
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PlugHub",
-                "SecureStore");
-    }
-
     public sealed class InsecureStorage : ISecureStorage
     {
         public event EventHandler<SecureStorageChangedEventArgs>? Changed;
 
         private readonly ILogger logger;
-        private readonly ITokenService tokenService;
-        private readonly IConfigService configService;
-        private readonly ITokenSet configTokenSet;
-        private readonly string binaryDirectory;
+        private string? storeRootDirectory;
         private bool isDisposed;
         private readonly SemaphoreSlim systemLock = new(1, 1);
         private readonly ConcurrentDictionary<string, SemaphoreSlim> storageLock = new();
 
-        public InsecureStorage(ILogger<ISecureStorage> logger, ITokenService tokenService, IConfigService configService, string storeRootDirectory = "")
+        public InsecureStorage(ILogger<ISecureStorage> logger)
         {
             ArgumentNullException.ThrowIfNull(logger);
-            ArgumentNullException.ThrowIfNull(tokenService);
-            ArgumentNullException.ThrowIfNull(configService);
 
             this.logger = logger;
-            this.configService = configService;
-            this.tokenService = tokenService;
-            this.configTokenSet
-                = this.tokenService
-                    .CreateTokenSet(
-                        this.tokenService.CreateToken(),
-                        this.tokenService.CreateToken(),
-                        this.tokenService.CreateToken());
-
-            this.configService.RegisterConfig(typeof(InsecureStorageConfig), this.configTokenSet);
-
-            if (string.IsNullOrWhiteSpace(storeRootDirectory))
-            {
-                InsecureStorageConfig config =
-                    (InsecureStorageConfig)this.configService.GetConfigInstance(typeof(InsecureStorageConfig), this.configTokenSet);
-
-                this.binaryDirectory = config.BinaryDirectory;
-            }
-            else this.binaryDirectory = storeRootDirectory;
+            this.storeRootDirectory = null;
         }
+
+
+        public void Initialize(string newRootDirectory, bool moveExisting = true, bool overwrite = false)
+        {
+            if (string.IsNullOrWhiteSpace(newRootDirectory))
+                throw new ArgumentException("New storage directory cannot be blank.", nameof(newRootDirectory));
+
+            if (moveExisting && this.storeRootDirectory != null && Directory.Exists(this.storeRootDirectory))
+            {
+                foreach (var file in Directory.GetFiles(this.storeRootDirectory, "*", SearchOption.AllDirectories))
+                {
+                    var relativePath = Path.GetRelativePath(this.storeRootDirectory, file);
+                    var destFile = Path.Combine(newRootDirectory, relativePath);
+
+                    if (File.Exists(destFile) && !overwrite)
+                        continue;
+
+                    string? dirname = Path.GetDirectoryName(destFile);
+
+                    if (dirname == null)
+                        continue;
+
+                    Directory.CreateDirectory(dirname);
+
+                    File.Move(file, destFile, overwrite);
+                }
+            }
+            this.storeRootDirectory = newRootDirectory;
+        }
+
 
         public async ValueTask<ReadOnlyMemory<byte>?> TryLoadAsync(string id, CancellationToken ct = default)
         {
-            ObjectDisposedException.ThrowIf(this.isDisposed, this);
-
-            ValidateId(id);
+            EnsureUndisposed(this.isDisposed, this);
+            EnsureDirectorySet(this.storeRootDirectory);
+            EnsureValidId(id);
 
             string path = this.GetBinaryPath(id);
+
             byte[] bytes;
 
             if (!File.Exists(path))
@@ -94,14 +91,16 @@ namespace PlugHub.Platform.Storage
         }
         public async ValueTask SaveAsync(string id, ReadOnlyMemory<byte> data, CancellationToken ct = default)
         {
-            ObjectDisposedException.ThrowIf(this.isDisposed, this);
-
-            ValidateId(id);
+            EnsureUndisposed(this.isDisposed, this);
+            EnsureDirectorySet(this.storeRootDirectory);
+            EnsureValidId(id);
 
             string path = this.GetBinaryPath(id);
+
             bool updating = false;
 
             SemaphoreSlim aioLock = this.GetStorageLock(id);
+
             await aioLock.WaitAsync(ct).ConfigureAwait(false);
 
             try
@@ -123,12 +122,14 @@ namespace PlugHub.Platform.Storage
         }
         public async ValueTask DeleteAsync(string id, CancellationToken ct = default)
         {
-            ObjectDisposedException.ThrowIf(this.isDisposed, this);
-            ValidateId(id);
+            EnsureUndisposed(this.isDisposed, this);
+            EnsureDirectorySet(this.storeRootDirectory);
+            EnsureValidId(id);
 
             string path = this.GetBinaryPath(id);
 
             SemaphoreSlim aioLock = this.GetStorageLock(id);
+
             await aioLock.WaitAsync(ct).ConfigureAwait(false);
 
             try
@@ -142,7 +143,6 @@ namespace PlugHub.Platform.Storage
                 File.Delete(path);
 
                 this.logger.LogInformation("SecureStore: [{Id}] deleted", id);
-
                 this.storageLock.TryRemove(id, out _);
             }
             finally { aioLock.Release(); }
@@ -154,10 +154,8 @@ namespace PlugHub.Platform.Storage
 
         public async IAsyncEnumerable<string> ListIdsAsync(string? prefix = null, [EnumeratorCancellation] CancellationToken ct = default)
         {
-            ObjectDisposedException.ThrowIf(this.isDisposed, this);
-
-            if (!Directory.Exists(this.binaryDirectory))
-                yield break;
+            EnsureUndisposed(this.isDisposed, this);
+            EnsureDirectorySet(this.storeRootDirectory);
 
             IEnumerable<string> files;
 
@@ -168,7 +166,7 @@ namespace PlugHub.Platform.Storage
             try
             {
                 files = Directory
-                    .EnumerateFiles(this.binaryDirectory, "*.bin", SearchOption.TopDirectoryOnly)
+                    .EnumerateFiles(this.storeRootDirectory!, "*.bin", SearchOption.TopDirectoryOnly)
                     .Select(Path.GetFileNameWithoutExtension)
                     .Where(name => name is not null)
                     .Select(name => name!);
@@ -198,7 +196,6 @@ namespace PlugHub.Platform.Storage
             try
             {
                 this.isDisposed = true;
-                this.configService.UnregisterConfig(typeof(InsecureStorageConfig), this.configTokenSet);
             }
             finally { this.systemLock.Release(); }
 
@@ -207,20 +204,26 @@ namespace PlugHub.Platform.Storage
 
         private SemaphoreSlim GetStorageLock(string id)
             => this.storageLock.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        private string GetBinaryPath(string id)
+            => Path.Combine(this.storeRootDirectory!, $"{id}.bin");
 
-        private static void ValidateId(string id)
+
+        private static void EnsureValidId(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
-                throw new ArgumentException(
-                    "binary id must be a non-empty string.",
-                    nameof(id));
+                throw new ArgumentException("binary id must be a non-empty string.", nameof(id));
 
             if (id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                throw new ArgumentException(
-                    "binary id contains invalid path characters.",
-                    nameof(id));
+                throw new ArgumentException("binary id contains invalid path characters.", nameof(id));
         }
-        private string GetBinaryPath(string id) =>
-            Path.Combine(this.binaryDirectory, $"{id}.bin");
+        private static void EnsureUndisposed(bool isDisposed, object sender)
+        {
+            ObjectDisposedException.ThrowIf(isDisposed, sender);
+        }
+        private static void EnsureDirectorySet(string? storageRootDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(storageRootDirectory))
+                throw new InvalidOperationException("Storage directory is not set. Set the directory before using storage.");
+        }
     }
 }

@@ -1,23 +1,25 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using PlugHub.Models;
 using PlugHub.Services;
-using PlugHub.Shared.Extensions;
+using PlugHub.Services.Configuration;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
-namespace PlugHub.UnitTests.Services
+namespace PlugHub.UnitTests.Services.Configuration
 {
     [TestClass]
-    public sealed class ConfigServiceTests
+    public sealed class FileConfigServiceTests
     {
         private readonly MSTestHelpers msTestHelpers = new();
         private TokenService? tokenService;
         private ConfigService? configService;
+        private FileConfigServiceParams fileParams = new();
+        private Token ownerToken;
         private Token readToken;
         private Token writeToken;
+        private ITokenSet tokenSet = new TokenSet();
 
 
         internal class UnitTestAConfig
@@ -37,12 +39,25 @@ namespace PlugHub.UnitTests.Services
         [TestInitialize]
         public void Setup()
         {
-            this.tokenService = new TokenService(new NullLogger<TokenService>());
+            this.tokenService = new TokenService(new NullLogger<ITokenService>());
 
+            this.ownerToken = this.tokenService.CreateToken();
             this.readToken = this.tokenService.CreateToken();
             this.writeToken = this.tokenService.CreateToken();
+            this.tokenSet = this.tokenService.CreateTokenSet(this.ownerToken, this.readToken, this.writeToken);
 
-            this.configService = new(
+            this.fileParams
+                = new FileConfigServiceParams(
+                    Owner: this.ownerToken,
+                    Read: this.readToken,
+                    Write: this.writeToken);
+
+            this.configService = new ConfigService(
+                [
+                    new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
+                    new UserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
+                ],
+                [],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
                 this.msTestHelpers.TempDirectory,
@@ -66,15 +81,18 @@ namespace PlugHub.UnitTests.Services
         public void RegisterConfigs_WithExistingRegistration_InvalidOperationThrows()
         {
             // Arrange
-            Token ownerToken = this.tokenService!.CreateToken();
-            Token attackerToken = this.tokenService!.CreateToken();
+            UserConfigServiceParams attackerParams =
+                new(Owner: this.tokenService!.CreateToken(),
+                    Read: this.tokenService!.CreateToken(),
+                    Write: this.tokenService!.CreateToken());
 
-            this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], writeToken: ownerToken);
+            this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], this.fileParams);
 
             // Act & Assert
             Assert.ThrowsException<InvalidOperationException>(() =>
-                this.configService.RegisterConfigs([typeof(UnitTestAConfig)], writeToken: attackerToken));
+                this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], attackerParams));
         }
+
 
         [TestMethod]
         [TestCategory("Registration")]
@@ -84,20 +102,21 @@ namespace PlugHub.UnitTests.Services
             List<Type> configTypes = [typeof(UnitTestAConfig), typeof(UnitTestBConfig)];
 
             string typeAlphaConfigPath =
-                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
+                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.json");
             string typeBetaConfigPath =
-                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestBConfig.UserSettings.json");
+                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestBConfig.json");
 
             // Act
             this.msTestHelpers.CreateTempFile("{\r\n  \"FieldA\": 80,\r\n  \"FieldB\": true\r\n}", typeAlphaConfigPath);
             this.msTestHelpers.CreateTempFile("{\r\n  \"FieldA\": \"Yazza!\",\r\n  \"FieldB\": 60\r\n}", typeBetaConfigPath);
 
-            this.configService!.RegisterConfigs(configTypes);
+            this.configService!.RegisterConfigs(configTypes, this.fileParams);
 
             // Assert
-            Assert.AreEqual(80, this.configService.GetSetting<int>(typeof(UnitTestAConfig), "FieldA"));
-            Assert.AreEqual("Yazza!", this.configService.GetSetting<string>(typeof(UnitTestBConfig), "FieldA"));
+            Assert.AreEqual(80, this.configService!.GetSetting<int>(typeof(UnitTestAConfig), "FieldA", this.tokenSet));
+            Assert.AreEqual("Yazza!", this.configService!.GetSetting<string>(typeof(UnitTestBConfig), "FieldA", this.tokenSet));
         }
+
 
         [TestMethod]
         [TestCategory("Registration")]
@@ -107,17 +126,18 @@ namespace PlugHub.UnitTests.Services
             List<Type> configTypes = [typeof(UnitTestAConfig)];
 
             string typeAlphaConfigPath =
-                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
+                Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.json");
 
             // Act
             this.msTestHelpers.CreateTempFile("INVALID_JSON", typeAlphaConfigPath);
 
             // Assert
             IOException ex = Assert.ThrowsException<IOException>(() =>
-                this.configService!.RegisterConfigs(configTypes));
+                this.configService!.RegisterConfigs(configTypes, this.fileParams));
 
             Assert.IsInstanceOfType(ex, typeof(IOException));
         }
+
 
         [TestCategory("Registration")]
         [DataTestMethod]
@@ -127,9 +147,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             string typeConfigPath =
-                Path.Combine(this.msTestHelpers.TempDirectory!, "UnitTestAConfig.DefaultSettings.json");
-
-            Token token = this.tokenService!.CreateToken();
+                Path.Combine(this.msTestHelpers.TempDirectory!, "UnitTestAConfig.json");
 
             if (duringRegistration)
             {
@@ -138,22 +156,23 @@ namespace PlugHub.UnitTests.Services
 
                 // Assert
                 IOException ex = Assert.ThrowsException<IOException>(() =>
-                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: token));
+                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams));
                 StringAssert.Contains(ex.Message, "Failed to build");
             }
             else
             {
                 // Act
                 this.msTestHelpers.CreateTempFile("{ \"FieldA\": 100 }", typeConfigPath);
-                this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: token);
+                this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
                 this.msTestHelpers.CreateTempFile("INVALIDJSON", typeConfigPath);
 
                 // Assert
                 UnitTestAConfig config =
-                    (UnitTestAConfig)this.configService.GetConfigInstance(typeof(UnitTestAConfig), readToken: token);
+                    (UnitTestAConfig)this.configService!.GetConfigInstance(typeof(UnitTestAConfig), this.tokenSet);
                 Assert.AreEqual(100, config.FieldA); Assert.IsFalse(config.FieldB);
             }
         }
+
 
         [TestMethod]
         [TestCategory("Registration")]
@@ -162,17 +181,17 @@ namespace PlugHub.UnitTests.Services
             // Arrange
             Token token = this.tokenService!.CreateToken();
 
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), ownerToken: token, readToken: token, writeToken: token);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            object obj = this.configService.GetConfigInstance(typeof(UnitTestAConfig), readToken: token);
-            this.configService.UnregisterConfig(typeof(UnitTestAConfig), token);
+            object obj = this.configService!.GetConfigInstance(typeof(UnitTestAConfig), readToken: this.fileParams.Read);
+            this.configService!.UnregisterConfig(typeof(UnitTestAConfig), this.tokenSet);
 
             // Assert
             Assert.IsInstanceOfType<UnitTestAConfig>(obj);
 
-            Assert.ThrowsException<ConfigTypeNotFoundException>(() =>
-                this.configService.GetConfigInstance(typeof(UnitTestAConfig), token));
+            Assert.ThrowsException<KeyNotFoundException>(() =>
+                this.configService!.GetConfigInstance(typeof(UnitTestAConfig), this.tokenSet));
         }
 
         [TestMethod]
@@ -185,13 +204,13 @@ namespace PlugHub.UnitTests.Services
             Type[] types = [typeof(UnitTestAConfig), typeof(UnitTestBConfig)];
 
             // Act
-            this.configService!.RegisterConfigs(types, ownerToken: token);
-            this.configService.UnregisterConfigs(types, token);
+            this.configService!.RegisterConfigs(types, this.fileParams);
+            this.configService!.UnregisterConfigs(types, this.tokenSet);
 
             // Assert
             foreach (Type type in types)
-                Assert.ThrowsException<ConfigTypeNotFoundException>(() =>
-                        this.configService.GetConfigInstance(type, token));
+                Assert.ThrowsException<KeyNotFoundException>(() =>
+                        this.configService!.GetConfigInstance(type, this.tokenSet));
         }
 
         [TestMethod]
@@ -203,11 +222,11 @@ namespace PlugHub.UnitTests.Services
             Token attackerToken = this.tokenService.CreateToken();
 
             // Act
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), ownerToken: token);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Assert
             Assert.ThrowsException<UnauthorizedAccessException>(() =>
-                this.configService.UnregisterConfig(typeof(UnitTestAConfig), attackerToken));
+                this.configService!.UnregisterConfig(typeof(UnitTestAConfig), attackerToken));
         }
 
 
@@ -223,7 +242,7 @@ namespace PlugHub.UnitTests.Services
             Token token = this.tokenService!.CreateToken();
 
             // Act & Assert
-            ConfigTypeNotFoundException ex = Assert.ThrowsException<ConfigTypeNotFoundException>(() =>
+            KeyNotFoundException ex = Assert.ThrowsException<KeyNotFoundException>(() =>
                 this.configService!.GetConfigInstance(typeof(UnitTestAConfig), token)
             );
 
@@ -238,7 +257,7 @@ namespace PlugHub.UnitTests.Services
             string expectedValue = "test_value_123";
             Environment.SetEnvironmentVariable(testKey, expectedValue);
 
-            IConfiguration envConfig = this.configService!.GetEnvConfig();
+            IConfiguration envConfig = ConfigService.GetEnvConfig();
             string? actualValue = envConfig[testKey];
 
             Environment.SetEnvironmentVariable(testKey, null);
@@ -255,13 +274,13 @@ namespace PlugHub.UnitTests.Services
             string updatedValue = "updated_value";
             Environment.SetEnvironmentVariable(testKey, initialValue);
 
-            IConfiguration envConfig1 = this.configService!.GetEnvConfig();
+            IConfiguration envConfig1 = ConfigService.GetEnvConfig();
             string? actualValue1 = envConfig1[testKey];
             Assert.AreEqual(initialValue, actualValue1);
 
             Environment.SetEnvironmentVariable(testKey, updatedValue);
 
-            IConfiguration envConfig2 = this.configService.GetEnvConfig();
+            IConfiguration envConfig2 = ConfigService.GetEnvConfig();
             string? actualValue2 = envConfig2[testKey];
 
             Environment.SetEnvironmentVariable(testKey, null);
@@ -279,22 +298,19 @@ namespace PlugHub.UnitTests.Services
             Token token = this.tokenService!.CreateToken();
 
             // Act
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: token, writeToken: token);
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", "test-value", writeToken: token);
-
-            // Assert
-            Token? accessToken = useValidToken ? token : Token.Blocked;
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+            this.configService!.SetSetting(typeof(UnitTestAConfig), "FieldA", "test-value", this.tokenSet);
 
             if (useValidToken)
             {
-                string? result = this.configService.GetSetting<string>(typeof(UnitTestAConfig), "FieldA", readToken: accessToken);
+                string? result = this.configService!.GetSetting<string>(typeof(UnitTestAConfig), "FieldA", this.tokenSet);
 
                 Assert.AreEqual(expectedValue, result);
             }
             else
             {
                 Assert.ThrowsException<UnauthorizedAccessException>(() =>
-                    this.configService.GetSetting<string>(typeof(UnitTestAConfig), "FieldA", accessToken)
+                    this.configService!.GetSetting<string>(typeof(UnitTestAConfig), "FieldA", readToken: token)
                 );
             }
         }
@@ -312,10 +328,10 @@ namespace PlugHub.UnitTests.Services
             this.configService!.SettingChanged += (s, e) => eventFired = true;
 
             // Act
-            this.configService.RegisterConfigs([typeof(UnitTestAConfig)], writeToken: Token.Public);
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", 85);
+            this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], this.fileParams);
+            this.configService!.SetSetting(typeof(UnitTestAConfig), "FieldA", 85, this.tokenSet);
 
-            int value = this.configService.GetSetting<int>(typeof(UnitTestAConfig), "FieldA");
+            int value = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), "FieldA", this.tokenSet);
 
             // Assert
             Assert.AreEqual(85, value);
@@ -326,10 +342,10 @@ namespace PlugHub.UnitTests.Services
         [TestCategory("Mutators")]
         public void SetSetting_UnregisteredType_ThrowsInvalidOperationException()
         {
-            ConfigTypeNotFoundException ex = Assert.ThrowsException<ConfigTypeNotFoundException>(() =>
+            KeyNotFoundException ex = Assert.ThrowsException<KeyNotFoundException>(() =>
                 this.configService!.SetSetting(typeof(UnitTestAConfig), "FieldA", 80));
 
-            StringAssert.Contains(ex.Message, "Type configuration for");
+            StringAssert.Contains(ex.Message, "Configuration for");
         }
 
         [TestMethod]
@@ -341,69 +357,15 @@ namespace PlugHub.UnitTests.Services
             this.configService!.SettingChanged += (s, e) => eventFired = true;
 
             // Act
-            this.configService.RegisterConfigs([typeof(UnitTestAConfig)], writeToken: Token.Public);
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", 80);
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", "90");
+            this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], this.fileParams);
+            this.configService!.SetSetting(typeof(UnitTestAConfig), "FieldA", 80, this.tokenSet);
+            this.configService!.SetSetting(typeof(UnitTestAConfig), "FieldA", "90", this.tokenSet);
 
             // Assert
+            string value = this.configService!.GetSetting<string>(typeof(UnitTestAConfig), "FieldA", this.tokenSet);
+
             Assert.IsTrue(eventFired, "Type change should fire event");
-            Assert.AreEqual("90", this.configService.GetSetting<string>(typeof(UnitTestAConfig), "FieldA"));
-        }
-
-        [TestCategory("Mutators")]
-        [DataTestMethod]
-        [DataRow("NewUserOverride", null, 90, 80, 90, true)]
-        [DataRow("RevertToBaseValue", 85, 80, 85, 80, true)]
-        [DataRow("ChangeExistingOverride", 75, 85, 75, 85, true)]
-        public void SetSetting_FieldAWithVariousUserValues_UpdatesCorrectlyAndFiresEventWithExpectedOldAndNewValues
-            (string scenario, int? initialUserValue, int setValue, int? expectedOldValue, int expectedNewValue, bool expectEvent)
-        {
-            // Arrange
-            bool eventFired = false;
-            ConfigServiceSettingChangeEventArgs? eventArgs = null;
-            this.configService!.SettingChanged += (s, e) =>
-            {
-                eventFired = true;
-                eventArgs = e;
-            };
-
-            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
-            this.msTestHelpers.CreateTempFile("{\"FieldA\": 80, \"FieldB\": true}", configPath);
-
-            // Act
-            this.configService.RegisterConfig(typeof(UnitTestAConfig), writeToken: Token.Public);
-
-            if (initialUserValue.HasValue)
-                this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", initialUserValue.Value);
-
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldA", setValue);
-
-            // Assert
-            if (expectEvent)
-            {
-                Assert.IsTrue(eventFired, $"Event should fire for scenario: {scenario}");
-                Assert.IsNotNull(eventArgs, "Event arguments should not be null");
-                Assert.AreEqual(typeof(UnitTestAConfig), eventArgs.ConfigType);
-                Assert.AreEqual("FieldA", eventArgs.Key);
-
-                Assert.IsNotNull(eventArgs.OldValue, "OldValue should not be null");
-                Assert.IsNotNull(eventArgs.NewValue, "NewValue should not be null");
-
-                string expectedOldStr = expectedOldValue.ToString() ?? string.Empty;
-                string actualOldStr = eventArgs.OldValue.ToString() ?? string.Empty;
-                string expectedNewStr = expectedNewValue.ToString() ?? string.Empty;
-                string actualNewStr = eventArgs.NewValue.ToString() ?? string.Empty;
-
-                Assert.AreEqual(expectedOldStr, actualOldStr, "Old value mismatch");
-                Assert.AreEqual(expectedNewStr, actualNewStr, "New value mismatch");
-            }
-            else
-            {
-                Assert.IsFalse(eventFired, $"Event should not fire for scenario: {scenario}");
-            }
-
-            int currentValue = this.configService.GetSetting<int>(typeof(UnitTestAConfig), "FieldA");
-            Assert.AreEqual(expectedNewValue, currentValue, $"Current value mismatch in scenario: {scenario}");
+            Assert.AreEqual("90", value);
         }
 
         [TestMethod]
@@ -414,11 +376,11 @@ namespace PlugHub.UnitTests.Services
             Token token = this.tokenService!.CreateToken();
 
             // Act
-            this.configService!.RegisterConfig(typeof(UnitTestBConfig), writeToken: token, readToken: token);
+            this.configService!.RegisterConfig(typeof(UnitTestBConfig), this.fileParams);
 
             // Assert
-            Assert.ThrowsException<ConfigTypeNotFoundException>(() =>
-                this.configService.GetDefaultConfigFileContents(typeof(UnitTestAConfig), token));
+            Assert.ThrowsException<KeyNotFoundException>(() =>
+                this.configService!.GetDefaultConfigFileContents(typeof(UnitTestAConfig), this.tokenSet));
         }
 
         #endregion
@@ -430,18 +392,16 @@ namespace PlugHub.UnitTests.Services
         public async Task SaveConfigInstance_ValidToken_UpdatesSettings()
         {
             // Arrange
-            Token token = this.tokenService!.CreateToken();
-
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: token, writeToken: token);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            UnitTestAConfig preSave = (UnitTestAConfig)this.configService.GetConfigInstance(typeof(UnitTestAConfig), readToken: token);
+            UnitTestAConfig preSave = (UnitTestAConfig)this.configService!.GetConfigInstance(typeof(UnitTestAConfig), this.tokenSet);
             preSave.FieldA = 200;
             preSave.FieldB = true;
 
-            await this.configService.SaveConfigInstanceAsync(typeof(UnitTestAConfig), preSave, writeToken: token);
+            await this.configService!.SaveConfigInstanceAsync(typeof(UnitTestAConfig), preSave, this.tokenSet);
 
-            UnitTestAConfig postSave = (UnitTestAConfig)this.configService.GetConfigInstance(typeof(UnitTestAConfig), readToken: token);
+            UnitTestAConfig postSave = (UnitTestAConfig)this.configService!.GetConfigInstance(typeof(UnitTestAConfig), this.tokenSet);
 
             // Assert
             Assert.AreEqual(200, postSave.FieldA);
@@ -452,70 +412,22 @@ namespace PlugHub.UnitTests.Services
         [TestCategory("Persistence")]
         public async Task SaveConfigInstance_NullConfig_ThrowsArgumentNullException()
         {
-            // Arrange
-            Token token = this.tokenService!.CreateToken();
-
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), writeToken: token);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act & Assert
             await Assert.ThrowsExceptionAsync<ArgumentNullException>(async () =>
-                await this.configService.SaveConfigInstanceAsync(typeof(UnitTestAConfig), null!, token)
+                await this.configService!.SaveConfigInstanceAsync(typeof(UnitTestAConfig), null!, this.tokenSet)
             );
-        }
-
-        [TestMethod]
-        [TestCategory("Persistence")]
-        public async Task SaveSettingsAsync_ValidConfigType_SavesToFiles()
-        {
-            // Arrange
-            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.UserSettings.json");
-
-            // Act
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), writeToken: Token.Public);
-            this.configService.SetSetting(typeof(UnitTestAConfig), "FieldB", true);
-
-            await this.configService.SaveSettingsAsync(typeof(UnitTestAConfig));
-
-            // Assert
-            Assert.IsTrue(File.Exists(configPath), "User settings file should be created");
-            string userJson = File.ReadAllText(configPath);
-            Assert.IsTrue(userJson.Contains("\"FieldB\": true") || userJson.Contains("\"FieldB\":true"),
-                "User settings should contain test value");
         }
 
         [TestMethod]
         [TestCategory("Persistence")]
         public async Task SaveSettingsAsync_UnregisteredConfigType_ThrowsNotFoundException()
         {
-            ConfigTypeNotFoundException ex = await Assert.ThrowsExceptionAsync<ConfigTypeNotFoundException>(() =>
+            KeyNotFoundException ex = await Assert.ThrowsExceptionAsync<KeyNotFoundException>(() =>
                 this.configService!.SaveSettingsAsync(typeof(UnitTestAConfig)));
 
-            StringAssert.Contains(ex.Message, "Type configuration for UnitTestAConfig was not registered.");
-        }
-
-        [TestMethod]
-        [TestCategory("Persistence")]
-        public async Task SaveSettingsAsync_EmptySettings_SavesValidJson()
-        {
-            // Arrange
-            this.configService!.RegisterConfig(typeof(UnitTestBConfig), writeToken: Token.Public);
-
-            string defaultPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestBConfig.DefaultSettings.json");
-            string userPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestBConfig.UserSettings.json");
-
-            // Act
-            await this.configService.SaveSettingsAsync(typeof(UnitTestBConfig));
-
-            string defaultJson = File.ReadAllText(defaultPath);
-            string userJson = File.ReadAllText(userPath);
-
-            // Assert
-            Assert.AreEqual(typeof(UnitTestBConfig).SerializeToJson(new JsonSerializerOptions
-            {
-                NumberHandling = JsonNumberHandling.WriteAsString,
-            }), defaultJson.Trim(), "Empty user settings should save the default");
-
-            Assert.AreEqual("{}", userJson.Trim(), "Empty deafult settings should save as {}");
+            StringAssert.Contains(ex.Message, "Configuration for UnitTestAConfig is not registered.");
         }
 
         [TestMethod]
@@ -523,15 +435,14 @@ namespace PlugHub.UnitTests.Services
         public async Task GetBaseConfigFileContents_GenericType_SavesAndRetrievesContentSuccessfully()
         {
             // Arrange
-            ITokenSet tokenSet = this.tokenService!.CreateTokenSet();
             string contents = "{ \"FieldA\": 99, \"FieldB\": true }";
 
             // Act
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), tokenSet);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            await this.configService.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), contents, tokenSet);
+            await this.configService!.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), contents, this.tokenSet);
 
-            string actual = this.configService.GetDefaultConfigFileContents(typeof(UnitTestAConfig), tokenSet);
+            string actual = this.configService!.GetDefaultConfigFileContents(typeof(UnitTestAConfig), this.tokenSet);
 
             // Assert
             Assert.AreEqual(contents, actual);
@@ -544,8 +455,7 @@ namespace PlugHub.UnitTests.Services
         public async Task SaveDefaultConfigFileContentsAsync_MissingDirectory_CreatesDirectoryAndSavesFile(bool deleteDirectory)
         {
             // Arrange
-            ITokenSet tokenSet = this.tokenService!.CreateTokenSet();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), tokenSet);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             if (deleteDirectory && Directory.Exists(this.msTestHelpers.TempDirectory))
                 Directory.Delete(this.msTestHelpers.TempDirectory, recursive: true);
@@ -553,10 +463,10 @@ namespace PlugHub.UnitTests.Services
                 Directory.CreateDirectory(this.msTestHelpers.TempDirectory);
 
             string contents = "{ \"FieldA\": 1, \"FieldB\": false }";
-            string settingPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
+            string settingPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.json");
 
             // Act
-            await this.configService.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), contents, tokenSet);
+            await this.configService!.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), contents, this.tokenSet);
 
             // Assert
             Assert.IsTrue(Directory.Exists(Path.GetDirectoryName(settingPath)), "Config directory should exist");
@@ -575,14 +485,17 @@ namespace PlugHub.UnitTests.Services
             // Arrange
             List<Type> configTypes = [typeof(UnitTestAConfig)];
 
-            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
+            UserConfigServiceParams userConfigServiceParams =
+                new(Owner: this.ownerToken, Read: this.readToken, Write: this.writeToken, ReloadOnChange: true);
+
+            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.json");
 
             this.msTestHelpers.CreateTempFile("{\"FieldA\": 80, \"FieldB\": true}", configPath);
-            this.configService!.RegisterConfigs(configTypes, reloadOnChange: true);
+            this.configService!.RegisterConfigs(configTypes, userConfigServiceParams);
 
             TaskCompletionSource<bool> reloadCompleted = new();
 
-            this.configService.ConfigReloaded += (sender, e) =>
+            this.configService!.ConfigReloaded += (sender, e) =>
             {
                 if (e.ConfigType == typeof(UnitTestAConfig))
                     reloadCompleted.SetResult(true);
@@ -597,7 +510,7 @@ namespace PlugHub.UnitTests.Services
             if (completedTask != reloadCompleted.Task)
                 Assert.Fail("TypeConfigurationReloaded event not raised within timeout");
 
-            Assert.AreEqual(70, this.configService.GetSetting<int>(typeof(UnitTestAConfig), "FieldA"));
+            Assert.AreEqual(70, this.configService!.GetSetting<int>(typeof(UnitTestAConfig), "FieldA", this.tokenSet));
         }
 
         [TestMethod]
@@ -607,16 +520,19 @@ namespace PlugHub.UnitTests.Services
             // Arrange
             List<Type> configTypes = [typeof(UnitTestAConfig)];
 
-            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.DefaultSettings.json");
+            UserConfigServiceParams userConfigServiceParams =
+                new(Owner: this.ownerToken, Read: this.readToken, Write: this.writeToken, ReloadOnChange: true);
+
+            string configPath = Path.Combine(this.msTestHelpers.TempDirectory, "UnitTestAConfig.json");
             this.msTestHelpers.CreateTempFile("{\"FieldA\": 80}", configPath);
-            this.configService!.RegisterConfigs(configTypes, reloadOnChange: true);
+            this.configService!.RegisterConfigs(configTypes, userConfigServiceParams);
 
             int reloadCount = 0;
             List<int> data = [];
 
             Queue<TaskCompletionSource<bool>> reloadQueue = new();
 
-            this.configService.ConfigReloaded += (s, e) =>
+            this.configService!.ConfigReloaded += (s, e) =>
             {
                 if (e.ConfigType == typeof(UnitTestAConfig))
                 {
@@ -638,7 +554,7 @@ namespace PlugHub.UnitTests.Services
 
                 await Task.WhenAny(reloadCompletion.Task, Task.Delay(2000));
 
-                data.Add(this.configService.GetSetting<int>(typeof(UnitTestAConfig), "FieldA"));
+                data.Add(this.configService!.GetSetting<int>(typeof(UnitTestAConfig), "FieldA", this.tokenSet));
             }
 
             // Assert
@@ -652,11 +568,14 @@ namespace PlugHub.UnitTests.Services
         [TestCategory("Events")]
         public async Task BadReload_MalformedJson_DoesNotOverwriteSettings()
         {
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), reloadOnChange: true);
+            UserConfigServiceParams userConfigServiceParams =
+                new(Owner: this.ownerToken, Read: this.readToken, Write: this.writeToken, ReloadOnChange: true);
 
-            int initial = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.readToken);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), userConfigServiceParams);
 
-            string defaultPath = Path.Combine(this.msTestHelpers.TempDirectory, $"{nameof(UnitTestAConfig)}.DefaultSettings.json");
+            int initial = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
+
+            string defaultPath = Path.Combine(this.msTestHelpers.TempDirectory, $"{nameof(UnitTestAConfig)}.json");
 
             // Corrupt the file that the watcher is monitoring.
             this.msTestHelpers.CreateTempFile("}{ not: json", defaultPath);
@@ -664,7 +583,7 @@ namespace PlugHub.UnitTests.Services
             // Give the watcher a moment to react.
             await Task.Delay(800);
 
-            int after = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.readToken);
+            int after = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
 
             Assert.AreEqual(initial, after,
                 "Settings should remain unchanged when a reload encounters malformed JSON.");
@@ -683,47 +602,46 @@ namespace PlugHub.UnitTests.Services
         public async Task SecurityCriticalOperations_InvalidToken_ThrowsUnauthorizedAccessException(string operationType)
         {
             // Arrange
-            ITokenSet validTokenSet = this.tokenService!.CreateTokenSet();
-            ITokenSet invalidTokenSet = this.tokenService.CreateTokenSet();
+            ITokenSet invalidTokenSet = this.tokenService!.CreateTokenSet();
 
             switch (operationType)
             {
                 case "SaveConfigInstance":
                     // Act
-                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), validTokenSet);
+                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
                     UnitTestAConfig updatedConfig = new() { FieldA = 200, FieldB = true };
 
                     // Assert
                     await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(() =>
-                        this.configService.SaveConfigInstanceAsync(typeof(UnitTestAConfig), updatedConfig, invalidTokenSet));
+                        this.configService!.SaveConfigInstanceAsync(typeof(UnitTestAConfig), updatedConfig, invalidTokenSet));
                     break;
 
                 case "GetBaseConfigFileContents":
                     // Act
-                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), validTokenSet);
-                    await this.configService.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), "{}", validTokenSet);
+                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+                    await this.configService!.SaveDefaultConfigFileContentsAsync(typeof(UnitTestAConfig), "{}", this.tokenSet);
 
                     // Assert
                     Assert.ThrowsException<UnauthorizedAccessException>(() =>
-                        this.configService.GetDefaultConfigFileContents(typeof(UnitTestAConfig), invalidTokenSet));
+                        this.configService!.GetDefaultConfigFileContents(typeof(UnitTestAConfig), invalidTokenSet));
                     break;
 
                 case "SaveDefaultConfigFileContents":
                     // Act
-                    this.configService!.RegisterConfig(typeof(UnitTestBConfig), validTokenSet);
+                    this.configService!.RegisterConfig(typeof(UnitTestBConfig), this.fileParams);
 
                     // Assert
                     await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(() =>
-                        this.configService.SaveDefaultConfigFileContentsAsync(typeof(UnitTestBConfig), "{}", invalidTokenSet));
+                        this.configService!.SaveDefaultConfigFileContentsAsync(typeof(UnitTestBConfig), "{}", invalidTokenSet));
                     break;
 
                 case "SetSetting":
                     // Act
-                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), validTokenSet);
+                    this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
                     // Assert
                     Assert.ThrowsException<UnauthorizedAccessException>(() =>
-                        this.configService.SetSetting(typeof(UnitTestAConfig), "ApiKey", "new-value", invalidTokenSet));
+                        this.configService!.SetSetting(typeof(UnitTestAConfig), "ApiKey", "new-value", invalidTokenSet));
                     break;
             }
         }
@@ -740,24 +658,24 @@ namespace PlugHub.UnitTests.Services
             const int readerTasks = 6;
             const int writerTasks = 4;
 
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), writeToken: Token.Public);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             var writers = Enumerable.Range(0, writerTasks).Select(_ => Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
-                    this.configService!.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), i, this.writeToken);
+                    this.configService!.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), i, this.tokenSet);
             }));
 
             var readers = Enumerable.Range(0, readerTasks).Select(_ => Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
-                    _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.readToken);
+                    _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
             }));
 
             await Task.WhenAll(writers.Concat(readers));
 
             // Final sanity read – must succeed without throwing.
-            _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.readToken);
+            _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
         }
 
         #endregion

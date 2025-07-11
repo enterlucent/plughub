@@ -1,25 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Models;
 using System.Text.Json;
 
 namespace PlugHub.Shared.Interfaces.Services
 {
-    /// <summary>
-    /// Exception thrown when a requested type config is not registered in the config service.
-    /// </summary>
-    /// <remarks>
-    /// Inherits from <see cref="KeyNotFoundException"/> to indicate that the requested type could not be found
-    /// in the underlying collection of config.
-    /// </remarks>
-    /// <remarks>
-    /// Initializes a new instance of the <see cref="ConfigTypeNotFoundException"/> class
-    /// with a message indicating the missing type.
-    /// </remarks>
-    /// <param name="type">The <see cref="Type"/> for which the config was not registered.</param>
-    public class ConfigTypeNotFoundException(string? message) : KeyNotFoundException(message) { }
-
-
     /// <summary>
     /// Enumerates the types of configuration operations that can trigger a fire-and-forget save error.
     /// </summary>
@@ -132,75 +117,163 @@ namespace PlugHub.Shared.Interfaces.Services
 
 
     /// <summary>
+    /// Represents metadata used during configuration registration to control access permissions and optional reload behavior.
+    /// </summary>
+    public interface IConfigServiceParams
+    {
+        /// <summary>
+        /// Gets the token that identifies the owner of the configuration type.
+        /// This token is used to assert privileged access (e.g., full registration/unregistration rights).
+        /// </summary>
+        Token? Owner { get; }
+
+        /// <summary>
+        /// Gets the token required to read settings from the configuration.
+        /// May be <see cref="Token.Public"/> to allow unrestricted read access.
+        /// </summary>
+        Token? Read { get; }
+
+        /// <summary>
+        /// Gets the token required to write or override configuration settings.
+        /// If set to <see cref="Token.Blocked"/>, the configuration is considered read-only to consumers.
+        /// </summary>
+        Token? Write { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether this configuration type should be automatically reloaded
+        /// when the underlying file changes on disk.
+        /// </summary>
+        bool ReloadOnChange { get; }
+    }
+
+
+    /// <summary>
     /// Provides methods for managing application and type-defaultd configuration settings.
     /// </summary>
     public interface IConfigService
     {
         /// <summary>
-        /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> completes.
+        /// Gets the fallback JSON serialization options used by configuration services.
+        /// Consumers may override these at finer-grained levels.
         /// </summary>
-        public event EventHandler<ConfigServiceSaveCompletedEventArgs>? SyncSaveCompleted;
+        public JsonSerializerOptions JsonOptions { get; }
+
+        /// <summary>Gets the directory path where the current application is executing. </summary>
+        public string ConfigAppDirectory { get; }
+
+        /// <summary>Gets the platform-specific data directory.</summary>
+        public string ConfigDataDirectory { get; }
+
+        #region ConfigService: Accessors
 
         /// <summary>
-        /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> fails.
+        /// Retrieves an accessor for the given interface and multiple config types using a token set for access control.
         /// </summary>
-        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveErrors;
+        /// <param name="accessorInterface">Type of accessor interface requested.</param>
+        /// <param name="configTypes">Collection of config types to be accessed.</param>
+        /// <param name="tokenSet">Token set for ownership and permissions.</param>
+        /// <returns>Configured accessor instance.</returns>
+        IConfigAccessor GetAccessor(Type accessorInterface, IEnumerable<Type> configTypes, ITokenSet tokenSet);
 
         /// <summary>
-        /// Occurs when a configuration file is reloaded from disk (for example, due to an external file change).
+        /// Retrieves an accessor for the given interface and multiple config types using explicit access tokens.
         /// </summary>
-        public event EventHandler<ConfigServiceConfigReloadedEventArgs>? ConfigReloaded;
+        /// <param name="accessorInterface">Type of accessor interface requested.</param>
+        /// <param name="configTypes">Collection of config types to be accessed.</param>
+        /// <param name="owner">Owner token.</param>
+        /// <param name="read">Read permission token.</param>
+        /// <param name="write">Write permission token.</param>
+        /// <returns>Configured accessor instance.</returns>
+        IConfigAccessor GetAccessor(Type accessorInterface, IEnumerable<Type> configTypes, Token? owner = null, Token? read = null, Token? write = null);
+
+
+        /// <summary>Retrieves a configuration accessor for the specified configuration type <typeparamref name="TConfig"/>.</summary>
+        /// <param name="owner">Optional owner token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <param name="read">Optional read token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <param name="write">Optional write token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
+        /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
+        /// <exception cref="KeyNotFoundException">Thrown if the configuration type <typeparamref name="TConfig"/> is not registered.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if no accessor provider is registered for the configuration's required accessor interface.</exception>
+        Accessors.IConfigAccessorFor<TConfig> GetAccessor<TConfig>(Token? owner = null, Token? read = null, Token? write = null) where TConfig : class;
+
+        /// <summary>Retrieves a configuration accessor for the specified configuration type <typeparamref name="TConfig"/>, using the provided token set for authorization.</summary>
+        /// <param name="tokenSet">The set of tokens (owner, read, write) used for authorization.</param>
+        /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
+        /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
+        Accessors.IConfigAccessorFor<TConfig> GetAccessor<TConfig>(ITokenSet tokenSet) where TConfig : class;
+
+        /// <summary>Retrieves a strongly-typed configuration accessor of type <typeparamref name="TAccessor"/> for the specified configuration type <typeparamref name="TConfig"/>.</summary>
+        /// <param name="owner">Optional owner token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <param name="read">Optional read token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <param name="write">Optional write token used for authorization. If <c>null</c>, a new token will be generated.</param>
+        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="Accessors.IConfigAccessorFor{TConfig}"/>.</typeparam>
+        /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
+        /// <returns>An instance of <typeparamref name="TAccessor"/> to access and manipulate the specified configuration.</returns>
+        /// <exception cref="InvalidCastException">Thrown if the default accessor cannot be cast to <typeparamref name="TAccessor"/>.</exception>
+        TAccessor GetAccessor<TAccessor, TConfig>(Token? owner = null, Token? read = null, Token? write = null)
+            where TAccessor : Accessors.IConfigAccessorFor<TConfig>
+            where TConfig : class;
+
+        /// <summary>Retrieves a strongly-typed configuration accessor of type <typeparamref name="TAccessor"/> for the specified configuration type <typeparamref name="TConfig"/>, using the provided token set for authorization.</summary>
+        /// <param name="tokenSet">The set of tokens (owner, read, write) used for authorization.</param>
+        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="Accessors.IConfigAccessorFor{TConfig}"/>.</typeparam>
+        /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
+        /// <returns>An instance of <typeparamref name="TAccessor"/> to access and manipulate the specified configuration.</returns>
+        /// <exception cref="InvalidCastException">Thrown if the default accessor cannot be cast to <typeparamref name="TAccessor"/>.</exception>
+        TAccessor GetAccessor<TAccessor, TConfig>(ITokenSet tokenSet)
+            where TAccessor : Accessors.IConfigAccessorFor<TConfig>
+            where TConfig : class;
+
+        #endregion
+
+
+        #region IConfigService: Registration
 
         /// <summary>
-        /// Occurs when a type-specific configuration value is changed via <see cref="SetSetting{T}(Type, string, T, bool)"/>.
+        /// Registers a single configuration type with the configuration service,
+        /// routing it to the appropriate provider based on the type of <paramref name="configParams"/>.
         /// </summary>
-        public event EventHandler<ConfigServiceSettingChangeEventArgs>? SettingChanged;
-
+        /// <param name="configType">The <see cref="Type"/> representing the configuration section to register.</param>
+        /// <param name="configParams">An <see cref="IConfigServiceParams"/> instance used to select the config provider and configure registration behavior.</param>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if no config provider is registered for the <see cref="Type"/> of <paramref name="configParams"/>,
+        /// or if <paramref name="configType"/> is already registered.
+        /// </exception>
+        /// <remarks>
+        /// This method adds <paramref name="configType"/> to the internal provider mapping keyed by config type,
+        /// then invokes the provider's own registration logic. It ensures a one-to-one association between config types and providers.
+        /// </remarks>
+        public void RegisterConfig(Type configType, IConfigServiceParams configParams);
 
         /// <summary>
-        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
+        /// Registers a single configuration type with parameters and returns a typed accessor for it.
         /// </summary>
-        /// <param name="configType">The type representing the configuration.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// <param name="jsonOptions">Specifies custom JSON serialization settings for this configuration type, allowing fine-grained control over property naming, converters, and formatting. Overrides global JSON options for this type.</param>
-        /// <param name="reloadOnChange">If true, automatically reloads configuration when source changes.</param>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public void RegisterConfig(Type configType, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
+        /// <typeparam name="TConfig">The configuration type to register.</typeparam>
+        /// <param name="configParams">Parameters guiding registration and accessor behavior.</param>
+        /// <param name="accessor">Output typed accessor for the registered config.</param>
+        void RegisterConfig<TConfig>(IConfigServiceParams configParams, out IConfigAccessorFor<TConfig> accessor) where TConfig : class;
 
         /// <summary>
-        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
+        /// Registers multiple configuration types in bulk by invoking <see cref="RegisterConfig(Type, IConfigServiceParams)"/> for each.
         /// </summary>
-        /// <param name="configType">The type representing the configuration structure.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <param name="jsonOptions">Custom JSON serialization settings for this configuration type, overriding global options for property naming, converters, and formatting.</param>
-        /// <param name="reloadOnChange">Enables automatic reloading when underlying configuration files change.</param>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public void RegisterConfig(Type configType, ITokenSet tokenSet, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
-
-
-        /// <summary>
-        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
-        /// </summary>
-        /// <param name="configTypes">The types representing configurations.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        /// <param name="jsonOptions">Specifies custom JSON serialization settings for these configuration types, allowing per-type control over serialization behavior. Applied to all types in the collection.</param>
-        /// <param name="reloadOnChange">If true, automatically reloads configurations when sources change.</param>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public void RegisterConfigs(IEnumerable<Type> configTypes, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
+        /// <param name="configTypes">A collection of <see cref="Type"/> instances representing configuration sections to register.</param>
+        /// <param name="configParams">An <see cref="IConfigServiceParams"/> instance used to select the config provider and configure registration behavior.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="configTypes"/> is <see langword="null"/>.</exception>
+        /// <remarks>
+        /// This method iterates over <paramref name="configTypes"/> and registers each type individually,
+        /// applying the same <paramref name="configParams"/> for all. Exceptions thrown by individual registrations
+        /// propagate to the caller and halt the bulk operation.
+        /// </remarks>
+        public void RegisterConfigs(IEnumerable<Type> configTypes, IConfigServiceParams configParams);
 
         /// <summary>
-        /// Registers a configuration type with granular token-based access control and type-specific JSON serialization settings.
+        /// Registers multiple configuration types with associated parameters, returning an accessor covering them all.
         /// </summary>
-        /// <param name="configTypes">The configuration types to register.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <param name="jsonOptions">Custom JSON serialization settings applied to all specified configuration types.</param>
-        /// <param name="reloadOnChange">Enables automatic reload when underlying configuration files change.</param>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public void RegisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet, JsonSerializerOptions? jsonOptions = null, bool reloadOnChange = false);
+        /// <param name="configTypes">Collection of config types to register.</param>
+        /// <param name="configParams">Parameters guiding registration and accessor behavior.</param>
+        /// <param name="accessor">Output accessor handling the registered configs.</param>
+        void RegisterConfigs(IEnumerable<Type> configTypes, IConfigServiceParams configParams, out IConfigAccessor accessor);
 
 
         /// <summary>
@@ -238,61 +311,126 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet);
 
+        #endregion
+
+        #region IConfigService: Value Accessors and Mutators
 
         /// <summary>
-        /// Gets the raw contents of the default configuration file for the specified configuration type.
+        /// Returns the *baseline* value that was loaded from
+        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
         /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
+        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
+        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
+        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <returns>The contents of the default configuration file as a string.</returns>
-        public string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null);
+        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
+        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
+        /// <exception cref="KeyNotFoundException"/>
+        T GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
-        /// Gets the raw contents of the default configuration file for the specified configuration type.
+        /// Returns the *baseline* value that was loaded from
+        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
         /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
+        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
+        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
+        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>The contents of the default configuration file as a string.</returns>
-        public string GetDefaultConfigFileContents(Type configType, ITokenSet tokenSet);
+        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
+        /// <exception cref="KeyNotFoundException"/>
+        T GetDefault<T>(Type configType, string key, ITokenSet tokenSet);
 
 
         /// <summary>
-        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
+        /// Returns the *effective* value for the property named <paramref name="key"/>
         /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
+        /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
+        /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
+        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <returns>A task representing the asynchronous save operation.</returns>
-        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default);
+        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
+        /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
+        public T GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
-        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
+        /// Returns the *effective* value for the property named <paramref name="key"/>
         /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
+        /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
+        /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
+        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>A task representing the asynchronous save operation.</returns>
-        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, ITokenSet tokenSet, CancellationToken cancellationToken = default);
+        /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
+        /// <exception cref="KeyNotFoundException"/>
+        /// <exception cref="UnauthorizedAccessException"/>
+        public T GetSetting<T>(Type configType, string key, ITokenSet tokenSet);
+
+
+
+        public void SetDefault<T>(Type configType, string key, T value, Token? ownerToken = null, Token? writeToken = null);
+        public void SetDefault<T>(Type configType, string key, T value, ITokenSet tokenSet);
+
 
 
         /// <summary>
-        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// Sets a type-specific setting by type and key.
         /// </summary>
-        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
-        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
+        /// <typeparam name="T">The type of the setting value.</typeparam>
+        /// <param name="configType">The configuration type.</param>
+        /// <param name="key">The setting key.</param>
+        /// <param name="value">The setting value.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        public void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null);
+        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
+        public void SetSetting<T>(Type configType, string key, T value, Token? ownerToken = null, Token? writeToken = null);
 
         /// <summary>
-        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// Sets a type-specific setting by type and key.
         /// </summary>
-        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
-        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>        
-        public void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet);
+        /// <typeparam name="T">The type of the setting value.</typeparam>
+        /// <param name="configType">The configuration type.</param>
+        /// <param name="key">The setting key.</param>
+        /// <param name="value">The setting value.</param>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
+        public void SetSetting<T>(Type configType, string key, T value, ITokenSet tokenSet);
 
+
+        /// <summary>
+        /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// </summary>
+        /// <param name="configType">The configuration type whose settings should be saved.</param>
+        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
+        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>        
+        public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null);
+
+        /// <summary>
+        /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
+        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// </summary>
+        /// <param name="configType">The configuration type whose settings should be saved.</param>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
+        public void SaveSettings(Type configType, ITokenSet tokenSet);
+
+
+        /// <summary>
+        /// Saves settings for a specific type.
+        /// </summary>
+        /// <param name="configType">The configuration type.</param>
+        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
+        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
+        public Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Saves settings for a specific type.
+        /// </summary>
+        /// <param name="configType">The configuration type.</param>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
+        public Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default);
+
+        #endregion
+
+        #region IConfigService: Instance Accesors and Mutators
 
         /// <summary>
         /// Retrieves a fully populated configuration instance of the specified type.
@@ -363,140 +501,121 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
         public void SaveConfigInstance(Type configType, object updatedConfig, ITokenSet tokenSet);
 
+        #endregion
+
+        #region IConfigService: Default Config Mutation/Migration
 
         /// <summary>
-        /// Gets a read-only <see cref="IConfiguration"/> representing the current environment variables and command-line arguments.
+        /// Gets the raw contents of the default configuration file for the specified configuration type.
         /// </summary>
-        /// <returns>An <see cref="IConfiguration"/> instance containing environment and command-line settings. This object is read-only.</returns>
-        public IConfiguration GetEnvConfig();
-
-
-        /// <summary>
-        /// Returns the *baseline* value that was loaded from
-        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
-        /// </summary>
-        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
+        /// <param name="configType">The type of the configuration section.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException"/>
-        /// <exception cref="KeyNotFoundException"/>
-        T? GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
+        /// <returns>The contents of the default configuration file as a string.</returns>
+        public string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null);
 
         /// <summary>
-        /// Returns the *baseline* value that was loaded from
-        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
+        /// Gets the raw contents of the default configuration file for the specified configuration type.
         /// </summary>
-        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
+        /// <param name="configType">The type of the configuration section.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException"/>
-        /// <exception cref="KeyNotFoundException"/>
-        T? GetDefault<T>(Type configType, string key, ITokenSet tokenSet);
+        /// <returns>The contents of the default configuration file as a string.</returns>
+        public string GetDefaultConfigFileContents(Type configType, ITokenSet tokenSet);
 
 
         /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>
+        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
         /// </summary>
-        /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
+        /// <param name="configType">The type of the configuration section.</param>
+        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException"/>
-        /// <exception cref="KeyNotFoundException"/>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public T? GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>
+        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
         /// </summary>
-        /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
+        /// <param name="configType">The type of the configuration section.</param>
+        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="ConfigTypeNotFoundException"/>
-        /// <exception cref="KeyNotFoundException"/>
-        /// <exception cref="UnauthorizedAccessException"/>
-        public T? GetSetting<T>(Type configType, string key, ITokenSet tokenSet);
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, ITokenSet tokenSet, CancellationToken cancellationToken = default);
 
 
         /// <summary>
-        /// Sets a type-specific setting by type and key.
+        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
+        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
-        /// <typeparam name="T">The type of the setting value.</typeparam>
-        /// <param name="configType">The configuration type.</param>
-        /// <param name="key">The setting key.</param>
-        /// <param name="value">The setting value.</param>
+        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
+        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        public void SetSetting<T>(Type configType, string key, T? value, Token? ownerToken = null, Token? writeToken = null);
+        public void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null);
 
         /// <summary>
-        /// Sets a type-specific setting by type and key.
+        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
+        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
         /// </summary>
-        /// <typeparam name="T">The type of the setting value.</typeparam>
-        /// <param name="configType">The configuration type.</param>
-        /// <param name="key">The setting key.</param>
-        /// <param name="value">The setting value.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public void SetSetting<T>(Type configType, string key, T? value, ITokenSet tokenSet);
+        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
+        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>        
+        public void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet);
 
+        #endregion
+
+        #region IConfigService: Event Handlers
 
         /// <summary>
-        /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> completes.
         /// </summary>
-        /// <param name="configType">The configuration type whose settings should be saved.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>        
-        public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null);
+        public event EventHandler<ConfigServiceSaveCompletedEventArgs>? SyncSaveCompleted;
 
         /// <summary>
-        /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
-        /// This method initiates the save operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
+        /// Occurs when a fire-and-forget save operation in <see cref="ConfigService"/> fails.
         /// </summary>
-        /// <param name="configType">The configuration type whose settings should be saved.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public void SaveSettings(Type configType, ITokenSet tokenSet);
-
+        public event EventHandler<ConfigServiceSaveErrorEventArgs>? SyncSaveErrors;
 
         /// <summary>
-        /// Saves settings for a specific type.
+        /// Occurs when a configuration file is reloaded from disk (for example, due to an external file change).
         /// </summary>
-        /// <param name="configType">The configuration type.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        public Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default);
+        public event EventHandler<ConfigServiceConfigReloadedEventArgs>? ConfigReloaded;
 
         /// <summary>
-        /// Saves settings for a specific type.
+        /// Occurs when a type-specific configuration value is changed via <see cref="SetSetting{T}(Type, string, T, bool)"/>.
         /// </summary>
-        /// <param name="configType">The configuration type.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default);
-
+        public event EventHandler<ConfigServiceSettingChangeEventArgs>? SettingChanged;
 
         /// <summary>
-        /// Raises the <see cref="SyncSaveCompleted"/> event after a configuration save operation completes successfully.
-        /// Call this from within the implementing class to notify subscribers that a save has finished.
+        /// Invoked when a save operation completes successfully.
         /// </summary>
-        /// <param name="configType">The type of configuration that was saved.</param>
-        void OnSaveOperationComplete(Type configType);
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="configType">The configuration type involved in the operation.</param>
+        void OnSaveOperationComplete(object sender, Type configType);
 
         /// <summary>
-        /// Raises the <see cref="SyncSaveErrors"/> event when a configuration save operation fails.
-        /// Call this from within the implementing class to notify subscribers of the error.
+        /// Invoked when a save operation encounters an error.
         /// </summary>
-        /// <param name="ex">The exception that occurred during the save operation.</param>
-        /// <param name="operation">The kind of save operation that failed.</param>
-        /// <param name="configType">The type of configuration involved in the failed operation.</param>
-        void OnSaveOperationError(Exception ex, ConfigSaveOperation operation, Type configType);
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="ex">The exception thrown during the operation.</param>
+        /// <param name="operation">The type of save operation that failed.</param>
+        /// <param name="configType">The configuration type involved in the operation.</param>
+        void OnSaveOperationError(object sender, Exception ex, ConfigSaveOperation operation, Type configType);
+
+        /// <summary>
+        /// Invoked when a configuration is reloaded.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="configType">The configuration type that was reloaded.</param>
+        void OnConfigReloaded(object sender, Type configType);
+
+        /// <summary>
+        /// Invoked when a configuration setting changes.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="configType">The configuration type containing the changed setting.</param>
+        /// <param name="key">The key/name of the changed setting.</param>
+        /// <param name="oldValue">The previous value of the setting, or null if none.</param>
+        /// <param name="newValue">The new value of the setting, or null if removed.</param>
+        void OnSettingChanged(object sender, Type configType, string key, object? oldValue, object? newValue);
+
+        #endregion
     }
 }

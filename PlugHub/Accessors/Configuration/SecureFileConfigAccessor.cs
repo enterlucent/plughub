@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Extensions;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
@@ -11,28 +12,66 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlugHub.Accessors
+
+namespace PlugHub.Accessors.Configuration
 {
-    public class SecureConfigAccessor(ILogger<ISecureConfigAccessor> logger, IConfigService configService) 
-        : ConfigAccessor((ILogger<IConfigAccessor>)logger, configService), ISecureConfigAccessor
+    public class SecureFileConfigAccessor
+        : FileConfigAccessor, IConfigAccessor, IFileConfigAccessor, ISecureFileConfigAccessor
     {
-        protected new readonly ILogger<ISecureConfigAccessor> Logger = logger;
-        public IEncryptionContext? EncryptionContext;
+        protected IEncryptionService EncryptionService;
+        protected IEncryptionContext? EncryptionContext;
 
-        public ISecureConfigAccessor Init(IList<Type> configTypes, IEncryptionContext encryptionContext, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
+        public SecureFileConfigAccessor(ILogger<IConfigAccessor> logger, IEncryptionService encryptionService)
+            : base(logger)
         {
-            if (this.Initialized)
-                throw new InvalidOperationException("Accessor already initialised");
+            this.EncryptionService = encryptionService;
+            this.AccessorInterface = typeof(ISecureFileConfigAccessor);
+        }
 
-            base.Init(configTypes, ownerToken, readToken, writeToken);
+        public virtual ISecureFileConfigAccessor SetEncryptionService(IEncryptionService encryptionService)
+        {
+            this.EncryptionService = encryptionService;
 
+            return this;
+        }
+        public virtual ISecureFileConfigAccessor SetEncryptionContext(IEncryptionContext encryptionContext)
+        {
             this.EncryptionContext = encryptionContext;
 
             return this;
         }
 
-        public new ISecureConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class
+        public override ISecureFileConfigAccessor SetConfigTypes(IList<Type> configTypes)
         {
+            base.SetConfigTypes(configTypes);
+
+            return this;
+        }
+        public override ISecureFileConfigAccessor SetConfigService(IConfigService configService)
+        {
+            base.SetConfigService(configService);
+
+            return this;
+        }
+        public override ISecureFileConfigAccessor SetAccess(Token ownerToken, Token readToken, Token writeToken)
+        {
+            base.SetAccess(ownerToken, readToken, writeToken);
+
+            return this;
+        }
+        public override ISecureFileConfigAccessor SetAccess(ITokenSet tokenSet)
+        {
+            base.SetAccess(tokenSet);
+
+            return this;
+        }
+
+        public override ISecureFileConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class
+        {
+            //TODO: Give proper message
+            if (this.ConfigService == null)
+                throw new InvalidOperationException("");
+
             if (!this.ConfigTypes.Contains(typeof(TConfig)))
                 throw new TypeAccessException(
                     $"Configuration type {typeof(TConfig).Name} is not accessible. " +
@@ -40,23 +79,39 @@ namespace PlugHub.Accessors
                 );
 
             if (this.EncryptionContext is null)
-                throw new ArgumentException(
-                    "EncryptionContext is null. Call Init(...) with a valid IEncryptionContext before accessing secure configuration.");
+                throw new ArgumentException("EncryptionContext is null. Call Init(...) with a valid IEncryptionContext before accessing secure configuration.");
 
-            return new SecureConfigAccessorFor<TConfig>(this.ConfigService, this.EncryptionContext, this.OwnerToken, this.ReadToken, this.WriteToken);
+            return new SecureFileConfigAccessorFor<TConfig>(this.ConfigService, this.EncryptionContext, this.OwnerToken, this.ReadToken, this.WriteToken);
         }
-
-        private class SecureConfigAccessorFor<TConfig>(IConfigService configService, IEncryptionContext encryptionContext, Token? ownerToken, Token? readToken, Token? writeToken)
-            : ConfigAccessorFor<TConfig>(configService, ownerToken, readToken, writeToken), ISecureConfigAccessorFor<TConfig> where TConfig : class
+        public override ISecureFileConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, Token ownerToken, Token readToken, Token writeToken) where TConfig : class
         {
-            public readonly IEncryptionContext EncryptionContext = encryptionContext
+            IEncryptionContext encryptionContext =
+                this.EncryptionService.GetEncryptionContext(typeof(TConfig), typeof(TConfig).ToDeterministicGuid());
+
+            return new SecureFileConfigAccessorFor<TConfig>(configService, encryptionContext, ownerToken, readToken, writeToken);
+        }
+        public override ISecureFileConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, ITokenSet tokenSet) where TConfig : class
+            => this.CreateFor<TConfig>(configService, tokenSet.Owner, tokenSet.Read, tokenSet.Write);
+
+        public class SecureFileConfigAccessorFor<TConfig>(IConfigService configService, IEncryptionContext encryptionContext, Token? ownerToken, Token? readToken, Token? writeToken)
+            : FileConfigAccessorFor<TConfig>(configService, ownerToken, readToken, writeToken), IFileConfigAccessorFor<TConfig>, ISecureFileConfigAccessorFor<TConfig> where TConfig : class
+        {
+            protected IEncryptionContext EncryptionContext = encryptionContext
                 ?? throw new ArgumentNullException(nameof(encryptionContext));
 
-            private static readonly ConcurrentDictionary<Type, PropertyInfo[]> propertyCache = new();
+            protected static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
 
+            public ISecureFileConfigAccessorFor<TConfig> SetEncryptionContext(IEncryptionContext encryptionContext)
+            {
+                this.EncryptionContext = encryptionContext;
+
+                return this;
+            }
 
             public override T Get<T>(string key)
             {
+                ValidateEncryptionContext(this.EncryptionContext);
+
                 SecureValue? secureValue = this.ConfigService.GetSetting<SecureValue>(typeof(TConfig), key, this.OwnerToken, this.ReadToken);
 
                 if (secureValue is null)
@@ -66,6 +121,8 @@ namespace PlugHub.Accessors
             }
             public override void Set<T>(string key, T value)
             {
+                ValidateEncryptionContext(this.EncryptionContext);
+
                 PropertyInfo prop = GetCachedProperty(key)
                     ?? throw new KeyNotFoundException($"Property {key} not found.");
 
@@ -100,6 +157,8 @@ namespace PlugHub.Accessors
 
             public override TConfig Get()
             {
+                ValidateEncryptionContext(this.EncryptionContext);
+
                 TConfig instance = base.Get();
 
                 foreach (PropertyInfo prop in GetCachedProperties())
@@ -110,7 +169,7 @@ namespace PlugHub.Accessors
 
                     if (!isSecure) continue;
 
-                    MethodInfo genericGet = typeof(SecureConfigAccessorFor<TConfig>)
+                    MethodInfo genericGet = typeof(SecureFileConfigAccessorFor<TConfig>)
                        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                        .Single(m =>
                                m.Name == nameof(Get) &&
@@ -133,13 +192,15 @@ namespace PlugHub.Accessors
             }
             public override void Save(TConfig instance)
             {
+                ValidateEncryptionContext(this.EncryptionContext);
+
                 Task.Run(async () =>
                 {
                     try
                     {
                         await this.SaveAsync(instance);
 
-                        this.ConfigService.OnSaveOperationComplete(instance.GetType());
+                        this.ConfigService.OnSaveOperationComplete(this, instance.GetType());
                     }
                     catch
                     {
@@ -150,6 +211,8 @@ namespace PlugHub.Accessors
             }
             public override async Task SaveAsync(TConfig instance, CancellationToken cancellationToken = default)
             {
+                ValidateEncryptionContext(this.EncryptionContext);
+
                 ArgumentNullException.ThrowIfNull(instance);
 
                 cancellationToken.ThrowIfCancellationRequested();
@@ -158,7 +221,7 @@ namespace PlugHub.Accessors
                 {
                     object? raw = prop.GetValue(instance);
 
-                    MethodInfo setGeneric = typeof(SecureConfigAccessorFor<TConfig>)
+                    MethodInfo setGeneric = typeof(SecureFileConfigAccessorFor<TConfig>)
                         .GetMethod(nameof(Set))!
                         .MakeGenericMethod(prop.PropertyType);
 
@@ -171,13 +234,19 @@ namespace PlugHub.Accessors
             }
 
 
-            private static PropertyInfo[] GetCachedProperties()
-                => propertyCache.GetOrAdd(
+            protected static void ValidateEncryptionContext(IEncryptionContext? encryptionContext)
+            {
+                if (encryptionContext is null)
+                    throw new ArgumentException(
+                        "EncryptionContext is null. Call Init(...) with a valid IEncryptionContext before accessing secure configuration.");
+            }
+            protected static PropertyInfo[] GetCachedProperties()
+                => PropertyCache.GetOrAdd(
                        typeof(TConfig),
                        t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
-            private static PropertyInfo? GetCachedProperty(string propertyName)
+            protected static PropertyInfo? GetCachedProperty(string propertyName)
             {
-                var props = propertyCache.GetOrAdd(
+                var props = PropertyCache.GetOrAdd(
                     typeof(TConfig),
                     t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
 

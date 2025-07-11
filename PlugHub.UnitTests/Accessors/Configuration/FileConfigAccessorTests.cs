@@ -1,18 +1,30 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
-using PlugHub.Accessors;
+using PlugHub.Accessors.Configuration;
+using PlugHub.Models;
+using PlugHub.Platform.Storage;
 using PlugHub.Services;
+using PlugHub.Services.Configuration;
 using PlugHub.Shared.Interfaces.Accessors;
+using PlugHub.Shared.Interfaces.Models;
+using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 
-namespace PlugHub.UnitTests.Accessors
+namespace PlugHub.UnitTests.Accessors.Configuration
 {
     [TestClass]
-    public class ConfigAccessorTests
+    public class FileConfigAccessorTests
     {
         private readonly MSTestHelpers msTestHelpers = new();
+        private InsecureStorage? secureStorage;
         private TokenService? tokenService;
         private ConfigService? configService;
+        private FileConfigServiceParams fileParams = new();
+        private EncryptionService? encryptionService;
+        private Token ownerToken;
+        private Token readToken;
+        private Token writeToken;
+        private ITokenSet tokenSet = new TokenSet();
 
 
         internal class UnitTestAConfig
@@ -33,8 +45,30 @@ namespace PlugHub.UnitTests.Accessors
         public void Setup()
         {
             this.tokenService = new TokenService(new NullLogger<ITokenService>());
+            this.secureStorage = new InsecureStorage(new NullLogger<ISecureStorage>());
+            this.secureStorage.Initialize(this.msTestHelpers.TempDirectory, false, false);
+            this.encryptionService = new EncryptionService(new NullLogger<IEncryptionService>(), this.secureStorage);
+
+            this.ownerToken = this.tokenService.CreateToken();
+            this.readToken = this.tokenService.CreateToken();
+            this.writeToken = this.tokenService.CreateToken();
+            this.tokenSet = this.tokenService.CreateTokenSet(this.ownerToken, this.readToken, this.writeToken);
+
+            this.fileParams =
+                new FileConfigServiceParams(
+                    Owner: this.ownerToken,
+                    Read: this.readToken,
+                    Write: this.writeToken);
 
             this.configService = new ConfigService(
+                [
+                    new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
+                    new UserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
+                ],
+                [
+                    new FileConfigAccessor(new NullLogger<IConfigAccessor>()),
+                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService),
+                ],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
                 this.msTestHelpers.TempDirectory,
@@ -45,6 +79,7 @@ namespace PlugHub.UnitTests.Accessors
         public void Cleanup()
         {
             (this.configService as IDisposable)?.Dispose();
+
             this.msTestHelpers.Dispose();
         }
 
@@ -56,11 +91,13 @@ namespace PlugHub.UnitTests.Accessors
         public void For_UnregisteredType_Throws()
         {
             // Arrange & Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             // Assert
-            Assert.ThrowsException<ConfigTypeNotFoundException>(() => accessor.For<UnitTestBConfig>());
+            Assert.ThrowsException<KeyNotFoundException>(() => accessor.For<UnitTestBConfig>());
         }
 
         [TestMethod]
@@ -68,10 +105,12 @@ namespace PlugHub.UnitTests.Accessors
         public void For_RegisteredType_Succeeds()
         {
             // Arrange
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig));
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             // Act
             IConfigAccessorFor<UnitTestAConfig> stronglyTyped = accessor.For<UnitTestAConfig>();
@@ -89,10 +128,12 @@ namespace PlugHub.UnitTests.Accessors
         public void Get_ReturnsDefaultValue()
         {
             //Arrange
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig));
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
 
@@ -108,15 +149,13 @@ namespace PlugHub.UnitTests.Accessors
         public void Get_ReturnsMergedInstanceWithUserOverrides()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+            this.configService.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, this.ownerToken, this.writeToken);
 
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
-            this.configService.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, writeToken: write);
-
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], owner, read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
 
@@ -134,14 +173,13 @@ namespace PlugHub.UnitTests.Accessors
         public void Get_WithNullKey_Throws()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService!.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();
 
@@ -158,17 +196,16 @@ namespace PlugHub.UnitTests.Accessors
         public void Set_ThenGet_ReturnsUpdatedValue()
         {
             // Arrange
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            // Act
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
-
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
 
+            // Act
             a.Set(nameof(UnitTestAConfig.FieldA), 123);
 
             int value = a.Get<int>(nameof(UnitTestAConfig.FieldA));
@@ -182,13 +219,12 @@ namespace PlugHub.UnitTests.Accessors
         public async Task Save_ModifiedInstance_PersistsChanges()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], owner, read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
 
@@ -200,8 +236,8 @@ namespace PlugHub.UnitTests.Accessors
             await aConfig.SaveAsync(editable);
 
             // Assert
-            int storedA = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: read);
-            bool storedB = this.configService.GetSetting<bool>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldB), readToken: read);
+            int storedA = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
+            bool storedB = this.configService.GetSetting<bool>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldB), readToken: this.readToken);
 
             Assert.AreEqual(123, storedA);
             Assert.IsTrue(storedB);
@@ -216,15 +252,13 @@ namespace PlugHub.UnitTests.Accessors
         public async Task SaveAsync_WithInvalidToken_Throws()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
-
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService.CreateToken(), read, Token.Public);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenService!.CreateToken(), this.readToken, this.tokenService!.CreateToken());
 
             IConfigAccessorFor<UnitTestAConfig> aConfig = accessor.For<UnitTestAConfig>();
 
@@ -233,7 +267,7 @@ namespace PlugHub.UnitTests.Accessors
 
             // Aassert
             await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(
-                async () => await aConfig.SaveAsync(edited, CancellationToken.None));
+                async () => await aConfig.SaveAsync(edited));
         }
 
         [TestMethod]
@@ -241,15 +275,13 @@ namespace PlugHub.UnitTests.Accessors
         public void Set_WithUnknownProperty_Throws()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService!.CreateToken();
-
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), owner, read, write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService.CreateToken(), Token.Public, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();
 
@@ -266,14 +298,14 @@ namespace PlugHub.UnitTests.Accessors
         public async Task SaveAsync_PersistsToConfigService()
         {
             // Arrange
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
-
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
 
             a.Set(nameof(UnitTestAConfig.FieldA), 777);
@@ -281,7 +313,7 @@ namespace PlugHub.UnitTests.Accessors
             await a.SaveAsync(CancellationToken.None);
 
             // Assert
-            int stored = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: read);
+            int stored = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
 
             Assert.AreEqual(777, stored);
         }
@@ -293,10 +325,13 @@ namespace PlugHub.UnitTests.Accessors
             // Arrange
             Token read = this.tokenService!.CreateToken();
             Token write = this.tokenService.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
 
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
             a.Set(nameof(UnitTestAConfig.FieldA), 9001);
@@ -314,7 +349,17 @@ namespace PlugHub.UnitTests.Accessors
                     "SaveAsync should propagate a pre-cancelled token.");
             }
 
-            Assert.IsFalse(File.Exists(filePath),
+            this.configService!.UnregisterConfig(typeof(UnitTestAConfig), this.tokenSet.Owner);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
+
+            accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
+
+            a = accessor.For<UnitTestAConfig>();
+
+            Assert.AreEqual<int>(50, a.Get<int>(nameof(UnitTestAConfig.FieldA)),
                 "Cancelled SaveAsync must not create or update the settings file on disk.");
         }
 
@@ -325,10 +370,12 @@ namespace PlugHub.UnitTests.Accessors
             // Arrange
             Token read = this.tokenService!.CreateToken();
             Token write = this.tokenService.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
             a.Set(nameof(UnitTestAConfig.FieldA), 424242);
@@ -337,36 +384,28 @@ namespace PlugHub.UnitTests.Accessors
             await a.SaveAsync(CancellationToken.None);
 
             // Assert
-            string filePath = Path.Combine(
-                this.msTestHelpers.TempDirectory,
-                $"{nameof(UnitTestAConfig)}.UserSettings.json");
+            string filePath = Path.Combine(this.msTestHelpers.TempDirectory, $"{nameof(UnitTestAConfig)}.json");
+            string json = await File.ReadAllTextAsync(filePath);
 
             Assert.IsTrue(File.Exists(filePath), "Settings file should be written to disk.");
 
-            string json = await File.ReadAllTextAsync(filePath);
             StringAssert.Contains(json, "424242", "Persisted JSON should include the updated value.");
 
             TokenService newTokenService = new(new NullLogger<ITokenService>());
 
-            using ConfigService newConfigService = new(
-                new NullLogger<IConfigService>(),
-                newTokenService,
-                this.msTestHelpers.TempDirectory,
-                this.msTestHelpers.TempDirectory);
+            using (FileConfigService newConfigService = new(new NullLogger<IConfigServiceProvider>(), newTokenService))
+            {
+                newConfigService.RegisterConfig(typeof(UnitTestAConfig), this.fileParams, this.configService);
 
-            Token freshRead = newTokenService.CreateToken();
-            newConfigService.RegisterConfig(typeof(UnitTestAConfig), readToken: freshRead);
+                int roundTripped = newConfigService.GetSetting<int>(
+                    typeof(UnitTestAConfig),
+                    nameof(UnitTestAConfig.FieldA),
+                    this.tokenSet);
 
-            int roundTripped = newConfigService.GetSetting<int>(
-                typeof(UnitTestAConfig),
-                nameof(UnitTestAConfig.FieldA),
-                this.tokenService.CreateToken(),
-                freshRead);
-
-            Assert.AreEqual(424242, roundTripped,
-                "A fresh ConfigService should read back the value that was flushed to disk.");
+                Assert.AreEqual(424242, roundTripped,
+                    "A fresh ConfigService should read back the value that was flushed to disk.");
+            }
         }
-
 
         #endregion
 
@@ -377,13 +416,13 @@ namespace PlugHub.UnitTests.Accessors
         public void Set_WithInvalidWriteToken_Throws()
         {
             // Arrange
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService.CreateToken();
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], this.tokenService!.CreateToken(), Token.Public, Token.Public);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenService!.CreateToken(), this.tokenSet.Read, this.tokenService!.CreateToken());
 
             IConfigAccessorFor<UnitTestAConfig> a = accessor.For<UnitTestAConfig>();
 
@@ -391,23 +430,22 @@ namespace PlugHub.UnitTests.Accessors
             Assert.ThrowsException<UnauthorizedAccessException>(
                 () => a.Set(nameof(UnitTestAConfig.FieldA), 999));
         }
+
         #endregion
 
         #region ConfigAccessorTests: Concurrency
 
         [TestMethod]
         [TestCategory("Concurrency")]
-        public async Task Concurrent_Set_Get_Does_Not_Throw_And_Value_Remains_Valid()
+        public async Task Concurrent_SetGet_DoesNotThrowAndValueRemainsValid()
         {
             // Arrange
-            Token owner = this.tokenService!.CreateToken();
-            Token read = this.tokenService!.CreateToken();
-            Token write = this.tokenService!.CreateToken();
+            this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            this.configService!.RegisterConfig(typeof(UnitTestAConfig), readToken: read, writeToken: write);
-
-            IConfigAccessor accessor = new ConfigAccessor(new NullLogger<IConfigAccessor>(), this.configService!)
-                .Init([typeof(UnitTestAConfig)], owner, read, write);
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+                .SetConfigTypes([typeof(UnitTestAConfig)])
+                .SetConfigService(this.configService!)
+                .SetAccess(this.tokenSet);
 
             IConfigAccessorFor<UnitTestAConfig> config = accessor.For<UnitTestAConfig>();
 

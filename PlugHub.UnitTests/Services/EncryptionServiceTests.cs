@@ -32,7 +32,6 @@ namespace PlugHub.UnitTests.Services
     {
         private MSTestHelpers msTestHelpers = new();
         private InsecureStorage? storage;
-        private IConfigService? configService;
         private EncryptionService? encryptionService;
 
 
@@ -65,24 +64,14 @@ namespace PlugHub.UnitTests.Services
                 this.msTestHelpers = new();
             }
 
-            ITokenService tokenService = new TokenService(new NullLogger<TokenService>());
-
             if (this.encryptionService != null)
-                ((IDisposable)this.encryptionService!).Dispose();
+                this.encryptionService!.Dispose();
 
             if (this.storage != null)
-                ((IDisposable)this.storage!).Dispose();
+                this.storage!.Dispose();
 
-            if (this.configService != null)
-                ((IDisposable)this.configService!).Dispose();
-
-            this.configService = new ConfigService(
-                new NullLogger<IConfigService>(),
-                tokenService,
-                this.msTestHelpers.TempDirectory,
-                this.msTestHelpers.TempDirectory);
-
-            this.storage = new InsecureStorage(new NullLogger<ISecureStorage>(), tokenService, this.configService, this.msTestHelpers.TempDirectory);
+            this.storage = new InsecureStorage(new NullLogger<ISecureStorage>());
+            this.storage.Initialize(this.msTestHelpers.TempDirectory);
 
             this.encryptionService = new EncryptionService(new NullLogger<IEncryptionService>(), this.storage);
         }
@@ -130,7 +119,7 @@ namespace PlugHub.UnitTests.Services
 
             // Act
             IEncryptionContext context =
-                await this.encryptionService!.GetEncryptionContextAsync<EncryptionServiceTests>(contextId);
+                await this.encryptionService!.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextId);
 
             byte[] encryptedData = this.encryptionService
                 .Encrypt(Encoding.UTF8.GetBytes(originalData), context.Key);
@@ -138,7 +127,7 @@ namespace PlugHub.UnitTests.Services
             this.RestartEncryptionService(false);
 
             IEncryptionContext newContext =
-                await this.encryptionService.GetEncryptionContextAsync<EncryptionServiceTests>(contextId);
+                await this.encryptionService.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextId);
 
             string decryptedData = Encoding.UTF8.GetString(
                 this.encryptionService.Decrypt(encryptedData, newContext.Key));
@@ -176,7 +165,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange – first touch forces lazy initialisation
             _ = await this.encryptionService!
-                .GetEncryptionContextAsync<EncryptionServiceTests>(Guid.NewGuid());
+                .GetEncryptionContextAsync(typeof(EncryptionServiceTests), Guid.NewGuid());
 
             // Act
             byte[] key = this.encryptionService.GetMasterKey();
@@ -206,8 +195,8 @@ namespace PlugHub.UnitTests.Services
             Guid contextId2 = Guid.NewGuid();
 
             // Act
-            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync<EncryptionServiceTests>(contextId1);
-            IEncryptionContext context2 = await this.encryptionService.GetEncryptionContextAsync<EncryptionServiceTests>(contextId2);
+            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextId1);
+            IEncryptionContext context2 = await this.encryptionService.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextId2);
 
             // Assert
             CollectionAssert.AreNotEqual(context1.Key, context2.Key);
@@ -224,13 +213,13 @@ namespace PlugHub.UnitTests.Services
             Guid contextID = Guid.NewGuid();
 
             // Act
-            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync<EncryptionServiceTests>(contextID);
+            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextID);
 
             Array.Copy(context1.Key, key1, 32);
 
             this.RestartEncryptionService(false);
 
-            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync<EncryptionServiceTests>(contextID);
+            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync(typeof(EncryptionServiceTests), contextID);
 
             Array.Copy(context2.Key, key2, 32);
 
@@ -246,8 +235,8 @@ namespace PlugHub.UnitTests.Services
             Guid contextID = Guid.NewGuid();
 
             // Act
-            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync<UnitTestSecureAConfig>(contextID);
-            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync<UnitTestSecureBConfig>(contextID);
+            IEncryptionContext context1 = await this.encryptionService!.GetEncryptionContextAsync(typeof(UnitTestSecureAConfig), contextID);
+            IEncryptionContext context2 = await this.encryptionService!.GetEncryptionContextAsync(typeof(UnitTestSecureBConfig), contextID);
 
             byte[] keyA = context1.Key;
             byte[] keyB = context2.Key;
@@ -364,16 +353,12 @@ namespace PlugHub.UnitTests.Services
         [TestCategory("Security")]
         public void EncryptionService_LargeBufferTests_Succeeds()
         {
-            var tokenService = new TokenService(new NullLogger<TokenService>());
-            var configService = new ConfigService(new NullLogger<ConfigService>(),
-                tokenService, this.msTestHelpers.
-                TempDirectory,
-                this.msTestHelpers.TempDirectory);
-            var storage = new InsecureStorage(new NullLogger<InsecureStorage>(), tokenService, configService, this.msTestHelpers.TempDirectory);
+            InsecureStorage storage = new(new NullLogger<InsecureStorage>());
+            storage.Initialize(this.msTestHelpers.TempDirectory);
 
             this.encryptionService = new EncryptionService(new NullLogger<EncryptionService>(), storage);
             IEncryptionContext encryptionContext =
-                this.encryptionService.GetEncryptionContext<EncryptionServiceTests>(Guid.NewGuid());
+                this.encryptionService.GetEncryptionContext(typeof(EncryptionServiceTests), Guid.NewGuid());
 
             byte[] plain = new byte[1048576]; // 1 MiB
             RandomNumberGenerator.Fill(plain);

@@ -1,24 +1,83 @@
-﻿using PlugHub.Shared.Interfaces.Services;
+﻿using PlugHub.Shared.Interfaces.Models;
+using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 
 namespace PlugHub.Shared.Interfaces.Accessors
 {
-    /// <summary>Root entry-point into PlugHub’s configuration system.</summary>
     public interface IConfigAccessor
     {
-        public IConfigAccessor Init(IList<Type> configTypes, Token? ownerToken, Token? readToken, Token? writeToken);
+        /// The interface under which you registered yourself:
+        /// typeof(IConfigAccessor), typeof(ISecureConfigAccessor), etc.
+        public Type AccessorInterface { get; init; }
 
-        /// <summary>Returns a strongly-typed accessor for <typeparamref name="TConfig"/>.</summary>
-        /// <typeparam name="TConfig">Configuration POCO (public, parameter-less ctor).</typeparam>
-        /// <returns>IConfigAccessorFor&lt;TConfig&gt; scoped to the requested section.</returns>
-        /// <exception cref="ConfigTypeNotFoundException">Type not registered.</exception>
+
+        /// <summary>Sets the configuration types this accessor will handle.</summary>
+        /// <param name="configTypes">List of configuration types to register.</param>
+        /// <returns>The updated accessor instance.</returns>
+        public IConfigAccessor SetConfigTypes(IList<Type> configTypes);
+
+        /// <summary>Assigns the underlying configuration service used for data operations.</summary>
+        /// <param name="configService">The configuration service instance.</param>
+        /// <returns>The updated accessor instance.</returns>
+        public IConfigAccessor SetConfigService(IConfigService configService);
+
+        /// <summary>Sets the access tokens controlling owner, read, and write permissions.</summary>
+        /// <param name="ownerToken">Owner token with full permissions.</param>
+        /// <param name="readToken">Token for read access.</param>
+        /// <param name="writeToken">Token for write access.</param>
+        /// <returns>The updated accessor instance.</returns>
+        public IConfigAccessor SetAccess(Token ownerToken, Token readToken, Token writeToken);
+
+        /// <summary>Sets the access tokens using a token set containing owner, read, and write tokens.</summary>
+        /// <param name="tokenSet">Token set encapsulating access tokens.</param>
+        /// <returns>The updated accessor instance.</returns>
+        public IConfigAccessor SetAccess(ITokenSet tokenSet);
+
+
+        /// <summary>Gets a strongly typed configuration accessor for the specified configuration type.</summary>
+        /// <typeparam name="TConfig">Type of the configuration.</typeparam>
+        /// <returns>A strongly typed accessor for <typeparamref name="TConfig"/>.</returns>
         public IConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class;
+
+        /// <summary>Creates a strongly typed configuration accessor for the specified type and tokens.</summary>
+        /// <typeparam name="TConfig">Type of the configuration.</typeparam>
+        /// <param name="configService">Configuration service to associate.</param>
+        /// <param name="ownerToken">Owner access token.</param>
+        /// <param name="readToken">Read access token.</param>
+        /// <param name="writeToken">Write access token.</param>
+        /// <returns>A strongly typed accessor for <typeparamref name="TConfig"/>.</returns>
+        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, Token ownerToken, Token readToken, Token writeToken) where TConfig : class;
+
+        /// <summary>
+        /// Creates a strongly typed configuration accessor for the specified configuration type using an <see cref="ITokenSet"/> for access control.
+        /// </summary>
+        /// <typeparam name="TConfig">The type of the configuration object.</typeparam>
+        /// <param name="configService">The configuration service instance to associate with the accessor.</param>
+        /// <param name="tokenSet">The token set containing owner, read, and write tokens for access control.</param>
+        /// <returns>A strongly typed configuration accessor for <typeparamref name="TConfig"/>.</returns>
+        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, ITokenSet tokenSet) where TConfig : class;
+
     }
 
-    /// <summary>Type-safe accessor for a single configuration class.</summary>
-    /// <typeparam name="TConfig">Configuration POCO.</typeparam>
     public interface IConfigAccessorFor<TConfig> where TConfig : class
     {
+        /// <summary>
+        /// Sets the access tokens for this config accessor.
+        /// </summary>
+        /// <param name="ownerToken">Owner token for full access.</param>
+        /// <param name="readToken">Read token for read access.</param>
+        /// <param name="writeToken">Write token for write access.</param>
+        /// <returns>The updated config accessor instance.</returns>
+        public IConfigAccessorFor<TConfig> SetAccess(Token ownerToken, Token readToken, Token writeToken);
+
+        /// <summary>
+        /// Sets the access tokens for this config accessor using a token set.
+        /// </summary>
+        /// <param name="tokenSet">Token set containing owner, read, and write tokens.</param>
+        /// <returns>The updated config accessor instance.</returns>
+        public IConfigAccessorFor<TConfig> SetAccess(ITokenSet tokenSet);
+
+
         /// <summary>
         /// <summary>Gets the default <paramref name="key"/> as <typeparamref name="T"/>.</summary>
         /// </summary>
@@ -33,7 +92,7 @@ namespace PlugHub.Shared.Interfaces.Accessors
         /// <typeparam name="T">Return type.</typeparam>
         /// <param name="key">Public property name.</param>
         /// <returns>Current merged value.</returns>
-        /// <exception cref="KeyNotFoundException">Property not found.</exception>
+        /// <exception cref="KeyNotFoundException"/>
         public T Get<T>(string key);
 
         /// <summary>Sets <paramref name="value"/> on <paramref name="key"/> in memory.</summary>

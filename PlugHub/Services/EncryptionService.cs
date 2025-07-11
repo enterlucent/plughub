@@ -43,16 +43,17 @@ namespace PlugHub.Services
             this.masterKeyTask = new Lazy<Task<byte[]>>(this.LoadOrCreateMasterKeyAsync);
         }
 
-        public IEncryptionContext GetEncryptionContext<T>(Guid id)
-            => this.GetEncryptionContextAsync<T>(id)
+        public IEncryptionContext GetEncryptionContext(Type configType, Guid id)
+            => this.GetEncryptionContextAsync(configType, id)
                    .AsTask()
                    .GetAwaiter()
                    .GetResult();
-        public async ValueTask<IEncryptionContext> GetEncryptionContextAsync<T>(Guid id)
+
+        public async ValueTask<IEncryptionContext> GetEncryptionContextAsync(Type configType, Guid id)
         {
             this.masterKey = await this.masterKeyTask.Value.ConfigureAwait(false);
 
-            string contextBlobId = BuildOpaqueId<T>(id);
+            string contextBlobId = BuildOpaqueId(configType, id);
 
             byte[]? encryptedContextKey = this.LoadKey(contextBlobId);
 
@@ -147,9 +148,9 @@ namespace PlugHub.Services
             RandomNumberGenerator.Fill(key);
             return key;
         }
-        private static string BuildOpaqueId<T>(Guid id)
+        private static string BuildOpaqueId(Type configType, Guid id)
         {
-            byte[] raw = Encoding.UTF8.GetBytes($"{typeof(T).FullName}_{id:N}");
+            byte[] raw = Encoding.UTF8.GetBytes($"{configType.FullName}_{id:N}");
             byte[] hash = SHA256.HashData(raw);
             return Convert.ToHexString(hash);
         }
