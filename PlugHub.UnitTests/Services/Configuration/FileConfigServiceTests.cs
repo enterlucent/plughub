@@ -660,13 +660,13 @@ namespace PlugHub.UnitTests.Services.Configuration
 
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            var writers = Enumerable.Range(0, writerTasks).Select(_ => Task.Run(() =>
+            IEnumerable<Task> writers = Enumerable.Range(0, writerTasks).Select(_ => Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
                     this.configService!.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), i, this.tokenSet);
             }));
 
-            var readers = Enumerable.Range(0, readerTasks).Select(_ => Task.Run(() =>
+            IEnumerable<Task> readers = Enumerable.Range(0, readerTasks).Select(_ => Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
                     _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);

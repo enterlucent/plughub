@@ -368,6 +368,40 @@ namespace PlugHub.Services.Configuration
             }
             finally { if (rwLock.IsReadLockHeld) rwLock.ExitReadLock(); }
         }
+        public override void SaveConfigInstance(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null)
+        {
+            (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
+
+            IConfigService? configService = null;
+            ConfigServiceSaveErrorEventArgs? errorArgs = null;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not FileConfigServiceConfig config)
+                        throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+
+                    this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
+
+                    configService = config.ConfigService;
+
+                    await this.SaveConfigInstanceAsync(configType, updatedConfig, nOwner, nWrite);
+                }
+                catch (Exception ex)
+                {
+                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveConfigInstance);
+                }
+
+                if (configService != null)
+                {
+                    if (errorArgs == null)
+                        configService.OnSaveOperationComplete(this, configType);
+                    else
+                        configService.OnSaveOperationError(this, errorArgs.Exception, errorArgs.Operation, configType);
+                }
+            });
+        }
         public override async Task SaveConfigInstanceAsync(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(updatedConfig);

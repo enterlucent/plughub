@@ -246,7 +246,7 @@ namespace PlugHub.Accessors.Configuration
                        t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
             protected static PropertyInfo? GetCachedProperty(string propertyName)
             {
-                var props = PropertyCache.GetOrAdd(
+                PropertyInfo[] props = PropertyCache.GetOrAdd(
                     typeof(TConfig),
                     t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
 
