@@ -141,7 +141,7 @@ namespace PlugHub.Services.Configuration
         {
             this.RegisterConfig(typeof(TConfig), configParams);
 
-            accessor = this.GetAccessor<TConfig>();
+            accessor = this.GetAccessor<TConfig>(configParams.Owner, configParams.Read, configParams.Write);
         }
         public void RegisterConfigs(IEnumerable<Type> configTypes, IConfigServiceParams configParams)
         {
@@ -164,7 +164,7 @@ namespace PlugHub.Services.Configuration
 
             IConfigServiceProvider provider = this.GetProviderForParamsType(paramType);
 
-            accessor = this.GetAccessor(provider.RequiredAccessorInterface, configTypes);
+            accessor = this.GetAccessor(provider.RequiredAccessorInterface, configTypes, configParams.Owner, configParams.Read, configParams.Write);
         }
 
         public void UnregisterConfig(Type configType, Token? token = null)
