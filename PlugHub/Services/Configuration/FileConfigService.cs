@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
 using System;
 using System.Collections.Generic;
@@ -15,10 +16,6 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Services.Configuration
 {
-    public record FileConfigServiceParams(string? ConfigUriOverride = null, Token? Owner = null, Token? Read = null, Token? Write = null, JsonSerializerOptions? JsonSerializerOptions = null, bool ReloadOnChange = false)
-        : IConfigServiceParams
-    {
-    }
     public class FileConfigServiceConfig(IConfigService configService, string configPath, IConfiguration config, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChanged)
     {
         public IConfigService ConfigService { get; init; } = configService;

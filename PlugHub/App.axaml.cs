@@ -14,6 +14,7 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Configuration;
 using PlugHub.ViewModels;
 using PlugHub.Views;
 using Serilog;

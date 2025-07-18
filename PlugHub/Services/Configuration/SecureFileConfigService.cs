@@ -5,6 +5,7 @@ using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
 using System;
 using System.Collections.Generic;
@@ -17,8 +18,6 @@ using System.Text.Json.Serialization;
 
 namespace PlugHub.Services.Configuration
 {
-    public record SecureFileConfigServiceParams(IEncryptionContext? EncryptionContext = null, string? ConfigUriOverride = null, Token? Owner = null, Token? Read = null, Token? Write = null, JsonSerializerOptions? JsonSerializerOptions = null, bool ReloadOnChange = false)
-        : FileConfigServiceParams(ConfigUriOverride, Owner, Read, Write, JsonSerializerOptions, ReloadOnChange);
     public class SecureFileConfigServiceConfig(IEncryptionContext encryptionContext, IConfigService configService, string configPath, IConfiguration config, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChange)
         : FileConfigServiceConfig(configService, configPath, config, values, jsonOptions, ownerToken, readToken, writeToken, reloadOnChange)
     {

@@ -6,6 +6,7 @@ using PlugHub.Services.Configuration;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Configuration;
 
 namespace PlugHub.UnitTests.Services.Configuration
 {
