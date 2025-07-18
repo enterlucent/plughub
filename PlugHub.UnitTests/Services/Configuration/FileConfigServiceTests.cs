@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using PlugHub.Models;
 using PlugHub.Services;
 using PlugHub.Services.Configuration;
@@ -7,6 +8,7 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
+using System.Text.Json;
 
 namespace PlugHub.UnitTests.Services.Configuration
 {
@@ -23,17 +25,38 @@ namespace PlugHub.UnitTests.Services.Configuration
         private ITokenSet tokenSet = new TokenSet();
 
 
+        internal class UnitTestConfigItem(string name = "Unknown")
+        {
+            public UnitTestConfigItem() : this("Unknown") { }
+            public string Name { get; set; } = name;
+        }
+
         internal class UnitTestAConfig
         {
             public int FieldA { get; set; } = 50;
             public bool FieldB { get; set; } = false;
             public float FieldC { get; } = 2.71828f;
+            public List<UnitTestConfigItem> SampleList { get; set; } =
+            [
+                new UnitTestConfigItem("TestValueA1"),
+                new UnitTestConfigItem("TestValueA2"),
+                new UnitTestConfigItem("TestValueA3")
+            ];
+
         }
         internal class UnitTestBConfig
         {
             public required string FieldA { get; set; } = "plughub";
             public int FieldB { get; set; } = 100;
             public float FieldC { get; } = 3.14f;
+
+            public Dictionary<string, UnitTestConfigItem> SampleDictionary { get; set; } =
+                new Dictionary<string, UnitTestConfigItem>
+                {
+                    { "Key1", new UnitTestConfigItem("DictValue1") },
+                    { "Key2", new UnitTestConfigItem("DictValue2") },
+                    { "Key3", new UnitTestConfigItem("DictValue3") }
+                };
         }
 
 
@@ -382,6 +405,49 @@ namespace PlugHub.UnitTests.Services.Configuration
             // Assert
             Assert.ThrowsException<KeyNotFoundException>(() =>
                 this.configService!.GetDefaultConfigFileContents(typeof(UnitTestAConfig), this.tokenSet));
+        }
+
+        [TestMethod]
+        [TestCategory("Mutators")]
+        public void SetSetting_ListProperty_UpdatesListAndFiresEvent()
+        {
+            // Arrange
+            bool eventFired = false;
+            this.configService!.SettingChanged += (s, e) => eventFired = true;
+            List<string> testList = ["one", "two", "three"];
+
+            // Act
+            this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], this.fileParams);
+            this.configService!.SetSetting(typeof(UnitTestAConfig), "SampleList", testList, this.tokenSet);
+
+            List<string> value = this.configService!.GetSetting<List<string>>(typeof(UnitTestAConfig), "SampleList", this.tokenSet);
+
+            // Assert
+            CollectionAssert.AreEqual(testList, value);
+            Assert.IsTrue(eventFired, "Setting changes should fire events");
+        }
+
+        [TestMethod]
+        [TestCategory("Mutators")]
+        public void SetSetting_BindsDictionaryPropertyCorrectly()
+        {
+            // Arrange
+            Dictionary<string, UnitTestConfigItem> expectedDict = new()
+            {
+                { "Key1", new UnitTestConfigItem("NewValue1") },
+                { "Key2", new UnitTestConfigItem("NewValue2") },
+                { "Key3", new UnitTestConfigItem("NewValue3") }
+            };
+
+            this.configService!.RegisterConfigs([typeof(UnitTestBConfig)], this.fileParams);
+
+            // Act
+            this.configService!.SetSetting(typeof(UnitTestBConfig), "SampleDictionary", expectedDict, this.tokenSet);
+            Dictionary<string, UnitTestConfigItem> actualDict = this.configService!.GetSetting<Dictionary<string, UnitTestConfigItem>>(typeof(UnitTestBConfig), "SampleDictionary", this.tokenSet);
+
+            // Assert
+            Assert.AreEqual(3, actualDict.Count);
+            Assert.AreEqual("NewValue2", actualDict["Key2"].Name);
         }
 
         #endregion
