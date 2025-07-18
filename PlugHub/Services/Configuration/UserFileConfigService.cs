@@ -759,7 +759,6 @@ namespace PlugHub.Services.Configuration
             foreach (PropertyInfo prop in properties)
             {
                 string key = prop.Name;
-
                 object? defaultValue = null;
                 object? userValue = null;
 
@@ -770,15 +769,44 @@ namespace PlugHub.Services.Configuration
                     if (!section.Exists())
                         continue;
 
-                    object? val;
+                    object? val = null;
+                    bool didSet = false;
 
-                    try
+                    // List-handling branch
+                    if (prop.PropertyType.IsGenericType &&
+                        typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) &&
+                        prop.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
                     {
-                        val = section.Get(prop.PropertyType);
+                        // Build the list element-by-element and Bind
+                        Type elementType = prop.PropertyType.GetGenericArguments()[0];
+                        var listType = typeof(List<>).MakeGenericType(elementType);
+                        var list = (System.Collections.IList)Activator.CreateInstance(listType)!;
+
+                        foreach (var child in section.GetChildren())
+                        {
+                            var element = Activator.CreateInstance(elementType);
+                            child.Bind(element);
+                            list.Add(element);
+                        }
+                        val = list;
+                        didSet = true;
                     }
-                    catch
+                    else
                     {
-                        val = Convert.ChangeType(section.Value, prop.PropertyType);
+                        try
+                        {
+                            val = section.Get(prop.PropertyType);
+                            didSet = val != null;
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                val = Convert.ChangeType(section.Value, prop.PropertyType);
+                                didSet = val != null;
+                            }
+                            catch { /* ignore */ }
+                        }
                     }
 
                     if (defaultValue is null)
