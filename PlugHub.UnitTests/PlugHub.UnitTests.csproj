@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\PlugHub.Plugins\PlugHub.Shared.Mock\PlugHub.Shared.Mock.csproj" />
     <ProjectReference Include="..\PlugHub\PlugHub.csproj" />
     <ProjectReference Include="..\PlugHub.Shared\PlugHub.Shared.csproj" />
   </ItemGroup>
