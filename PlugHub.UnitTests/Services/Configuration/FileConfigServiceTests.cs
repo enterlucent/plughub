@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using PlugHub.Models;
 using PlugHub.Services;
 using PlugHub.Services.Configuration;
@@ -8,7 +7,6 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
-using System.Text.Json;
 
 namespace PlugHub.UnitTests.Services.Configuration
 {
@@ -635,6 +633,7 @@ namespace PlugHub.UnitTests.Services.Configuration
         [TestCategory("Events")]
         public async Task BadReload_MalformedJson_DoesNotOverwriteSettings()
         {
+            // Arrange
             UserConfigServiceParams userConfigServiceParams =
                 new(Owner: this.ownerToken, Read: this.readToken, Write: this.writeToken, ReloadOnChange: true);
 
@@ -644,14 +643,14 @@ namespace PlugHub.UnitTests.Services.Configuration
 
             string defaultPath = Path.Combine(this.msTestHelpers.TempDirectory, $"{nameof(UnitTestAConfig)}.json");
 
-            // Corrupt the file that the watcher is monitoring.
+            // Act
             this.msTestHelpers.CreateTempFile("}{ not: json", defaultPath);
 
-            // Give the watcher a moment to react.
             await Task.Delay(800);
 
             int after = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
 
+            // Assert
             Assert.AreEqual(initial, after,
                 "Settings should remain unchanged when a reload encounters malformed JSON.");
         }
@@ -721,12 +720,14 @@ namespace PlugHub.UnitTests.Services.Configuration
         [TestCategory("Concurrency")]
         public async Task ConcurrentReadersWriters_DoNotThrow()
         {
+            // Arrange
             const int iterations = 200;
             const int readerTasks = 6;
             const int writerTasks = 4;
 
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
+            // Act 
             IEnumerable<Task> writers = Enumerable.Range(0, writerTasks).Select(_ => Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
@@ -739,9 +740,9 @@ namespace PlugHub.UnitTests.Services.Configuration
                     _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
             }));
 
+            // Assert
             await Task.WhenAll(writers.Concat(readers));
-
-            // Final sanity read – must succeed without throwing.
+            
             _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
         }
 

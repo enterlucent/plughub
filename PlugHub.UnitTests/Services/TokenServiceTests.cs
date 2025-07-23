@@ -57,7 +57,7 @@ namespace PlugHub.UnitTests.Services
             ITokenSet tokenSet = this.tokenService!.CreateTokenSet(writeToken: write);
 
             // Assert
-            Assert.AreEqual(write, tokenSet.Read);   // Read inherits write if read is null
+            Assert.AreEqual(write, tokenSet.Read);   
             Assert.AreEqual(write, tokenSet.Write);
         }
 
@@ -231,7 +231,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Act
             bool result = this.tokenService!.AllowAccess(
-                resourceOwner: null, // No owner
+                resourceOwner: null, 
                 resourcePermission: Token.Public,
                 accessor: Token.New(),
                 accessorPermission: null,
@@ -239,7 +239,7 @@ namespace PlugHub.UnitTests.Services
             );
 
             // Assert
-            Assert.IsTrue(result); // Public resource access
+            Assert.IsTrue(result); 
         }
 
         [TestMethod]
@@ -250,7 +250,7 @@ namespace PlugHub.UnitTests.Services
             Token owner = Token.New();
 
             // Act
-            bool result = tokenService!.AllowAccess(
+            bool result = this.tokenService!.AllowAccess(
                 resourceOwner: owner,
                 resourcePermission: Token.Blocked,
                 accessor: owner,
@@ -258,7 +258,7 @@ namespace PlugHub.UnitTests.Services
                 throwException: true
             );
 
-            // Assert: Owner should bypass blocked state
+            // Assert
             Assert.IsTrue(result);
         }
 

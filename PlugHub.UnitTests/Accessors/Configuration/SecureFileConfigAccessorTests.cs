@@ -65,8 +65,8 @@ namespace PlugHub.UnitTests.Accessors.Configuration
                     new SecureUserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService, this.encryptionService),
                 ],
                 [
-                    new FileConfigAccessor(new NullLogger<IConfigAccessor>()),
-                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService),
+                    new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService !),
+                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService),
                 ],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
@@ -101,7 +101,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         {
             // Arrange
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor =
-                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -118,14 +118,14 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         {
             // Arrange
             ISecureFileConfigAccessor accessor =
-                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
                     .SetAccess(this.tokenSet);
 
             // Act & Assert
-            Assert.ThrowsException<TypeAccessException>(() => accessor.For<UnitTestSecureBConfig>());
+            Assert.ThrowsException<InvalidOperationException>(() => accessor.For<UnitTestSecureBConfig>());
         }
 
         #endregion
@@ -137,7 +137,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         public void Set_WithUnknownKey_ThrowsKeyNotFoundException()
         {
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor =
-                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -155,15 +155,14 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor =
-                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
                     .SetAccess(this.tokenSet)
                     .For<UnitTestSecureAConfig>();
 
-            // Inject a user override of the WRONG type – no file-munging required.
-            accessor.Set<string>(nameof(UnitTestSecureAConfig.FieldA), "not-a-guid");
+            accessor.Set(nameof(UnitTestSecureAConfig.FieldA), "not-a-guid");
 
             // Act
             Guid value = accessor.Get<Guid>(nameof(UnitTestSecureAConfig.FieldA));
@@ -187,7 +186,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
 
             // Act
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -206,7 +205,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -229,7 +228,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -259,7 +258,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -289,7 +288,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -316,7 +315,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)

@@ -51,7 +51,7 @@ namespace PlugHub.UnitTests.Services
 
             this.configService = new ConfigService(
                 [new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService)],
-                [new FileConfigAccessor(new NullLogger<IConfigAccessor>())],
+                [new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
                 this.msTestHelpers.TempDirectory,
@@ -308,7 +308,7 @@ namespace PlugHub.UnitTests.Services
         public void SynchronizePluginConfig_ValidInputs_AddsNewPluginConfigurations()
         {
             // Arrange 
-            var mockManifest = new Mock<IConfigAccessorFor<PluginManifest>>();
+            Mock<IConfigAccessorFor<PluginManifest>> mockManifest = new();
             PluginManifest testManifest = new() { InterfaceStates = [] };
             mockManifest.Setup(x => x.Get()).Returns(testManifest);
 
@@ -342,7 +342,7 @@ namespace PlugHub.UnitTests.Services
         public void GetEnabledInterfaces_HasEnabledInterfaces_ReturnsOnlyEnabledInterfaces()
         {
             // Arrange
-            var testManifest = new Mock<IConfigAccessorFor<PluginManifest>>();
+            Mock<IConfigAccessorFor<PluginManifest>> testManifest = new();
             PluginManifest manifest = new()
             {
                 InterfaceStates =

@@ -24,47 +24,38 @@ namespace PlugHub.Services
         public bool Enabled { get; set; } = enabled;
         public int LoadOrder { get; set; } = loadOrder;
     }
+
     public class PluginManifest
     {
         public List<PluginLoadState> InterfaceStates { get; set; } = [];
     }
 
-
-    public class PluginRegistrar(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest) : IPluginRegistrar
+    public class PluginRegistrar : IPluginRegistrar
     {
-        protected readonly ILogger<IPluginRegistrar> Logger = logger
-            ?? throw new ArgumentNullException();
-        protected readonly IConfigAccessorFor<PluginManifest> PluginManifest = pluginManifest
-            ?? throw new ArgumentNullException();
+        private class EnableStateChangeResult
+        {
+            public bool FoundAny { get; set; }
+            public bool ChangeMade { get; set; }
+            public List<PluginLoadState> ModifiedStates { get; set; } = [];
+        }
+
+        protected readonly ILogger<IPluginRegistrar> Logger;
+        protected readonly IConfigAccessorFor<PluginManifest> PluginManifest;
+
+        public PluginRegistrar(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest)
+        {
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(pluginManifest);
+
+            this.Logger = logger;
+            this.PluginManifest = pluginManifest;
+        }
 
         #region PluginRegistrar: Enabled Getters & Mutators
 
         protected bool GetEnableState(Guid pluginId)
         {
-            PluginManifest pluginManifest;
-
-            try
-            {
-                pluginManifest = this.PluginManifest.Get();
-            }
-            catch (NullReferenceException)
-            {
-                throw new InvalidOperationException("Plugin manifest is not available");
-            }
-
-            if (pluginManifest == null || pluginManifest.InterfaceStates == null)
-            {
-                this.Logger.LogWarning("Attempted to call GetEnableState for PluginId {pluginId}, but PluginManifest or InterfaceStates was null. Returning false.", pluginId);
-                return false;
-            }
-
-            foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
-            {
-                if (loadState.PluginId == pluginId && loadState.Enabled)
-                    return true;
-            }
-
-            return false;
+            return this.GetEnableState(pluginId, (state, id) => state.PluginId == id && state.Enabled);
         }
         public bool GetEnabled(Plugin plugin)
             => this.GetEnableState(plugin.Metadata.PluginID);
@@ -73,96 +64,32 @@ namespace PlugHub.Services
         {
             ArgumentNullException.ThrowIfNull(pluginInterface);
 
-            PluginManifest pluginManifest;
-
-            try
-            {
-                pluginManifest = this.PluginManifest.Get();
-            }
-            catch (NullReferenceException)
-            {
-                throw new InvalidOperationException("Plugin manifest is not available");
-            }
-
-            if (pluginManifest == null || pluginManifest.InterfaceStates == null)
-            {
-                this.Logger.LogWarning("Attempted to call GetEnableState for PluginInterface {InterfaceName}, but PluginManifest or InterfaceStates was null. Returning false.", pluginInterface.InterfaceName);
-
-                return false;
-            }
-
-            foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
-            {
-                bool assemblyMatch = string.Equals(loadState.AssemblyName, pluginInterface.AssemblyName, StringComparison.OrdinalIgnoreCase);
-                bool implementationMatch = string.Equals(loadState.ImplementationName, pluginInterface.ImplementationName, StringComparison.OrdinalIgnoreCase);
-                bool interfaceMatch = string.Equals(loadState.InterfaceName, pluginInterface.InterfaceName, StringComparison.OrdinalIgnoreCase);
-
-                if (assemblyMatch && implementationMatch && interfaceMatch)
-                    return loadState.Enabled;
-            }
-            return false;
+            return this.GetEnableState(pluginInterface, (state, iface) => DoesLoadStateMatch(state, iface) && state.Enabled);
         }
         public bool GetEnabled(PluginInterface pluginInterface)
             => this.GetEnableState(pluginInterface);
 
-
         protected void SetEnableState(Guid pluginId, bool enabled)
         {
-            PluginManifest pluginManifest;
-
             try
             {
-                pluginManifest = this.PluginManifest.Get();
-            }
-            catch (NullReferenceException)
-            {
-                throw new InvalidOperationException("Plugin manifest is not available");
-            }
+                PluginManifest pluginManifest = this.GetValidatedManifest($"SetEnableState for PluginId {pluginId}");
 
-            if (pluginManifest == null || pluginManifest.InterfaceStates == null)
-            {
-                this.Logger.LogWarning("Attempted to call SetEnableState for PluginId={PluginId}, but PluginManifest or InterfaceStates was null. Operation aborted.", pluginId);
+                EnableStateChangeResult result =
+                    this.UpdateEnableState(
+                        pluginManifest,
+                        pluginId,
+                        enabled,
+                        (state, id) => state.PluginId == id,
+                        "PluginId");
 
+                string identifier = GetIdentifierString(pluginId);
+
+                this.HandleEnableStateChangeResult(result, identifier, "PluginId", enabled);
+            }
+            catch (InvalidOperationException)
+            {
                 return;
-            }
-
-            bool foundAny = false;
-            bool changeMade = false;
-
-            foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
-            {
-                if (loadState.PluginId == pluginId)
-                {
-                    foundAny = true;
-                    if (loadState.Enabled != enabled)
-                    {
-                        this.Logger.LogInformation("Setting Enabled={Enabled} for {PluginId} - {AssemblyName}:{ImplementationName}:{InterfaceName}", enabled, loadState.PluginId, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName);
-
-                        loadState.Enabled = enabled;
-
-                        changeMade = true;
-                    }
-                    else
-                    {
-                        this.Logger.LogInformation("No change needed: {PluginId} - {AssemblyName}:{ImplementationName}:{InterfaceName} already has Enabled={Enabled}.", loadState.PluginId, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName, enabled);
-                    }
-                }
-            }
-
-            if (!foundAny)
-            {
-                this.Logger.LogWarning("No PluginLoadState entries found for PluginId={PluginId}. No changes made.", pluginId);
-            }
-
-            if (changeMade)
-            {
-                this.PluginManifest.Save(pluginManifest);
-
-                this.Logger.LogInformation("Plugin configuration changes detected and saved for PluginId={PluginId}.", pluginId);
-            }
-            else if (foundAny)
-            {
-                this.Logger.LogInformation("No plugin configuration changes detected for PluginId={PluginId}.", pluginId);
             }
         }
         public void SetEnabled(Plugin plugin)
@@ -174,66 +101,25 @@ namespace PlugHub.Services
         {
             ArgumentNullException.ThrowIfNull(pluginInterface);
 
-            PluginManifest pluginManifest;
-
             try
             {
-                pluginManifest = this.PluginManifest.Get();
-            }
-            catch (NullReferenceException)
-            {
-                throw new InvalidOperationException("Plugin manifest is not available");
-            }
+                PluginManifest pluginManifest = this.GetValidatedManifest($"SetEnableState for PluginInterface {pluginInterface.InterfaceName}");
 
-            if (pluginManifest == null || pluginManifest.InterfaceStates == null)
-            {
-                this.Logger.LogWarning("Attempted to call SetEnableState for PluginInterface={PluginId}, but PluginManifest or InterfaceStates was null. Operation aborted.", pluginInterface.InterfaceName);
+                EnableStateChangeResult result =
+                    this.UpdateEnableState(
+                        pluginManifest,
+                        pluginInterface,
+                        enabled,
+                        (state, iface) => DoesLoadStateMatch(state, iface),
+                        "Interface");
 
+                string identifier = GetIdentifierString(pluginInterface);
+
+                this.HandleEnableStateChangeResult(result, identifier, "interface", enabled);
+            }
+            catch (InvalidOperationException)
+            {
                 return;
-            }
-
-            bool changeMade = false;
-            bool foundMatch = false;
-
-            foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
-            {
-                bool assemblyMatch = string.Equals(loadState.AssemblyName, pluginInterface.AssemblyName, StringComparison.OrdinalIgnoreCase);
-                bool implementationMatch = string.Equals(loadState.ImplementationName, pluginInterface.ImplementationName, StringComparison.OrdinalIgnoreCase);
-                bool interfaceMatch = string.Equals(loadState.InterfaceName, pluginInterface.InterfaceName, StringComparison.OrdinalIgnoreCase);
-
-                if (assemblyMatch && implementationMatch && interfaceMatch)
-                {
-                    foundMatch = true;
-
-                    if (loadState.Enabled != enabled)
-                    {
-                        this.Logger.LogInformation("Setting Enabled={Enabled} for plugin interface {AssemblyName}:{ImplementationName}:{InterfaceName}.", enabled, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName);
-
-                        loadState.Enabled = enabled;
-
-                        changeMade = true;
-                    }
-                    else
-                    {
-                        this.Logger.LogInformation("No change: plugin interface {AssemblyName}:{ImplementationName}:{InterfaceName} already has Enabled={Enabled}.", loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName, enabled);
-                    }
-                }
-            }
-
-            if (!foundMatch)
-            {
-                this.Logger.LogWarning("No PluginLoadState found matching {AssemblyName}:{ImplementationName}:{InterfaceName}. No changes made.", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
-            }
-
-            if (changeMade)
-            {
-                this.PluginManifest.Save(pluginManifest);
-
-                this.Logger.LogInformation("Plugin configuration changes detected and saved for {AssemblyName}:{ImplementationName}:{InterfaceName}.", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
-            }
-            else if (foundMatch)
-            {
-                this.Logger.LogInformation("No plugin configuration changes detected for {AssemblyName}:{ImplementationName}:{InterfaceName}.", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
             }
         }
         public void SetEnabled(PluginInterface pluginInterface)
@@ -243,87 +129,211 @@ namespace PlugHub.Services
 
         #endregion
 
-        #region PluginRegistrar: Plugin Boostrapping
+        #region PluginRegistrar: Core Helper Methods
+
+        private bool GetEnableState<T>(T target, Func<PluginLoadState, T, bool> matchPredicate)
+        {
+            try
+            {
+                string operationContext = $"GetEnableState for {typeof(T).Name}";
+                PluginManifest pluginManifest = this.GetValidatedManifest(operationContext);
+
+                foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
+                {
+                    bool isMatch = matchPredicate(loadState, target);
+
+                    if (isMatch)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+        private EnableStateChangeResult UpdateEnableState<T>(PluginManifest pluginManifest, T target, bool enabled, Func<PluginLoadState, T, bool> matchPredicate, string logContext)
+        {
+            EnableStateChangeResult result = new();
+
+            foreach (PluginLoadState loadState in pluginManifest.InterfaceStates)
+            {
+                bool isMatch = matchPredicate(loadState, target);
+
+                if (!isMatch) continue;
+
+                result.FoundAny = true;
+
+                bool needsUpdate = loadState.Enabled != enabled;
+                bool alreadyCorrectState = loadState.Enabled == enabled;
+
+                if (needsUpdate)
+                {
+                    if (logContext == "PluginId")
+                    {
+                        this.Logger.LogInformation("Setting Enabled={Enabled} for {PluginId} - {AssemblyName}:{ImplementationName}:{InterfaceName}", enabled, loadState.PluginId, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName);
+                    }
+                    else
+                    {
+                        this.Logger.LogInformation("Setting Enabled={Enabled} for plugin interface {AssemblyName}:{ImplementationName}:{InterfaceName}.", enabled, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName);
+                    }
+
+                    loadState.Enabled = enabled;
+                    result.ChangeMade = true;
+                    result.ModifiedStates.Add(loadState);
+                }
+                else if (alreadyCorrectState)
+                {
+                    if (logContext == "PluginId")
+                    {
+                        this.Logger.LogInformation("No change needed: {PluginId} - {AssemblyName}:{ImplementationName}:{InterfaceName} already has Enabled={Enabled}.", loadState.PluginId, loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName, enabled);
+                    }
+                    else
+                    {
+                        this.Logger.LogInformation("No change: plugin interface {AssemblyName}:{ImplementationName}:{InterfaceName} already has Enabled={Enabled}.", loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName, enabled);
+                    }
+                }
+            }
+
+            return result;
+        }
+        private void HandleEnableStateChangeResult(EnableStateChangeResult result, string identifier, string identifierType, bool enabled)
+        {
+            bool foundAny = result.FoundAny;
+            bool changeMade = result.ChangeMade;
+
+            if (!foundAny)
+            {
+                if (identifierType == "PluginId")
+                {
+                    this.Logger.LogWarning("No PluginLoadState entries found for PluginId={PluginId} when trying to set Enabled={Enabled}. No changes made.", identifier, enabled);
+                }
+                else
+                {
+                    this.Logger.LogWarning("No PluginLoadState found matching {Interface} when trying to set Enabled={Enabled}. No changes made.", identifier, enabled);
+                }
+                return;
+            }
+
+            if (changeMade)
+            {
+                this.SaveChangesAndLog(identifier, identifierType);
+            }
+            else
+            {
+                if (identifierType == "PluginId")
+                {
+                    this.Logger.LogInformation("No plugin configuration changes detected for PluginId={PluginId}. Already set to Enabled={Enabled}.", identifier, enabled);
+                }
+                else
+                {
+                    this.Logger.LogInformation("No plugin configuration changes detected for {Interface}. Already set to Enabled={Enabled}.", identifier, enabled);
+                }
+            }
+        }
+
+        private static string GetIdentifierString(Guid pluginId)
+            => pluginId.ToString();
+        private static string GetIdentifierString(PluginInterface pluginInterface)
+            => $"{pluginInterface.AssemblyName}:{pluginInterface.ImplementationName}:{pluginInterface.InterfaceName}";
+
+        private PluginManifest GetValidatedManifest(string operationContext)
+        {
+            PluginManifest manifest;
+
+            try
+            {
+                manifest = this.PluginManifest.Get();
+            }
+            catch (NullReferenceException)
+            {
+                throw new InvalidOperationException("Plugin manifest is not available");
+            }
+
+            bool manifestExists = manifest != null;
+            bool interfaceStatesExists = manifest?.InterfaceStates != null;
+            bool isValidManifest = manifestExists && interfaceStatesExists;
+
+            if (!isValidManifest)
+            {
+                this.Logger.LogWarning("Plugin manifest validation failed for operation: {Operation}. Manifest null: {ManifestNull}, InterfaceStates null: {StatesNull}",
+                    operationContext, !manifestExists, !interfaceStatesExists);
+
+                throw new InvalidOperationException($"Invalid plugin manifest state for operation: {operationContext}");
+            }
+
+            return manifest!;
+        }
+
+        private void SaveChangesAndLog(string identifier, string identifierType)
+        {
+            try
+            {
+                PluginManifest manifest = this.GetValidatedManifest($"Save changes for {identifierType} {identifier}");
+                this.PluginManifest.Save(manifest);
+
+                this.Logger.LogInformation("Plugin configuration changes detected and saved for {IdentifierType}={Identifier}.", identifierType, identifier);
+            }
+            catch (InvalidOperationException ex)
+            {
+                this.Logger.LogError("Failed to save plugin configuration changes for {IdentifierType}={Identifier}. Error: {Error}", identifierType, identifier, ex.Message);
+
+                throw;
+            }
+        }
+
+        #endregion
+
+        #region PluginRegistrar: Static Matching Helpers
+
+        private static bool DoesLoadStateMatch(PluginLoadState loadState, PluginInterface pluginInterface)
+        {
+            bool assemblyMatch = string.Equals(loadState.AssemblyName, pluginInterface.AssemblyName, StringComparison.OrdinalIgnoreCase);
+            bool implementationMatch = string.Equals(loadState.ImplementationName, pluginInterface.ImplementationName, StringComparison.OrdinalIgnoreCase);
+            bool interfaceMatch = string.Equals(loadState.InterfaceName, pluginInterface.InterfaceName, StringComparison.OrdinalIgnoreCase);
+
+            return assemblyMatch && implementationMatch && interfaceMatch;
+        }
+        private static bool DoesLoadStateMatch(PluginLoadState loadState, Plugin plugin, PluginInterface pluginInterface)
+        {
+            bool pluginIdMatch = loadState.PluginId == plugin.Metadata.PluginID;
+            bool interfaceMatch = DoesLoadStateMatch(loadState, pluginInterface);
+
+            return pluginIdMatch && interfaceMatch;
+        }
+
+        #endregion
+
+        #region PluginRegistrar: Plugin Bootstrapping
 
         public static void SynchronizePluginConfig(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<Plugin> plugins)
         {
             ArgumentNullException.ThrowIfNull(pluginManifest);
             plugins ??= [];
 
-            PluginManifest pluginData = pluginManifest.Get();
-            pluginData.InterfaceStates ??= [];
+            PluginManifest pluginData =
+                PreparePluginManifestCore(
+                    pluginManifest,
+                    count => logger.LogInformation("Synchronizing plugin config. Current entries: {EntryCount}",
+                    count));
 
-            logger.LogInformation("Synchronizing plugin config. Current entries: {EntryCount}", pluginData.InterfaceStates.Count);
+            HashSet<(string, string, string)> discoveredSet = BuildDiscoveredInterfaceSet(plugins);
 
-            HashSet<(string AssemblyName, string ImplementationName, string InterfaceName)> discoveredSet = new(
-                plugins.SelectMany(plugin =>
-                    plugin.Interfaces.Select(pluginInterface =>
-                        (pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName))),
+            bool newEntriesAdded = AddNewPluginEntries(logger, pluginData, plugins);
+            bool staleEntriesRemoved = RemoveStalePluginEntries(logger, pluginData, discoveredSet);
 
-                EqualityComparer<(string, string, string)>.Default);
-
-            bool configChanged = false;
-
-            foreach (Plugin plugin in plugins)
-            {
-                foreach (PluginInterface pluginInterface in plugin.Interfaces)
-                {
-                    bool exists = pluginData.InterfaceStates
-                        .Any(c =>
-                            c.PluginId == plugin.Metadata.PluginID &&
-                            string.Equals(c.AssemblyName, pluginInterface.AssemblyName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(c.ImplementationName, pluginInterface.ImplementationName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(c.InterfaceName, pluginInterface.InterfaceName, StringComparison.OrdinalIgnoreCase)
-                        );
-
-                    if (!exists)
-                    {
-                        pluginData.InterfaceStates.Add(
-                            new PluginLoadState(
-                                plugin.Metadata.PluginID,
-                                pluginInterface.AssemblyName,
-                                pluginInterface.ImplementationName,
-                                pluginInterface.InterfaceName,
-                                false,
-                                int.MaxValue));
-
-                        configChanged = true;
-
-                        logger.LogInformation("Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
-                    }
-                }
-            }
-
-            List<PluginLoadState> toRemove =
-                [.. pluginData.InterfaceStates
-                    .Where(c => !discoveredSet.Contains((c.AssemblyName, c.ImplementationName, c.InterfaceName)) && !c.Enabled)];
-
-            foreach (PluginLoadState entry in toRemove)
-            {
-                pluginData.InterfaceStates.Remove(entry);
-
-                configChanged = true;
-
-                logger.LogInformation("Removed stale config entry for {AssemblyName}:{TypeName}:{ImplementationName}", entry.AssemblyName, entry.ImplementationName, entry.InterfaceName);
-            }
-
-            if (configChanged)
-            {
-                pluginManifest.Save(pluginData);
-
-                logger.LogInformation("Plugin config changes detected and saved.");
-            }
-            else
-            {
-                logger.LogInformation("No plugin config changes detected.");
-            }
+            SaveConfigurationIfNeeded(logger, pluginManifest, pluginData, newEntriesAdded || staleEntriesRemoved);
         }
         public static IEnumerable<Plugin> GetEnabledInterfaces(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<Plugin> plugins)
         {
-            PluginManifest pluginData = pluginManifest.Get();
-            pluginData.InterfaceStates ??= [];
-
-            logger.LogInformation("Checking enabled plugins against {EntryCount} config entries.", pluginData.InterfaceStates.Count);
+            PluginManifest pluginData =
+                PreparePluginManifestCore(
+                    pluginManifest,
+                    count => logger.LogInformation("Checking enabled plugins against {EntryCount} config entries.",
+                    count));
 
             List<Plugin> result = [];
 
@@ -331,35 +341,13 @@ namespace PlugHub.Services
             {
                 logger.LogDebug("Processing plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
-                List<PluginInterface> enabledImplementations = [];
+                List<PluginInterface> enabledImplementations = FindEnabledImplementations(logger, pluginData, plugin);
 
-                foreach (PluginInterface iface in plugin.Interfaces)
-                {
-                    bool isEnabled = false;
+                bool hasEnabledImplementations = enabledImplementations.Count > 0;
 
-                    foreach (PluginLoadState configEntry in pluginData.InterfaceStates)
-                    {
-                        bool assemblyMatch = string.Equals(configEntry.AssemblyName, iface.AssemblyName, StringComparison.OrdinalIgnoreCase);
-                        bool typeMatch = string.Equals(configEntry.ImplementationName, iface.ImplementationName, StringComparison.OrdinalIgnoreCase);
-                        bool interfaceMatch = string.Equals(configEntry.InterfaceName, iface.InterfaceName, StringComparison.OrdinalIgnoreCase);
-
-                        isEnabled = configEntry.Enabled;
-
-                        if (assemblyMatch && typeMatch && interfaceMatch && isEnabled)
-                        {
-                            enabledImplementations.Add(iface);
-
-                            logger.LogDebug("Enabled implementation {AssemblyName}:{TypeName}:{ImplementationName}", iface.AssemblyName, iface.ImplementationName, iface.InterfaceName);
-
-                            break;
-                        }
-                    }
-                }
-
-                if (enabledImplementations.Count > 0)
+                if (hasEnabledImplementations)
                 {
                     logger.LogInformation("Plugin {AssemblyName}:{TypeName} has {EnabledCount} enabled implementations.", plugin.AssemblyName, plugin.TypeName, enabledImplementations.Count);
-
                     result.Add(new Plugin(plugin.Assembly, plugin.Type, plugin.Metadata, enabledImplementations));
                 }
             }
@@ -370,66 +358,9 @@ namespace PlugHub.Services
         }
         public static void RegisterInjectors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<Plugin> enabledPlugins)
         {
-            Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = [];
+            Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = CollectInjectorDescriptors(logger, pluginService, enabledPlugins);
 
-            foreach (Plugin plugin in enabledPlugins)
-            {
-                logger.LogInformation("Registering plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
-
-                foreach (PluginInterface implementation in plugin.Interfaces)
-                {
-                    if (implementation.InterfaceType == typeof(IPluginDependencyInjector))
-                    {
-                        IPluginDependencyInjector? injector =
-                            pluginService.GetLoadedInterface<IPluginDependencyInjector>(implementation);
-
-                        if (injector == null)
-                        {
-                            logger.LogWarning("Failed to create injector instance for {TypeName} in {AssemblyName}.", implementation.ImplementationName, implementation.AssemblyName);
-
-                            continue;
-                        }
-
-                        foreach (PluginInjectorDescriptor descriptor in injector.GetInjectionDescriptors())
-                        {
-                            if (!descriptorsByInterface.TryGetValue(descriptor.InterfaceType, out List<PluginInjectorDescriptor>? list))
-                                descriptorsByInterface[descriptor.InterfaceType] = list = [];
-
-                            list.Add(descriptor);
-                        }
-                    }
-                }
-            }
-
-            foreach (KeyValuePair<Type, List<PluginInjectorDescriptor>> kvp in descriptorsByInterface)
-            {
-                Type interfaceType = kvp.Key;
-
-                List<PluginInjectorDescriptor> descriptors = kvp.Value;
-                List<PluginInjectorDescriptor> reverseSorted = [.. pluginSorter.ResolveDescriptors(descriptors).Reverse()];
-
-                foreach (PluginInjectorDescriptor? descriptor in reverseSorted)
-                {
-                    if (descriptor.ImplementationType == null && descriptor.Instance == null)
-                    {
-                        logger.LogWarning("Descriptor for {InterfaceType} must specify either ImplementationType or Instance; skipping malformed registration.", descriptor.InterfaceType.Name);
-
-                        continue;
-                    }
-
-                    if (descriptor.ImplementationType != null && descriptor.Instance != null)
-                    {
-                        logger.LogWarning("Descriptor for {InterfaceType} specifies both ImplementationType and Instance; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
-
-                        continue;
-                    }
-
-                    if (descriptor.Instance == null)
-                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.ImplementationType!, descriptor.Lifetime));
-                    else
-                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.Instance));
-                }
-            }
+            ProcessDescriptorRegistrations(logger, pluginSorter, serviceCollection, descriptorsByInterface);
         }
         public static void RegisterPlugins(ILogger<IPluginRegistrar> logger, IServiceCollection serviceCollection, IEnumerable<Plugin> enabledPlugins)
         {
@@ -442,6 +373,212 @@ namespace PlugHub.Services
                     logger.LogInformation("Registered {Interface} directly via {TypeName}.", implementation.InterfaceName, implementation.ImplementationName);
 
                     serviceCollection.AddSingleton(implementation.InterfaceType, implementation.ImplementationType);
+                }
+            }
+        }
+
+        #endregion
+
+        #region PluginRegistrar: Bootstrap Helper Methods
+
+        private static PluginManifest PreparePluginManifestCore(IConfigAccessorFor<PluginManifest> pluginManifest, Action<int> logAction)
+        {
+            PluginManifest pluginData = pluginManifest.Get();
+            pluginData.InterfaceStates ??= [];
+
+            logAction(pluginData.InterfaceStates.Count);
+
+            return pluginData;
+        }
+        private static HashSet<(string, string, string)> BuildDiscoveredInterfaceSet(IEnumerable<Plugin> plugins)
+        {
+            return new HashSet<(string, string, string)>(
+                plugins.SelectMany(plugin =>
+                    plugin.Interfaces.Select(pluginInterface =>
+                        (pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName))),
+                EqualityComparer<(string, string, string)>.Default);
+        }
+        private static PluginLoadState CreateNewPluginLoadState(Plugin plugin, PluginInterface pluginInterface)
+        {
+            return new PluginLoadState(
+                plugin.Metadata.PluginID,
+                pluginInterface.AssemblyName,
+                pluginInterface.ImplementationName,
+                pluginInterface.InterfaceName,
+                false,
+                int.MaxValue);
+        }
+        private static List<PluginLoadState> FindStaleEntries(PluginManifest pluginData, HashSet<(string, string, string)> discoveredSet)
+        {
+            List<PluginLoadState> staleEntries = [];
+
+            foreach (PluginLoadState loadState in pluginData.InterfaceStates)
+            {
+                bool isDiscovered = discoveredSet.Contains((loadState.AssemblyName, loadState.ImplementationName, loadState.InterfaceName));
+                bool isEnabled = loadState.Enabled;
+                bool isStaleEntry = !isDiscovered && !isEnabled;
+
+                if (isStaleEntry)
+                {
+                    staleEntries.Add(loadState);
+                }
+            }
+
+            return staleEntries;
+        }
+
+        private static bool AddNewPluginEntries(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, IEnumerable<Plugin> plugins)
+        {
+            bool configChanged = false;
+
+            foreach (Plugin plugin in plugins)
+            {
+                foreach (PluginInterface pluginInterface in plugin.Interfaces)
+                {
+                    bool entryExists = pluginData.InterfaceStates.Any(c => DoesLoadStateMatch(c, plugin, pluginInterface));
+
+                    if (!entryExists)
+                    {
+                        PluginLoadState newEntry = CreateNewPluginLoadState(plugin, pluginInterface);
+                        pluginData.InterfaceStates.Add(newEntry);
+
+                        configChanged = true;
+
+                        logger.LogInformation("Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
+                    }
+                }
+            }
+
+            return configChanged;
+        }
+        private static bool RemoveStalePluginEntries(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, HashSet<(string, string, string)> discoveredSet)
+        {
+            bool configChanged = false;
+
+            List<PluginLoadState> entriesToRemove = FindStaleEntries(pluginData, discoveredSet);
+
+            foreach (PluginLoadState entry in entriesToRemove)
+            {
+                bool removalSuccessful = pluginData.InterfaceStates.Remove(entry);
+
+                if (removalSuccessful)
+                {
+                    configChanged = true;
+
+                    logger.LogInformation("Removed stale config entry for {AssemblyName}:{TypeName}:{ImplementationName}", entry.AssemblyName, entry.ImplementationName, entry.InterfaceName);
+                }
+            }
+
+            return configChanged;
+        }
+        private static void SaveConfigurationIfNeeded(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, PluginManifest pluginData, bool configChanged)
+        {
+            if (configChanged)
+            {
+                pluginManifest.Save(pluginData);
+
+                logger.LogInformation("Plugin config changes detected and saved.");
+            }
+            else
+            {
+                logger.LogInformation("No plugin config changes detected.");
+            }
+        }
+
+        private static List<PluginInterface> FindEnabledImplementations(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, Plugin plugin)
+        {
+            List<PluginInterface> enabledImplementations = [];
+
+            foreach (PluginInterface iface in plugin.Interfaces)
+            {
+                foreach (PluginLoadState configEntry in pluginData.InterfaceStates)
+                {
+                    bool isMatch = DoesLoadStateMatch(configEntry, iface);
+                    bool isEnabled = configEntry.Enabled;
+                    bool isEnabledMatch = isMatch && isEnabled;
+
+                    if (isEnabledMatch)
+                    {
+                        enabledImplementations.Add(iface);
+
+                        logger.LogDebug("Enabled implementation {AssemblyName}:{TypeName}:{ImplementationName}", iface.AssemblyName, iface.ImplementationName, iface.InterfaceName);
+
+                        break;
+                    }
+                }
+            }
+
+            return enabledImplementations;
+        }
+        private static Dictionary<Type, List<PluginInjectorDescriptor>> CollectInjectorDescriptors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IEnumerable<Plugin> enabledPlugins)
+        {
+            Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = [];
+
+            foreach (Plugin plugin in enabledPlugins)
+            {
+                logger.LogInformation("Registering plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
+
+                foreach (PluginInterface implementation in plugin.Interfaces)
+                {
+                    bool isInjector = implementation.InterfaceType == typeof(IPluginDependencyInjector);
+
+                    if (!isInjector) continue;
+
+                    IPluginDependencyInjector? injector = pluginService.GetLoadedInterface<IPluginDependencyInjector>(implementation);
+
+                    if (injector == null)
+                    {
+                        logger.LogWarning("Failed to create injector instance for {TypeName} in {AssemblyName}.", implementation.ImplementationName, implementation.AssemblyName);
+
+                        continue;
+                    }
+
+                    foreach (PluginInjectorDescriptor descriptor in injector.GetInjectionDescriptors())
+                    {
+                        if (!descriptorsByInterface.TryGetValue(descriptor.InterfaceType, out List<PluginInjectorDescriptor>? list))
+                            descriptorsByInterface[descriptor.InterfaceType] = list = [];
+
+                        list.Add(descriptor);
+                    }
+                }
+            }
+
+            return descriptorsByInterface;
+        }
+        private static void ProcessDescriptorRegistrations(ILogger<IPluginRegistrar> logger, IPluginResolver pluginSorter, IServiceCollection serviceCollection, Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface)
+        {
+            foreach (KeyValuePair<Type, List<PluginInjectorDescriptor>> kvp in descriptorsByInterface)
+            {
+                Type interfaceType = kvp.Key;
+                List<PluginInjectorDescriptor> descriptors = kvp.Value;
+                List<PluginInjectorDescriptor> reverseSorted = [.. pluginSorter.ResolveDescriptors(descriptors).Reverse()];
+
+                foreach (PluginInjectorDescriptor descriptor in reverseSorted)
+                {
+                    bool hasImplementationType = descriptor.ImplementationType != null;
+                    bool hasBothTypes = hasImplementationType && descriptor.Instance != null;
+                    bool hasNeitherType = !hasImplementationType && descriptor.Instance == null;
+
+                    if (hasNeitherType)
+                    {
+                        logger.LogWarning("Descriptor for {InterfaceType} must specify either ImplementationType or Instance; skipping malformed registration.", descriptor.InterfaceType.Name);
+
+                        continue;
+                    }
+                    else if (hasBothTypes)
+                    {
+                        logger.LogWarning("Descriptor for {InterfaceType} specifies both ImplementationType and Instance; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
+
+                        continue;
+                    }
+                    else if (descriptor.Instance != null)
+                    {
+                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.Instance));
+                    }
+                    else
+                    {
+                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.ImplementationType!, descriptor.Lifetime));
+                    }
                 }
             }
         }

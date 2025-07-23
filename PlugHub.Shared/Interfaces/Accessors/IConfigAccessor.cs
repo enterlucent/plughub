@@ -41,22 +41,23 @@ namespace PlugHub.Shared.Interfaces.Accessors
 
         /// <summary>Creates a strongly typed configuration accessor for the specified type and tokens.</summary>
         /// <typeparam name="TConfig">Type of the configuration.</typeparam>
+        /// <param name="tokenService">Token service for access validation and token set creation.</param>
         /// <param name="configService">Configuration service to associate.</param>
         /// <param name="ownerToken">Owner access token.</param>
         /// <param name="readToken">Read access token.</param>
         /// <param name="writeToken">Write access token.</param>
         /// <returns>A strongly typed accessor for <typeparamref name="TConfig"/>.</returns>
-        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, Token ownerToken, Token readToken, Token writeToken) where TConfig : class;
+        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(ITokenService tokenService, IConfigService configService, Token? ownerToken, Token? readToken, Token? writeToken) where TConfig : class;
 
         /// <summary>
         /// Creates a strongly typed configuration accessor for the specified configuration type using an <see cref="ITokenSet"/> for access control.
         /// </summary>
         /// <typeparam name="TConfig">The type of the configuration object.</typeparam>
+        /// <param name="tokenService">Token service for access validation and token set creation.</param>
         /// <param name="configService">The configuration service instance to associate with the accessor.</param>
         /// <param name="tokenSet">The token set containing owner, read, and write tokens for access control.</param>
         /// <returns>A strongly typed configuration accessor for <typeparamref name="TConfig"/>.</returns>
-        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(IConfigService configService, ITokenSet tokenSet) where TConfig : class;
-
+        public IConfigAccessorFor<TConfig> CreateFor<TConfig>(ITokenService tokenService, IConfigService configService, ITokenSet tokenSet) where TConfig : class;
     }
 
     public interface IConfigAccessorFor<TConfig> where TConfig : class

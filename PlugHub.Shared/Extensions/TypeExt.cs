@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+
 namespace PlugHub.Shared.Extensions
 {
     public static class TypeExtensions
@@ -18,11 +19,9 @@ namespace PlugHub.Shared.Extensions
         {
             ArgumentNullException.ThrowIfNull(type);
 
-            // Hash the FullName
-            byte[] nameBytes = Encoding.UTF8.GetBytes(type.FullName!);
+            byte[] nameBytes = Encoding.UTF8.GetBytes(type.FullName ?? string.Empty);
             byte[] hash = SHA256.HashData(nameBytes);
 
-            // Use the first 16 bytes of the hash to form a GUID
             Span<byte> guidBytes = stackalloc byte[16];
             hash.AsSpan(0, 16).CopyTo(guidBytes);
             return new Guid(guidBytes);
@@ -33,12 +32,16 @@ namespace PlugHub.Shared.Extensions
         /// </summary>
         public static string SerializeToJson(this Type type, JsonSerializerOptions? options = null)
         {
-            if (type.GetConstructor(Type.EmptyTypes) == null)
+            ArgumentNullException.ThrowIfNull(type);
+
+            bool hasParameterlessConstructor = type.GetConstructor(Type.EmptyTypes) != null;
+
+            if (!hasParameterlessConstructor)
             {
                 throw new InvalidOperationException($"{type.Name} requires a parameterless constructor for default initialization");
             }
 
-            object instance = Activator.CreateInstance(type)!;
+            object instance = Activator.CreateInstance(type) ?? throw new InvalidOperationException($"Failed to create an instance of {type.Name}.");
             string serialized = JsonSerializer.Serialize(instance, options);
             return serialized;
         }
@@ -58,37 +61,33 @@ namespace PlugHub.Shared.Extensions
             ArgumentNullException.ThrowIfNull(type);
             ArgumentNullException.ThrowIfNull(propertyName);
 
-            if (!metadataCache.TryGetValue(type, out Dictionary<string, MemberInfo>? memberInfos) || !memberInfos.TryGetValue(propertyName, out MemberInfo? member))
+            // Stage 1: Try to get cached metadata dictionary
+            bool memberFoundInCache = metadataCache.TryGetValue(type, out Dictionary<string, MemberInfo>? memberInfos);
+            MemberInfo? member;
+            bool memberFoundAfterRefresh;
+
+            if (memberFoundInCache && memberInfos != null)
             {
-                type.GetStaticProperties();
-                if (!metadataCache.TryGetValue(type, out memberInfos) || !memberInfos.TryGetValue(propertyName, out member))
+                memberFoundAfterRefresh = memberInfos.TryGetValue(propertyName, out member);
+                if (memberFoundAfterRefresh && member != null)
                 {
-                    throw new ArgumentException(
-                        $"The property or field '{propertyName}' does not exist on type '{type.FullName}' or its ancestors.",
-                        nameof(propertyName));
+                    return GetValueFromMember<T>(propertyName, member);
                 }
             }
 
-            object? value = member switch
-            {
-                FieldInfo field => field.GetValue(null),
-                PropertyInfo prop => prop.GetValue(null),
-                _ => null
-            };
+            // Stage 2: Refresh cache and try again
+            memberInfos = GetOrAddMetadataCache(type);
+            memberFoundAfterRefresh = memberInfos.TryGetValue(propertyName, out member);
 
-            if (value == null)
+            if (memberFoundAfterRefresh && member != null)
             {
-                return default;
+                return GetValueFromMember<T>(propertyName, member);
             }
 
-            if (!typeof(T).IsAssignableFrom(value.GetType()))
-            {
-                throw new ArgumentException(
-                    $"The property or field '{propertyName}' is not of type {typeof(T).Name}.",
-                    nameof(propertyName));
-            }
-
-            return (T)value;
+            // Stage 3: Throw exception for missing member
+            throw new ArgumentException(
+                $"The property or field '{propertyName}' does not exist on type '{type.FullName}' or its ancestors.",
+                nameof(propertyName));
         }
 
         /// <summary>
@@ -102,29 +101,60 @@ namespace PlugHub.Shared.Extensions
         {
             ArgumentNullException.ThrowIfNull(sourceType);
 
-            Dictionary<string, MemberInfo> mapping = metadataCache.GetOrAdd(sourceType, type =>
-            {
-                return type
-                    .GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-                    .Where(m => m.MemberType is MemberTypes.Property or MemberTypes.Field)
-                    .ToDictionary(m => m.Name, m => m, StringComparer.OrdinalIgnoreCase);
-            });
-
+            Dictionary<string, MemberInfo> mapping = GetOrAddMetadataCache(sourceType);
             Dictionary<string, object?> result = new(mapping.Count, StringComparer.OrdinalIgnoreCase);
 
             foreach ((string name, MemberInfo member) in mapping)
             {
-                object? value = member switch
-                {
-                    FieldInfo field => field.GetValue(null),
-                    PropertyInfo prop => prop.GetValue(null),
-                    _ => null
-                };
-
+                object? value = ExtractValueFromMember(member);
                 result[name] = value;
             }
 
             return result;
         }
+
+        #region TypeExtensions: Helper Methods
+
+        private static Dictionary<string, MemberInfo> GetOrAddMetadataCache(Type type)
+        {
+            return metadataCache.GetOrAdd(type, t =>
+            {
+                var members = t.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                               .Where(m => m.MemberType is MemberTypes.Property or MemberTypes.Field)
+                               .ToDictionary(m => m.Name, m => m, StringComparer.OrdinalIgnoreCase);
+                return members;
+            });
+        }
+
+        private static T? GetValueFromMember<T>(string propertyName, MemberInfo member)
+        {
+            object? value = ExtractValueFromMember(member);
+
+            if (value == null)
+            {
+                return default;
+            }
+
+            bool isCorrectType = typeof(T).IsAssignableFrom(value.GetType());
+
+            if (!isCorrectType)
+            {
+                throw new ArgumentException($"The property or field '{propertyName}' is not of type {typeof(T).Name}.", nameof(propertyName));
+            }
+
+            return (T)value;
+        }
+
+        private static object? ExtractValueFromMember(MemberInfo member)
+        {
+            return member switch
+            {
+                FieldInfo field => field.GetValue(null),
+                PropertyInfo prop => prop.GetValue(null),
+                _ => null
+            };
+        }
+
+        #endregion
     }
 }

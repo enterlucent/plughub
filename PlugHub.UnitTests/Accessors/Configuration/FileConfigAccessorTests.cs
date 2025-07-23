@@ -67,8 +67,8 @@ namespace PlugHub.UnitTests.Accessors.Configuration
                     new UserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
                 ],
                 [
-                    new FileConfigAccessor(new NullLogger<IConfigAccessor>()),
-                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService),
+                    new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService),
+                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService, this.encryptionService),
                 ],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
@@ -92,13 +92,13 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         public void For_UnregisteredType_Throws()
         {
             // Arrange & Act
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
 
             // Assert
-            Assert.ThrowsException<KeyNotFoundException>(() => accessor.For<UnitTestBConfig>());
+            Assert.ThrowsException<InvalidOperationException>(() => accessor.For<UnitTestBConfig>());
         }
 
         [TestMethod]
@@ -108,7 +108,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -131,7 +131,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             //Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -153,7 +153,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
             this.configService.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, this.ownerToken, this.writeToken);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -177,7 +177,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -199,7 +199,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -222,7 +222,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -256,7 +256,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenService!.CreateToken(), this.readToken, this.tokenService!.CreateToken());
@@ -279,7 +279,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -301,7 +301,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -329,7 +329,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
 
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -353,14 +353,14 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.UnregisterConfig(typeof(UnitTestAConfig), this.tokenSet.Owner);
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
 
             a = accessor.For<UnitTestAConfig>();
 
-            Assert.AreEqual<int>(50, a.Get<int>(nameof(UnitTestAConfig.FieldA)),
+            Assert.AreEqual(50, a.Get<int>(nameof(UnitTestAConfig.FieldA)),
                 "Cancelled SaveAsync must not create or update the settings file on disk.");
         }
 
@@ -373,7 +373,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             Token write = this.tokenService.CreateToken();
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);
@@ -420,7 +420,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
             // Act
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenService!.CreateToken(), this.tokenSet.Read, this.tokenService!.CreateToken());
@@ -443,7 +443,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
 
-            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>())
+            IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
                 .SetConfigService(this.configService!)
                 .SetAccess(this.tokenSet);

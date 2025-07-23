@@ -65,8 +65,8 @@ namespace PlugHub.UnitTests.Accessors.Configuration
                     new SecureUserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService, this.encryptionService),
                 ],
                 [
-                    new FileConfigAccessor(new NullLogger<IConfigAccessor>()),
-                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.encryptionService),
+                    new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!),
+                    new SecureFileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService),
                 ],
                 new NullLogger<IConfigService>(),
                 this.tokenService,
@@ -103,7 +103,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)
@@ -129,7 +129,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.configService.RegisterConfig(typeof(UnitTestSecureAConfig), this.secureParams!);
 
             ISecureFileConfigAccessorFor<UnitTestSecureAConfig> accessor = new SecureFileConfigAccessor(
-                new NullLogger<IConfigAccessor>(), this.encryptionService)
+                new NullLogger<IConfigAccessor>(), this.tokenService!, this.encryptionService)
                     .SetEncryptionContext(this.encryptionContext!)
                     .SetConfigTypes([typeof(UnitTestSecureAConfig)])
                     .SetConfigService(this.configService)

@@ -195,34 +195,34 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
         /// <exception cref="KeyNotFoundException">Thrown if the configuration type <typeparamref name="TConfig"/> is not registered.</exception>
         /// <exception cref="InvalidOperationException">Thrown if no accessor provider is registered for the configuration's required accessor interface.</exception>
-        Accessors.IConfigAccessorFor<TConfig> GetAccessor<TConfig>(Token? owner = null, Token? read = null, Token? write = null) where TConfig : class;
+        IConfigAccessorFor<TConfig> GetAccessor<TConfig>(Token? owner = null, Token? read = null, Token? write = null) where TConfig : class;
 
         /// <summary>Retrieves a configuration accessor for the specified configuration type <typeparamref name="TConfig"/>, using the provided token set for authorization.</summary>
         /// <param name="tokenSet">The set of tokens (owner, read, write) used for authorization.</param>
         /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
         /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
-        Accessors.IConfigAccessorFor<TConfig> GetAccessor<TConfig>(ITokenSet tokenSet) where TConfig : class;
+        IConfigAccessorFor<TConfig> GetAccessor<TConfig>(ITokenSet tokenSet) where TConfig : class;
 
         /// <summary>Retrieves a strongly-typed configuration accessor of type <typeparamref name="TAccessor"/> for the specified configuration type <typeparamref name="TConfig"/>.</summary>
         /// <param name="owner">Optional owner token used for authorization. If <c>null</c>, a new token will be generated.</param>
         /// <param name="read">Optional read token used for authorization. If <c>null</c>, a new token will be generated.</param>
         /// <param name="write">Optional write token used for authorization. If <c>null</c>, a new token will be generated.</param>
-        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="Accessors.IConfigAccessorFor{TConfig}"/>.</typeparam>
+        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="IConfigAccessorFor{TConfig}"/>.</typeparam>
         /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
         /// <returns>An instance of <typeparamref name="TAccessor"/> to access and manipulate the specified configuration.</returns>
         /// <exception cref="InvalidCastException">Thrown if the default accessor cannot be cast to <typeparamref name="TAccessor"/>.</exception>
         TAccessor GetAccessor<TAccessor, TConfig>(Token? owner = null, Token? read = null, Token? write = null)
-            where TAccessor : Accessors.IConfigAccessorFor<TConfig>
+            where TAccessor : IConfigAccessorFor<TConfig>
             where TConfig : class;
 
         /// <summary>Retrieves a strongly-typed configuration accessor of type <typeparamref name="TAccessor"/> for the specified configuration type <typeparamref name="TConfig"/>, using the provided token set for authorization.</summary>
         /// <param name="tokenSet">The set of tokens (owner, read, write) used for authorization.</param>
-        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="Accessors.IConfigAccessorFor{TConfig}"/>.</typeparam>
+        /// <typeparam name="TAccessor">The specific accessor type to return, which must implement <see cref="IConfigAccessorFor{TConfig}"/>.</typeparam>
         /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
         /// <returns>An instance of <typeparamref name="TAccessor"/> to access and manipulate the specified configuration.</returns>
         /// <exception cref="InvalidCastException">Thrown if the default accessor cannot be cast to <typeparamref name="TAccessor"/>.</exception>
         TAccessor GetAccessor<TAccessor, TConfig>(ITokenSet tokenSet)
-            where TAccessor : Accessors.IConfigAccessorFor<TConfig>
+            where TAccessor : IConfigAccessorFor<TConfig>
             where TConfig : class;
 
         #endregion
