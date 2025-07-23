@@ -1,5 +1,9 @@
 ﻿namespace PlugHub.Shared.Mock.Interfaces
 {
+    /// <summary>
+    /// Descriptor providing executable success processing logic to EchoService.
+    /// Bridges IEchoSuccessHandler interface contracts with actual Action delegates.
+    /// </summary>
     public record EchoSuccessDescriptor(
         Guid PluginID,
         Guid InterfaceID,
@@ -11,6 +15,10 @@
         IEnumerable<PluginInterfaceReference>? ConflictsWith = null
     ) : PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
+    /// <summary>
+    /// Descriptor providing executable error processing logic to EchoService.
+    /// Bridges IEchoErrorHandler interface contracts with actual Action delegates.
+    /// </summary>
     public record EchoErrorDescriptor(
         Guid PluginID,
         Guid InterfaceID,
@@ -21,5 +29,4 @@
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
         IEnumerable<PluginInterfaceReference>? ConflictsWith = null
     ) : PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
-
 }

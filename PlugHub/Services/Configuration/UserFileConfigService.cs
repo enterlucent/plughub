@@ -14,15 +14,17 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+
 namespace PlugHub.Services.Configuration
 {
     public class UserConfigServiceConfig(IConfigService configService, string configPath, string userConfigPath, IConfiguration config, IConfiguration userConfig, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChange)
         : FileConfigServiceConfig(configService, configPath, config, values, jsonOptions, ownerToken, readToken, writeToken, reloadOnChange)
     {
-        public string UserConfigPath { get; init; } = userConfigPath;
-        public IConfiguration UserConfig { get; init; } = userConfig;
+        public string UserConfigPath { get; init; } = userConfigPath ?? throw new ArgumentNullException(nameof(userConfigPath));
+        public IConfiguration UserConfig { get; init; } = userConfig ?? throw new ArgumentNullException(nameof(userConfig));
         public IDisposable? UserOnChanged { get; set; } = null;
     }
+
     public class UserConfigServiceSetting(Type? valueType, object? value, object? userValue, bool readAccess, bool writeAccess)
         : FileConfigServiceSetting(valueType, value, readAccess, writeAccess)
     {
@@ -36,189 +38,176 @@ namespace PlugHub.Services.Configuration
         {
             this.SupportedParamsTypes = [typeof(UserConfigServiceParams)];
             this.RequiredAccessorInterface = typeof(IFileConfigAccessor);
+
+            this.Logger.LogDebug("UserFileConfigService initialized");
         }
 
-        #region UserConfigService: Registration
+        #region UserFileConfigService: Registration
 
         public override void RegisterConfig(Type configType, IConfigServiceParams configParams, IConfigService configService)
         {
-            if (configParams is not UserConfigServiceParams p)
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(configParams);
+            ArgumentNullException.ThrowIfNull(configService);
+
+            if (configParams is not UserConfigServiceParams)
+            {
                 throw new ArgumentException($"Expected UserConfigServiceParams, got {configParams.GetType().Name}", nameof(configParams));
+            }
+
+            UserConfigServiceParams p = (UserConfigServiceParams)configParams;
 
             (Token owner, Token read, Token write) = this.TokenService.CreateTokenSet(p.Owner, p.Read, p.Write);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (this.Configs.ContainsKey(configType))
-                    throw new InvalidOperationException($"Configuration for {configType.Name} is already registered.");
+                bool alreadyRegistered = this.Configs.ContainsKey(configType);
 
-                JsonSerializerOptions jsonOptions = p.JsonSerializerOptions ?? this.JsonOptions ?? configService.JsonOptions;
-
-                bool reloadOnChange = p.ReloadOnChange;
-
-                string defaultConfigFilePath =
-                    this.ResolveLocalFilePath(p.ConfigUriOverride, configService.ConfigDataDirectory, configType, "json");
-                string userConfigFilePath =
-                    this.ResolveLocalFilePath(p.UserConfigUriOverride, configService.ConfigDataDirectory, configType, "user.json");
-
-                this.EnsureFileExists(defaultConfigFilePath, jsonOptions, configType);
-                this.EnsureFileExists(userConfigFilePath, jsonOptions);
-
-                IConfiguration defaultConfig =
-                    this.BuildConfig(defaultConfigFilePath, reloadOnChange);
-                IConfiguration userConfig =
-                    this.BuildConfig(userConfigFilePath, reloadOnChange);
-
-                Dictionary<string, object?> values = this.BuildSettings(configType, defaultConfig, userConfig);
-
-                UserConfigServiceConfig typeConfig = new(
-                    configService,
-                    defaultConfigFilePath,
-                    userConfigFilePath,
-                    defaultConfig,
-                    userConfig,
-                    values,
-                    jsonOptions,
-                    owner,
-                    read,
-                    write,
-                    reloadOnChange);
-
-                if (reloadOnChange)
+                if (alreadyRegistered)
                 {
-                    typeConfig.OnChanged =
-                        defaultConfig.GetReloadToken()
-                                     .RegisterChangeCallback(this.OnConfigHasChanged, configType);
-
-                    typeConfig.UserOnChanged =
-                        userConfig.GetReloadToken()
-                                  .RegisterChangeCallback(this.OnConfigHasChanged, configType);
+                    throw new InvalidOperationException($"Configuration for {configType.Name} is already registered.");
                 }
 
+                UserConfigServiceConfig typeConfig = this.CreateUserConfigurationObject(
+                    configType, p, configService, owner, read, write);
+
+                this.SetupUserChangeNotifications(typeConfig, configType);
                 this.Configs[configType] = typeConfig;
+
+                this.Logger.LogDebug("Registered user configuration: {ConfigType}", configType.Name);
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
         }
         public override void UnregisterConfig(Type configType, Token? token = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+
             (Token nOwner, _, _) = this.TokenService.CreateTokenSet(token, null, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
-                config.OnChanged?.Dispose();
-                config.UserOnChanged?.Dispose();
-
+                DisposeUserChangeNotifications(config);
                 this.Configs.TryRemove(configType, out object? _);
+
+                this.Logger.LogDebug("Unregistered user configuration: {ConfigType}", configType.Name);
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
             this.ConfigLock.TryRemove(configType, out ReaderWriterLockSlim? configlock);
-
             configlock?.Dispose();
         }
 
         #endregion
 
-        #region UserConfigService: Value Accessors and Mutators
+        #region UserFileConfigService: Value Operations
 
         public override T GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(key);
+
             (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterReadLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? rawConfig) || rawConfig is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
-                if (!config.Values.TryGetValue(key, out object? rawSetting) || rawSetting is not UserConfigServiceSetting setting)
-                    throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
+                UserConfigServiceSetting setting = GetUserConfigSetting(config, key, configType);
 
                 T? result = this.CastStoredValue<T>(setting.DefaultValue);
 
-                return result == null ? throw new InvalidOperationException($"Default value for '{key}' was null") : result;
+                return result ?? throw new InvalidOperationException($"Default value for '{key}' was null");
             }
             finally { if (rwLock.IsReadLockHeld) rwLock.ExitReadLock(); }
         }
         public override T GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(key);
+
             (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterReadLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
-                if (!config.Values.TryGetValue(key, out object? rawSetting) || rawSetting is not UserConfigServiceSetting setting)
-                    throw new KeyNotFoundException(
-                        $"Setting '{key}' not found in {configType.Name}.");
+                UserConfigServiceSetting setting = GetUserConfigSetting(config, key, configType);
 
-                if (!setting.ReadAccess)
+                bool hasReadAccess = setting.ReadAccess;
+
+                if (!hasReadAccess)
+                {
                     throw new UnauthorizedAccessException($"Read access denied for '{key}'");
+                }
 
                 object? value = setting.UserValue ?? setting.DefaultValue;
-
                 T? result = this.CastStoredValue<T>(value);
 
-                return result == null ? throw new InvalidOperationException($"Default value for '{key}' was null") : result;
+                return result ?? throw new InvalidOperationException($"Setting value for '{key}' was null");
             }
             finally { if (rwLock.IsReadLockHeld) rwLock.ExitReadLock(); }
         }
 
         public override void SetDefault<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(key);
+
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             IConfigService configService;
             ConfigServiceSettingChangeEventArgs? args = null;
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not FileConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
-                if (!config.Values.TryGetValue(key, out object? rawSetting) || rawSetting is not FileConfigServiceSetting setting)
-                    throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
+                UserConfigServiceSetting setting = GetUserConfigSetting(config, key, configType);
 
-                if (!setting.WriteAccess)
+                bool hasWriteAccess = setting.WriteAccess;
+
+                if (!hasWriteAccess)
+                {
                     throw new UnauthorizedAccessException($"Write access denied for '{key}'");
+                }
 
                 object? oldValue = setting.DefaultValue;
 
                 try
                 {
-                    if (setting.DefaultValue != null)
-                    {
-                        setting.DefaultValue = (T)Convert.ChangeType(setting.DefaultValue, typeof(T));
-                    }
+                    setting.DefaultValue = (T)Convert.ChangeType(newValue, typeof(T))!;
                 }
-                catch { /* Ignore conversion errors */ }
-
+                catch { /* nothing to see here */}
 
                 args = new ConfigServiceSettingChangeEventArgs(
                     configType: configType,
@@ -227,52 +216,44 @@ namespace PlugHub.Services.Configuration
                     newValue: newValue);
 
                 configService = config.ConfigService;
-
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
-            configService.OnSettingChanged(this, args.ConfigType, args.Key, args.OldValue, args.OldValue);
+            configService.OnSettingChanged(this, args.ConfigType, args.Key, args.OldValue, args.NewValue);
         }
         public override void SetSetting<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(key);
+
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             IConfigService? configService = null;
             ConfigServiceSettingChangeEventArgs? changedArgs = null;
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
-                if (!config.Values.TryGetValue(key, out object? rawSetting) || rawSetting is not UserConfigServiceSetting setting)
-                    throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
+                UserConfigServiceSetting setting = GetUserConfigSetting(config, key, configType);
 
-                if (!setting.WriteAccess)
+                bool hasWriteAccess = setting.WriteAccess;
+
+                if (!hasWriteAccess)
+                {
                     throw new UnauthorizedAccessException($"Write access denied for '{key}'");
+                }
 
                 configService = config.ConfigService;
-
                 object? oldValue = setting.UserValue ?? setting.DefaultValue;
 
-                bool isDefaultValue = false;
-
-                try
-                {
-                    if (setting.DefaultValue != null)
-                    {
-                        T defaultValue = setting.DefaultValue is T val ? val : (T)Convert.ChangeType(setting.DefaultValue, typeof(T));
-
-                        isDefaultValue = EqualityComparer<T>.Default.Equals(newValue, defaultValue);
-                    }
-                }
-                catch { /* Ignore conversion errors */ }
-
+                bool isDefaultValue = IsValueEqualToDefault(newValue, setting);
 
                 if (isDefaultValue)
                 {
@@ -287,17 +268,20 @@ namespace PlugHub.Services.Configuration
                     configType: configType,
                     key: key,
                     oldValue: oldValue,
-                    newValue: newValue
-                );
+                    newValue: newValue);
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
             if (configService != null && changedArgs != null)
+            {
                 configService.OnSettingChanged(this, changedArgs.ConfigType, changedArgs.Key, changedArgs.OldValue, changedArgs.NewValue);
+            }
         }
 
         public override void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             IConfigService? configService = null;
@@ -307,31 +291,36 @@ namespace PlugHub.Services.Configuration
             {
                 try
                 {
-                    if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                        throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                    UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                     this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                     configService = config.ConfigService;
 
-                    await this.SaveSettingsAsync(configType, nOwner, nWrite);
+                    await this.SaveSettingsAsync(configType, nOwner, nWrite).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveSettings);
+                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveSettings, configType);
                 }
 
                 if (configService != null)
                 {
                     if (errorArgs == null)
+                    {
                         configService.OnSaveOperationComplete(this, configType);
+                    }
                     else
+                    {
                         configService.OnSaveOperationError(this, errorArgs.Exception, errorArgs.Operation, configType);
+                    }
                 }
             });
         }
         public override async Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+
             cancellationToken.ThrowIfCancellationRequested();
 
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
@@ -343,12 +332,12 @@ namespace PlugHub.Services.Configuration
             JsonSerializerOptions jsonOpts;
 
             ReaderWriterLockSlim rw = this.GetConfigTypeLock(configType);
+
             rw.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
@@ -369,7 +358,7 @@ namespace PlugHub.Services.Configuration
                 defaultPath = config.ConfigPath;
                 userPath = config.UserConfigPath;
 
-                jsonOpts = config.JsonSerializerOptions ?? this.JsonOptions;
+                jsonOpts = config.JsonSerializerOptions;
             }
             finally { if (rw.IsWriteLockHeld) rw.ExitWriteLock(); }
 
@@ -377,11 +366,7 @@ namespace PlugHub.Services.Configuration
 
             try
             {
-                await this.SaveSettingsToFileAsync(defaultPath, defaultSettings, jsonOpts, cancellationToken)
-                      .ConfigureAwait(false);
-
-                await this.SaveSettingsToFileAsync(userPath, userSettings, jsonOpts, cancellationToken)
-                      .ConfigureAwait(false);
+                await this.SaveSettingsToFileAsync(userPath, userSettings, jsonOpts, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -391,66 +376,28 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region UserConfigService: Instance Accesors and Mutators
+        #region UserFileConfigService: Instance Operations
 
         public override object GetConfigInstance(Type configType, Token? ownerToken = null, Token? readToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+
             (Token nOwner, Token nRead, _) = this.TokenService.CreateTokenSet(ownerToken, readToken, null);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterReadLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Read, nOwner, nRead);
 
                 object instance = Activator.CreateInstance(configType)
                     ?? throw new InvalidOperationException($"Failed to create instance of {configType.Name}");
 
-                foreach (PropertyInfo prop in configType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    if (!prop.CanWrite) continue;
-
-                    if (config.Values.TryGetValue(prop.Name, out object? rawSetting) && rawSetting is UserConfigServiceSetting setting)
-                    {
-                        object? value = setting.UserValue ?? setting.DefaultValue;
-
-                        try
-                        {
-                            if (value == null)
-                            {
-                                if (!prop.PropertyType.IsValueType || Nullable.GetUnderlyingType(prop.PropertyType) != null)
-                                    prop.SetValue(instance, null);
-                                continue;
-                            }
-
-                            if (prop.PropertyType.IsEnum)
-                            {
-                                prop.SetValue(instance, Enum.IsDefined(prop.PropertyType, value)
-                                    ? Enum.ToObject(prop.PropertyType, value)
-                                    : Activator.CreateInstance(prop.PropertyType));
-                            }
-                            else if (prop.PropertyType.IsInstanceOfType(value))
-                            {
-                                prop.SetValue(instance, value);
-                            }
-                            else
-                            {
-                                prop.SetValue(instance,
-                                    Convert.ChangeType(value, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType));
-                            }
-                        }
-                        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
-                        {
-                            this.Logger.LogError(ex,
-                                "Failed to set property {PropertyName} for type {ConfigType}",
-                                prop.Name, configType.Name);
-                        }
-                    }
-                }
+                this.PopulateUserInstanceProperties(instance, config, configType);
 
                 return instance;
             }
@@ -458,6 +405,9 @@ namespace PlugHub.Services.Configuration
         }
         public override void SaveConfigInstance(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(updatedConfig);
+
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             IConfigService? configService = null;
@@ -467,31 +417,35 @@ namespace PlugHub.Services.Configuration
             {
                 try
                 {
-                    if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                        throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                    UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                     this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
                     configService = config.ConfigService;
 
-                    await this.SaveConfigInstanceAsync(configType, updatedConfig, nOwner, nWrite);
+                    await this.SaveConfigInstanceAsync(configType, updatedConfig, nOwner, nWrite).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveConfigInstance);
+                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveConfigInstance, configType);
                 }
 
                 if (configService != null)
                 {
                     if (errorArgs == null)
+                    {
                         configService.OnSaveOperationComplete(this, configType);
+                    }
                     else
+                    {
                         configService.OnSaveOperationError(this, errorArgs.Exception, errorArgs.Operation, configType);
+                    }
                 }
             });
         }
         public override async Task SaveConfigInstanceAsync(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(configType);
             ArgumentNullException.ThrowIfNull(updatedConfig);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -499,70 +453,43 @@ namespace PlugHub.Services.Configuration
             (Token nOwner, _, Token nWrite) = this.TokenService.CreateTokenSet(ownerToken, null, writeToken);
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, config.Write, nOwner, nWrite);
 
-                foreach (PropertyInfo prop in configType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    string key = prop.Name;
-                    object? newValue = prop.GetValue(updatedConfig);
-
-                    if (!config.Values.TryGetValue(key, out object? rawSetting) || rawSetting is not UserConfigServiceSetting setting)
-                        throw new KeyNotFoundException($"Property '{key}' not found in settings.");
-
-                    bool isDefaultValue = false;
-                    try
-                    {
-                        if (setting.DefaultValue != null)
-                        {
-                            isDefaultValue = Equals(newValue, setting.DefaultValue);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        this.Logger.LogWarning(ex, "Comparison fallback failed for key '{Key}' on type {ConfigType}. Value: {Value}", key, configType.Name, newValue);
-                    }
-
-                    if (isDefaultValue)
-                    {
-                        setting.UserValue = null;
-                    }
-                    else
-                    {
-                        setting.UserValue = newValue;
-                    }
-                }
+                UpdateUserConfigurationFromInstance(updatedConfig, config, configType);
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            await this.SaveSettingsAsync(configType, nOwner, nWrite, cancellationToken);
+            await this.SaveSettingsAsync(configType, nOwner, nWrite, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
 
-        #region UserConfigService: Default Config Mutation/Migration
+        #region UserFileConfigService: Default Configuration Operations
 
         public override string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+
             (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
 
             string filePath;
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterReadLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
@@ -570,7 +497,9 @@ namespace PlugHub.Services.Configuration
             }
             finally { if (rwLock.IsReadLockHeld) rwLock.ExitReadLock(); }
 
-            if (!File.Exists(filePath))
+            bool fileExists = File.Exists(filePath);
+
+            if (!fileExists)
             {
                 throw new FileNotFoundException($"Default config file not found: {filePath}");
             }
@@ -579,6 +508,9 @@ namespace PlugHub.Services.Configuration
         }
         public override void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(contents);
+
             (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
 
             IConfigService? configService = null;
@@ -588,31 +520,37 @@ namespace PlugHub.Services.Configuration
             {
                 try
                 {
-                    if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                        throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                    UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                     this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
                     configService = config.ConfigService;
 
-                    await this.SaveDefaultConfigFileContentsAsync(configType, contents, nOwner);
+                    await this.SaveDefaultConfigFileContentsAsync(configType, contents, nOwner).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveDefaultConfigFileContents);
+                    errorArgs = new ConfigServiceSaveErrorEventArgs(ex, ConfigSaveOperation.SaveDefaultConfigFileContents, configType);
                 }
 
                 if (configService != null)
                 {
                     if (errorArgs == null)
+                    {
                         configService.OnSaveOperationComplete(this, configType);
+                    }
                     else
+                    {
                         configService.OnSaveOperationError(this, errorArgs.Exception, errorArgs.Operation, configType);
+                    }
                 }
             });
         }
         public override async Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(configType);
+            ArgumentNullException.ThrowIfNull(contents);
+
             cancellationToken.ThrowIfCancellationRequested();
 
             (Token nOwner, _, _) = this.TokenService.CreateTokenSet(ownerToken, null, null);
@@ -620,12 +558,12 @@ namespace PlugHub.Services.Configuration
             string settingPath;
 
             ReaderWriterLockSlim rwLock = this.GetConfigTypeLock(configType);
+
             rwLock.EnterWriteLock();
 
             try
             {
-                if (!this.Configs.TryGetValue(configType, out object? raw) || raw is not UserConfigServiceConfig config)
-                    throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+                UserConfigServiceConfig config = this.GetRegisteredUserConfig(configType);
 
                 this.TokenService.AllowAccess(config.Owner, null, nOwner, null);
 
@@ -633,66 +571,95 @@ namespace PlugHub.Services.Configuration
             }
             finally { if (rwLock.IsWriteLockHeld) rwLock.ExitWriteLock(); }
 
-            try
-            {
-                JsonDocument.Parse(contents);
-            }
-            catch (ArgumentException ex)
-            {
-                throw new ArgumentException($"Provided content was seen as an illegal argument.", ex);
-            }
-            catch (JsonException ex)
-            {
-                throw new UnauthorizedAccessException($"Provided content failed to parse as JSON. Please check your contents.", ex);
-            }
+            ValidateJsonContent(contents);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            await Atomic.WriteAsync(settingPath, contents, cancellationToken: cancellationToken);
+            await Atomic.WriteAsync(settingPath, contents, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
 
-        #region UserConfigService: Utilities
+        #region UserFileConfigService: Resource Management
 
         public override void Dispose()
         {
-            if (this.IsDisposed) return;
+            if (this.IsDisposed)
+            {
+                return;
+            }
 
             List<ReaderWriterLockSlim> locks = [.. this.ConfigLock.Values];
 
-            foreach (ReaderWriterLockSlim l in locks) l.EnterWriteLock();
+            foreach (ReaderWriterLockSlim l in locks)
+            {
+                l.EnterWriteLock();
+            }
 
             try
             {
-                if (this.IsDisposed) return;
-
-                foreach (Timer t in this.ReloadTimers.Values)
-                    t.Dispose();
-                this.ReloadTimers.Clear();
-
-                foreach (UserConfigServiceConfig config in this.Configs.Values.Cast<UserConfigServiceConfig>())
+                if (this.IsDisposed)
                 {
-                    config.OnChanged?.Dispose();
-                    config.UserOnChanged?.Dispose();
+                    return;
                 }
 
-                this.Configs.Clear();
+                this.DisposeReloadTimers();
+                this.DisposeUserConfigurationObjects();
+                this.ClearCollections();
                 this.IsDisposed = true;
             }
-            finally { foreach (ReaderWriterLockSlim l in locks) if (l.IsWriteLockHeld) l.ExitWriteLock(); }
+            finally
+            {
+                foreach (ReaderWriterLockSlim l in locks)
+                {
+                    if (l.IsWriteLockHeld)
+                    {
+                        l.ExitWriteLock();
+                    }
+                }
+            }
 
-            foreach (ReaderWriterLockSlim l in this.ConfigLock.Values)
-                l.Dispose();
+            this.DisposeConfigLocks();
 
             GC.SuppressFinalize(this);
         }
+        private void DisposeReloadTimers()
+        {
+            foreach (Timer t in this.ReloadTimers.Values)
+            {
+                t.Dispose();
+            }
+            this.ReloadTimers.Clear();
+        }
+        private void DisposeUserConfigurationObjects()
+        {
+            foreach (UserConfigServiceConfig config in this.Configs.Values.Cast<UserConfigServiceConfig>())
+            {
+                DisposeUserChangeNotifications(config);
+            }
+        }
+        private void ClearCollections()
+        {
+            this.Configs.Clear();
+        }
+        private void DisposeConfigLocks()
+        {
+            foreach (ReaderWriterLockSlim l in this.ConfigLock.Values)
+            {
+                l.Dispose();
+            }
+        }
+
+        #endregion
+
+        #region UserFileConfigService: Configuration Change Handling
+
         protected override void HandleConfigHasChanged(Type configType)
         {
-            UserConfigServiceConfig? config = null;
+            ArgumentNullException.ThrowIfNull(configType);
 
+            UserConfigServiceConfig? config;
             IConfigService? configService = null;
-
             bool found = false;
             bool reloaded = false;
 
@@ -702,33 +669,28 @@ namespace PlugHub.Services.Configuration
 
             try
             {
-                if (this.Configs.TryGetValue(configType, out object? raw) && raw is UserConfigServiceConfig cooked)
+                try
                 {
-                    config = cooked;
-                    configService = cooked.ConfigService;
+                    config = this.GetRegisteredUserConfig(configType);
+                    configService = config.ConfigService;
 
-                    Dictionary<string, object?> newSettings =
-                        this.BuildSettings(configType, config.Config, config.UserConfig);
-
+                    Dictionary<string, object?> newSettings = this.BuildSettings(configType, config.Config, config.UserConfig);
                     config.Values = newSettings;
-
                     found = true;
 
-                    if (config.ReloadOnChanged)
+                    bool shouldRebindEvents = config.ReloadOnChanged;
+
+                    if (shouldRebindEvents)
                     {
-                        config.OnChanged?.Dispose();
-                        config.UserOnChanged?.Dispose();
-
-                        config.OnChanged = config.Config
-                            .GetReloadToken()
-                            .RegisterChangeCallback(this.OnConfigHasChanged, configType);
-
-                        config.UserOnChanged = config.UserConfig
-                            .GetReloadToken()
-                            .RegisterChangeCallback(this.OnConfigHasChanged, configType);
+                        DisposeUserChangeNotifications(config);
+                        this.SetupUserChangeNotifications(config, configType);
                     }
 
                     reloaded = true;
+                }
+                catch (KeyNotFoundException)
+                {
+                    found = false;
                 }
             }
             catch (FileNotFoundException ex)
@@ -739,92 +701,233 @@ namespace PlugHub.Services.Configuration
             {
                 this.Logger.LogError(ex, "Config reload failed – Type {Type}", configType.Name);
             }
-            finally
-            {
-                if (rw.IsWriteLockHeld) rw.ExitWriteLock();
-            }
+            finally { if (rw.IsWriteLockHeld) rw.ExitWriteLock(); }
 
             if (configService != null && reloaded)
+            {
                 configService.OnConfigReloaded(this, configType);
+            }
 
             if (!found)
+            {
                 this.Logger.LogWarning("Unregistered config type – Type {Type}", configType.Name);
+            }
         }
-        protected override Dictionary<string, object?> BuildSettings(Type configType, params IConfiguration[] configSources)
-        {
-            Dictionary<string, object?> settings = [];
 
+        #endregion
+
+        #region UserFileConfigService: Configuration Management
+
+        private UserConfigServiceConfig CreateUserConfigurationObject(Type configType, UserConfigServiceParams p, IConfigService configService, Token owner, Token read, Token write)
+        {
+            JsonSerializerOptions jsonOptions = p.JsonSerializerOptions ?? this.JsonOptions ?? configService.JsonOptions;
+            bool reloadOnChange = p.ReloadOnChange;
+
+            string defaultConfigFilePath = this.ResolveLocalFilePath(
+                p.ConfigUriOverride,
+                configService.ConfigDataDirectory,
+                configType,
+                "json");
+
+            string userConfigFilePath = this.ResolveLocalFilePath(
+                p.UserConfigUriOverride,
+                configService.ConfigDataDirectory,
+                configType,
+                "user.json");
+
+            this.EnsureFileExists(defaultConfigFilePath, jsonOptions, configType);
+            this.EnsureFileExists(userConfigFilePath, jsonOptions);
+
+            IConfiguration defaultConfig = this.BuildConfig(defaultConfigFilePath, reloadOnChange);
+            IConfiguration userConfig = this.BuildConfig(userConfigFilePath, reloadOnChange);
+
+            Dictionary<string, object?> values = this.BuildSettings(configType, defaultConfig, userConfig);
+
+            return new UserConfigServiceConfig(
+                configService,
+                defaultConfigFilePath,
+                userConfigFilePath,
+                defaultConfig,
+                userConfig,
+                values,
+                jsonOptions,
+                owner,
+                read,
+                write,
+                reloadOnChange);
+        }
+
+        private void SetupUserChangeNotifications(UserConfigServiceConfig typeConfig, Type configType)
+        {
+            bool shouldSetupNotifications = typeConfig.ReloadOnChanged;
+
+            if (shouldSetupNotifications)
+            {
+                typeConfig.OnChanged = typeConfig.Config
+                    .GetReloadToken()
+                    .RegisterChangeCallback(this.OnConfigHasChanged, configType);
+
+                typeConfig.UserOnChanged = typeConfig.UserConfig
+                    .GetReloadToken()
+                    .RegisterChangeCallback(this.OnConfigHasChanged, configType);
+            }
+        }
+        private static void DisposeUserChangeNotifications(UserConfigServiceConfig config)
+        {
+            config.OnChanged?.Dispose();
+            config.UserOnChanged?.Dispose();
+        }
+
+        private UserConfigServiceConfig GetRegisteredUserConfig(Type configType)
+        {
+            bool configExists = this.Configs.TryGetValue(configType, out object? rawConfig);
+            bool isCorrectType = configExists && rawConfig is UserConfigServiceConfig;
+
+            if (!isCorrectType)
+            {
+                throw new KeyNotFoundException($"Type configuration for {configType.Name} was not registered.");
+            }
+
+            return (UserConfigServiceConfig)rawConfig!;
+        }
+        private static UserConfigServiceSetting GetUserConfigSetting(UserConfigServiceConfig config, string key, Type configType)
+        {
+            bool settingExists = config.Values.TryGetValue(key, out object? rawSetting);
+            bool isCorrectSettingType = settingExists && rawSetting is UserConfigServiceSetting;
+
+            if (!isCorrectSettingType)
+            {
+                throw new KeyNotFoundException($"Setting '{key}' not found in {configType.Name}.");
+            }
+
+            return (UserConfigServiceSetting)rawSetting!;
+        }
+        private static bool IsValueEqualToDefault<T>(T newValue, UserConfigServiceSetting setting)
+        {
+            if (setting.DefaultValue == null)
+            {
+                return newValue == null;
+            }
+
+            try
+            {
+                T defaultValue = setting.DefaultValue is T val
+                    ? val
+                    : (T)Convert.ChangeType(setting.DefaultValue, typeof(T));
+
+                return EqualityComparer<T>.Default.Equals(newValue, defaultValue);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void PopulateUserInstanceProperties(object instance, UserConfigServiceConfig config, Type configType)
+        {
+            PropertyInfo[] properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (PropertyInfo prop in properties)
+            {
+                bool canWriteProperty = prop.CanWrite;
+
+                if (!canWriteProperty)
+                {
+                    continue;
+                }
+
+                bool hasSettingValue = config.Values.TryGetValue(prop.Name, out object? rawSetting);
+                bool isCorrectSettingType = hasSettingValue && rawSetting is UserConfigServiceSetting;
+
+                if (isCorrectSettingType)
+                {
+                    UserConfigServiceSetting setting = (UserConfigServiceSetting)rawSetting!;
+                    object? value = setting.UserValue ?? setting.DefaultValue;
+
+                    this.SetPropertyValue(instance, prop, value, configType);
+                }
+            }
+        }
+        private void SetPropertyValue(object instance, PropertyInfo prop, object? value, Type configType)
+        {
+            try
+            {
+                if (value == null)
+                {
+                    bool canAcceptNull = !prop.PropertyType.IsValueType || Nullable.GetUnderlyingType(prop.PropertyType) != null;
+
+                    if (canAcceptNull)
+                    {
+                        prop.SetValue(instance, null);
+                    }
+                    return;
+                }
+
+                if (prop.PropertyType.IsEnum)
+                {
+                    bool enumValueIsValid = Enum.IsDefined(prop.PropertyType, value);
+
+                    object enumValue = enumValueIsValid
+                        ? Enum.ToObject(prop.PropertyType, value)
+                        : Activator.CreateInstance(prop.PropertyType)!;
+
+                    prop.SetValue(instance, enumValue);
+                }
+                else if (prop.PropertyType.IsInstanceOfType(value))
+                {
+                    prop.SetValue(instance, value);
+                }
+                else
+                {
+                    Type targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+                    object convertedValue = Convert.ChangeType(value, targetType);
+
+                    prop.SetValue(instance, convertedValue);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+            {
+                this.Logger.LogError(ex, "Failed to set property {PropertyName} for type {ConfigType}", prop.Name, configType.Name);
+            }
+        }
+
+        private static void UpdateUserConfigurationFromInstance(object updatedConfig, UserConfigServiceConfig config, Type configType)
+        {
             PropertyInfo[] properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
             foreach (PropertyInfo prop in properties)
             {
                 string key = prop.Name;
-                object? defaultValue = null;
-                object? userValue = null;
+                object? newValue = prop.GetValue(updatedConfig);
 
-                foreach (IConfiguration cfg in configSources)
+                UserConfigServiceSetting setting = GetUserConfigSetting(config, key, configType);
+
+                bool isDefaultValue = IsValueEqualToDefault(newValue, setting);
+
+                if (isDefaultValue)
                 {
-                    IConfigurationSection section = cfg.GetSection(key);
-
-                    if (!section.Exists())
-                        continue;
-
-                    object? val = null;
-                    bool didSet = false;
-
-                    // List-handling branch
-                    if (prop.PropertyType.IsGenericType &&
-                        typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) &&
-                        prop.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
-                    {
-                        // Build the list element-by-element and Bind
-                        Type elementType = prop.PropertyType.GetGenericArguments()[0];
-                        var listType = typeof(List<>).MakeGenericType(elementType);
-                        var list = (System.Collections.IList)Activator.CreateInstance(listType)!;
-
-                        foreach (var child in section.GetChildren())
-                        {
-                            var element = Activator.CreateInstance(elementType);
-                            child.Bind(element);
-                            list.Add(element);
-                        }
-                        val = list;
-                        didSet = true;
-                    }
-                    else
-                    {
-                        try
-                        {
-                            val = section.Get(prop.PropertyType);
-                            didSet = val != null;
-                        }
-                        catch
-                        {
-                            try
-                            {
-                                val = Convert.ChangeType(section.Value, prop.PropertyType);
-                                didSet = val != null;
-                            }
-                            catch { /* ignore */ }
-                        }
-                    }
-
-                    if (defaultValue is null)
-                        defaultValue = val;
-                    else
-                        userValue = val;
+                    setting.UserValue = null;
                 }
-
-                settings[key] = new UserConfigServiceSetting(
-                    valueType: prop.PropertyType,
-                    value: defaultValue,
-                    userValue: userValue,
-                    readAccess: prop.CanRead,
-                    writeAccess: prop.CanWrite
-                );
+                else
+                {
+                    setting.UserValue = newValue;
+                }
             }
-
-            return settings;
+        }
+        private static void ValidateJsonContent(string contents)
+        {
+            try
+            {
+                JsonDocument.Parse(contents);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ArgumentException("Provided content was seen as an illegal argument.", ex);
+            }
+            catch (JsonException ex)
+            {
+                throw new JsonException("Provided content failed to parse as JSON. Please check your contents.", ex);
+            }
         }
 
         #endregion

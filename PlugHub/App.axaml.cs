@@ -146,11 +146,11 @@ public partial class App : Application
         services.AddSingleton<IPluginRegistrar>(provider =>
         {
             ILogger<IPluginRegistrar> logger = provider.GetRequiredService<ILogger<IPluginRegistrar>>();
+            ITokenService tokenSearvice = provider.GetRequiredService<ITokenService>();
             IConfigService configService = provider.GetRequiredService<IConfigService>();
 
-            FileConfigAccessorFor<PluginManifest> pluginManifest = new(configService);
-            pluginManifest.SetAccess(tokenSet);
-
+            FileConfigAccessorFor<PluginManifest> pluginManifest = new(tokenSearvice, configService, tokenSet);
+            
             return new PluginRegistrar(logger, pluginManifest);
         });
 

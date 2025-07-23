@@ -82,9 +82,9 @@ namespace PlugHub.UnitTests.Services
             string nonExistentDirectory = @"Z:\Definitely\Not\A\Real\Path";
 
             // Act & Assert
-            var exception = Assert.ThrowsException<DirectoryNotFoundException>(() =>
+            DirectoryNotFoundException exception = Assert.ThrowsException<DirectoryNotFoundException>(() =>
             {
-                var plugins = this.pluginService!.Discover(nonExistentDirectory);
+                IEnumerable<Shared.Models.Plugin> plugins = this.pluginService!.Discover(nonExistentDirectory);
             });
         }
 

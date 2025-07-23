@@ -1,5 +1,4 @@
 ﻿using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
 using System.Text.Json;
 
 namespace PlugHub.Shared.Models.Configuration

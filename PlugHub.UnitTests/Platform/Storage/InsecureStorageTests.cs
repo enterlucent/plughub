@@ -8,8 +8,8 @@ namespace PlugHub.UnitTests.Platform.Storage
     {
         public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> src)
         {
-            var list = new List<T>();
-            await foreach (var item in src) list.Add(item);
+            List<T> list = new();
+            await foreach (T? item in src) list.Add(item);
             return list;
         }
     }
@@ -135,7 +135,6 @@ namespace PlugHub.UnitTests.Platform.Storage
             byte[] buf = [7, 7, 7];
             await this.storage.SaveAsync(id, buf);
 
-            // Dispose first instance
             this.storage.Dispose();
             this.storage = new InsecureStorage(new NullLogger<InsecureStorage>());
             this.storage.Initialize(this.msTestHelpers.TempDirectory);
@@ -152,7 +151,7 @@ namespace PlugHub.UnitTests.Platform.Storage
             await this.storage.SaveAsync("alpha2", new byte[] { 2 });
             await this.storage.SaveAsync("beta1", new byte[] { 3 });
 
-            var ids = await this.storage.ListIdsAsync("alpha").ToListAsync();
+            List<string> ids = await this.storage.ListIdsAsync("alpha").ToListAsync();
 
             CollectionAssert.AreEquivalent(expected, ids);
         }

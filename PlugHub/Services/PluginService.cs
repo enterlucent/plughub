@@ -12,73 +12,91 @@ using System.Threading;
 
 namespace PlugHub.Services
 {
-    public class PluginService(ILogger<IPluginService> logger) : IPluginService
+    public class PluginService : IPluginService
     {
-        private readonly ILogger<IPluginService> logger = logger
-            ?? throw new ArgumentNullException();
-
+        private readonly ILogger<IPluginService> logger;
         private readonly SemaphoreSlim iolock = new(1, 1);
+
+        public PluginService(ILogger<IPluginService> logger)
+        {
+            ArgumentNullException.ThrowIfNull(logger);
+
+            this.logger = logger;
+        }
 
         #region PlugHub.Services.PluginService Plugin Instances
 
         public TPlugin? GetLoadedPlugin<TPlugin>(PluginInterface pluginInterface) where TPlugin : PluginBase
         {
-            ArgumentNullException.ThrowIfNull(nameof(pluginInterface));
+            ArgumentNullException.ThrowIfNull(pluginInterface);
 
             this.iolock.Wait();
 
             try
             {
-                if (!File.Exists(pluginInterface.AssemblyLocation))
-                {
-                    this.logger?.LogWarning("Plugin assembly does not exist: {AssemblyPath}", pluginInterface.AssemblyLocation);
+                bool fileExists = File.Exists(pluginInterface.AssemblyLocation);
 
+                if (!fileExists)
+                {
+                    this.logger.LogWarning("Plugin assembly does not exist: {AssemblyPath}", pluginInterface.AssemblyLocation);
                     return null;
                 }
 
                 Assembly assembly = Assembly.LoadFrom(pluginInterface.AssemblyLocation);
-
                 Type? type = assembly.GetType(pluginInterface.ImplementationName);
 
                 if (type == null)
                 {
-                    this.logger?.LogWarning("Type {TypeName} not found in assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+                    this.logger.LogWarning("Type {TypeName} not found in assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
 
                     return null;
                 }
 
-                if (!typeof(TPlugin).IsAssignableFrom(type) || type.IsAbstract)
+                bool isAssignable = typeof(TPlugin).IsAssignableFrom(type);
+                bool isNotAbstract = !type.IsAbstract;
+                bool isValidType = isAssignable && isNotAbstract;
+
+                if (isValidType)
                 {
-                    this.logger?.LogWarning("Type {TypeName} in assembly {AssemblyName} does not implement {TPlugin} or is abstract.", pluginInterface.ImplementationName, pluginInterface.AssemblyName, typeof(TPlugin).Name);
+                    object? instance = Activator.CreateInstance(type);
+                    bool instanceCreated = instance != null;
+                    bool instanceIsCorrectType = instance is TPlugin;
 
-                    return null;
-                }
+                    if (instanceCreated && instanceIsCorrectType)
+                    {
+                        this.logger.LogInformation("Loaded plugin: {PluginName} ({TypeName})", pluginInterface.AssemblyName, pluginInterface.ImplementationName);
 
-                if (Activator.CreateInstance(type) is TPlugin pluginInstance)
-                {
-                    this.logger?.LogInformation("Loaded plugin: {PluginName} ({TypeName})", pluginInterface.AssemblyName, pluginInterface.ImplementationName);
+                        return (TPlugin)instance!;
+                    }
+                    else
+                    {
+                        this.logger.LogWarning("Failed to create instance of type {TypeName} from assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
 
-                    return pluginInstance;
+                        return null;
+                    }
                 }
                 else
                 {
-                    this.logger?.LogWarning("Failed to create instance of type {TypeName} from assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+                    this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} does not implement {TPlugin} or is abstract.", pluginInterface.ImplementationName, pluginInterface.AssemblyName, typeof(TPlugin).Name);
 
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                this.logger?.LogError("Failed to load plugin {TypeName} from {AssemblyPath}. Exception: {ExceptionMessage}", pluginInterface.ImplementationName, pluginInterface.AssemblyLocation, ex.Message);
+                this.logger.LogError("Failed to load plugin {TypeName} from {AssemblyPath}. Exception: {ExceptionMessage}", pluginInterface.ImplementationName, pluginInterface.AssemblyLocation, ex.Message);
 
                 return null;
             }
-            finally { this.iolock.Release(); }
+            finally
+            {
+                this.iolock.Release();
+            }
         }
-        public TInterface? GetLoadedInterface<TInterface>(PluginInterface pluginInterface)
-            where TInterface : class
+
+        public TInterface? GetLoadedInterface<TInterface>(PluginInterface pluginInterface) where TInterface : class
         {
-            ArgumentNullException.ThrowIfNull(nameof(pluginInterface));
+            ArgumentNullException.ThrowIfNull(pluginInterface);
 
             PluginBase? instance = this.GetLoadedPlugin<PluginBase>(pluginInterface);
 
@@ -91,26 +109,48 @@ namespace PlugHub.Services
 
         public IEnumerable<Plugin> Discover(string pluginDirectory)
         {
+            ArgumentNullException.ThrowIfNull(pluginDirectory);
+
+            List<Assembly> assemblies = this.LoadAssembliesFromDirectory(pluginDirectory);
+            Dictionary<Assembly, Type[]> assemblyTypes = this.ExtractTypesFromAssemblies(assemblies);
+            List<Type> pluginTypes = FilterPluginTypes(assemblyTypes);
+            IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups = pluginTypes.GroupBy(t => PluginMetadata.FromPlugin(t));
+
+            return this.BuildPluginsFromGroups(pluginGroups);
+        }
+
+        private List<Assembly> LoadAssembliesFromDirectory(string pluginDirectory)
+        {
             List<Assembly> assemblies = [];
 
             this.iolock.Wait();
 
             try
             {
-                foreach (string assemblyPath in Directory.GetFiles(pluginDirectory, "*.dll", SearchOption.AllDirectories))
+                string[] assemblyPaths = Directory.GetFiles(pluginDirectory, "*.dll", SearchOption.AllDirectories);
+
+                foreach (string assemblyPath in assemblyPaths)
                 {
                     try
                     {
-                        assemblies.Add(Assembly.LoadFrom(assemblyPath));
+                        Assembly assembly = Assembly.LoadFrom(assemblyPath);
+                        assemblies.Add(assembly);
                     }
                     catch (Exception ex)
                     {
-                        this.logger?.LogError("Failed to load assembly {AssemblyPath}: {ExceptionMessage}", assemblyPath, ex.Message);
+                        this.logger.LogError("Failed to load assembly {AssemblyPath}: {ExceptionMessage}", assemblyPath, ex.Message);
                     }
                 }
             }
-            finally { this.iolock.Release(); }
+            finally
+            {
+                this.iolock.Release();
+            }
 
+            return assemblies;
+        }
+        private Dictionary<Assembly, Type[]> ExtractTypesFromAssemblies(List<Assembly> assemblies)
+        {
             Dictionary<Assembly, Type[]> assemblyTypes = [];
 
             foreach (Assembly assembly in assemblies)
@@ -122,67 +162,104 @@ namespace PlugHub.Services
                 catch (ReflectionTypeLoadException rtle)
                 {
                     foreach (Exception? loaderEx in rtle.LoaderExceptions)
-                        this.logger?.LogError("Loader exception in assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, loaderEx?.Message);
+                    {
+                        if (loaderEx != null)
+                        {
+                            this.logger.LogError("Loader exception in assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, loaderEx.Message);
+                        }
+                    }
 
-                    assemblyTypes[assembly] = rtle.Types.Where(t => t != null).ToArray()!;
+                    Type[] validTypes = rtle.Types.Where(t => t != null).ToArray()!;
+
+                    assemblyTypes[assembly] = validTypes;
                 }
                 catch (Exception ex)
                 {
-                    this.logger?.LogError("Failed to get types from assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, ex.Message);
+                    this.logger.LogError("Failed to get types from assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, ex.Message);
 
                     assemblyTypes[assembly] = [];
                 }
             }
 
-            List<Type> pluginTypes =
-                [.. assemblyTypes
-                    .SelectMany(kvp => kvp.Value)
-                    .Where(t => t != null && typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract)];
+            return assemblyTypes;
+        }
+        private static List<Type> FilterPluginTypes(Dictionary<Assembly, Type[]> assemblyTypes)
+        {
+            List<Type> pluginTypes = [];
 
-            IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups =
-                pluginTypes.GroupBy(t => PluginMetadata.FromPlugin(t));
+            foreach (Type? type in assemblyTypes.SelectMany(kvp => kvp.Value))
+            {
+                if (type != null)
+                {
+                    bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(type);
+                    bool isNotAbstract = !type.IsAbstract;
+                    bool isValidPluginType = implementsPlugin && isNotAbstract;
 
+                    if (isValidPluginType)
+                    {
+                        pluginTypes.Add(type);
+                    }
+                }
+            }
+
+            return pluginTypes;
+        }
+        private List<Plugin> BuildPluginsFromGroups(IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups)
+        {
             List<Plugin> plugins = [];
 
             foreach (IGrouping<PluginMetadata, Type> group in pluginGroups)
             {
                 PluginMetadata pluginMetadata = group.Key;
-
                 List<PluginInterface> implementations = [];
 
-                foreach (Type? concreteType in group)
+                foreach (Type concreteType in group)
                 {
-                    Assembly pluginAssembly = concreteType.Assembly;
+                    List<PluginInterface> typeInterfaces = ExtractPluginInterfaces(concreteType);
 
-                    List<Type> pluginInterfaces =
-                        [.. concreteType
-                            .GetInterfaces()
-                            .Where(i => typeof(IPlugin).IsAssignableFrom(i) && i != typeof(IPlugin))];
-
-                    foreach (Type? interfaceType in pluginInterfaces)
-                        implementations.Add(new PluginInterface(pluginAssembly, concreteType, interfaceType));
+                    implementations.AddRange(typeInterfaces);
                 }
 
                 Type? primaryType = group.FirstOrDefault();
-                if (primaryType == null)
+
+                if (primaryType != null)
                 {
-                    this.logger?.LogError("Plugin discovery failed: No plugin types found for metadata {PluginName} (ID={PluginID}).", pluginMetadata.Name, pluginMetadata.PluginID);
+                    Assembly primaryAssembly = primaryType.Assembly;
+                    Plugin plugin = new(primaryAssembly, primaryType, pluginMetadata, implementations);
+
+                    plugins.Add(plugin);
+                }
+                else
+                {
+                    this.logger.LogError("Plugin discovery failed: No plugin types found for metadata {PluginName} (ID={PluginID}).", pluginMetadata.Name, pluginMetadata.PluginID);
 
                     throw new InvalidOperationException($"No plugin types found in group for metadata: {pluginMetadata.Name} ({pluginMetadata.PluginID})");
                 }
-
-                Assembly? primaryAssembly = primaryType.Assembly;
-                if (primaryAssembly == null)
-                {
-                    this.logger?.LogError("Plugin discovery failed: No primary assembly found for plugin type {PluginType}.", primaryType.FullName);
-
-                    throw new InvalidOperationException($"No primary assembly found for plugin type: {primaryType.FullName}");
-                }
-
-                plugins.Add(new Plugin(primaryAssembly!, primaryType!, pluginMetadata, implementations));
             }
 
             return plugins;
+        }
+        private static List<PluginInterface> ExtractPluginInterfaces(Type concreteType)
+        {
+            List<PluginInterface> implementations = [];
+            Assembly pluginAssembly = concreteType.Assembly;
+
+            Type[] allInterfaces = concreteType.GetInterfaces();
+
+            foreach (Type interfaceType in allInterfaces)
+            {
+                bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(interfaceType);
+                bool isNotBasePlugin = interfaceType != typeof(IPlugin);
+                bool isValidInterface = implementsPlugin && isNotBasePlugin;
+
+                if (isValidInterface)
+                {
+                    PluginInterface pluginInterface = new(pluginAssembly, concreteType, interfaceType);
+                    implementations.Add(pluginInterface);
+                }
+            }
+
+            return implementations;
         }
 
         #endregion

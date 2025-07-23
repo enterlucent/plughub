@@ -7,7 +7,6 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
-using static PlugHub.UnitTests.Services.Configuration.FileConfigServiceTests;
 
 namespace PlugHub.UnitTests.Services.Configuration
 {
@@ -171,16 +170,26 @@ namespace PlugHub.UnitTests.Services.Configuration
             List<UnitTestConfigItem> userList = [new UnitTestConfigItem("UserOne"), new UnitTestConfigItem("UserTwo")];
 
             this.configService!.RegisterConfigs([typeof(UnitTestAConfig)], this.userParams);
+            this.configService!.SetDefault(typeof(UnitTestAConfig), "SampleList", defaultList, this.tokenSet);
 
-            // Act: Set user-level value, simulating a user override
+            List<UnitTestConfigItem> initialResult =
+                this.configService!
+                    .GetSetting<List<UnitTestConfigItem>>(typeof(UnitTestAConfig), "SampleList", this.tokenSet);
+
+            CollectionAssert.AreEqual(defaultList, initialResult, "Should return default value initially.");
+
+            // Act
             this.configService!.SetSetting(typeof(UnitTestAConfig), "SampleList", userList, this.tokenSet);
 
-            // Should retrieve the overridden user value, not the default
             List<UnitTestConfigItem> result = this.configService!.GetSetting<List<UnitTestConfigItem>>(typeof(UnitTestAConfig), "SampleList", this.tokenSet);
 
             // Assert
             CollectionAssert.AreEqual(userList, result, "User override should take precedence over the default list.");
+
+            List<UnitTestConfigItem> defaultCheck = this.configService!.GetDefault<List<UnitTestConfigItem>>(typeof(UnitTestAConfig), "SampleList", this.tokenSet);
+            CollectionAssert.AreEqual(defaultList, defaultCheck, "Default value should still be preserved.");
         }
+
 
         [TestMethod]
         [TestCategory("UserOverrides")]
@@ -202,7 +211,7 @@ namespace PlugHub.UnitTests.Services.Configuration
 
             this.configService!.RegisterConfigs([typeof(UnitTestBConfig)], this.userParams);
 
-            // Act: User overrides the dictionary
+            // Act
             this.configService!.SetSetting(typeof(UnitTestBConfig), "SampleDictionary", userDict, this.tokenSet);
 
             Dictionary<string, UnitTestConfigItem> result =

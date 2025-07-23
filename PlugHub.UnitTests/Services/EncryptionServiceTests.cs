@@ -163,7 +163,7 @@ namespace PlugHub.UnitTests.Services
         [TestCategory("Initialization")]
         public async Task Ctor_GeneratesPrimaryKey_WhenAbsent()
         {
-            // Arrange – first touch forces lazy initialisation
+            // Arrange
             _ = await this.encryptionService!
                 .GetEncryptionContextAsync(typeof(EncryptionServiceTests), Guid.NewGuid());
 
@@ -310,7 +310,7 @@ namespace PlugHub.UnitTests.Services
             byte[] key = new byte[32]; RandomNumberGenerator.Fill(key);
 
             // Act & Assert
-            Assert.ThrowsException<NullReferenceException>(() =>
+            Assert.ThrowsException<ArgumentNullException>(() =>
                 this.encryptionService!.Encrypt(null!, key));
         }
 
@@ -360,7 +360,7 @@ namespace PlugHub.UnitTests.Services
             IEncryptionContext encryptionContext =
                 this.encryptionService.GetEncryptionContext(typeof(EncryptionServiceTests), Guid.NewGuid());
 
-            byte[] plain = new byte[1048576]; // 1 MiB
+            byte[] plain = new byte[1048576];
             RandomNumberGenerator.Fill(plain);
 
             byte[] cipher = this.encryptionService!.Encrypt(plain, encryptionContext.Key);
