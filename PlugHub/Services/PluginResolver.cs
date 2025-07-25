@@ -2,6 +2,7 @@
 using PlugHub.Shared;
 using PlugHub.Shared.Extensions;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;

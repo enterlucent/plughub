@@ -1,4 +1,6 @@
-﻿namespace PlugHub.Shared.Mock.Interfaces
+﻿using PlugHub.Shared.Models;
+
+namespace PlugHub.Shared.Mock.Interfaces
 {
     /// <summary>
     /// Descriptor providing executable success processing logic to EchoService.
