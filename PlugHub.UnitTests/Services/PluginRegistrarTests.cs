@@ -3,10 +3,15 @@ using Moq;
 using PlugHub.Accessors.Configuration;
 using PlugHub.Services;
 using PlugHub.Services.Configuration;
+using PlugHub.Services.Configuration.Providers;
+using PlugHub.Services.Plugins;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
+using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Plugins;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
@@ -85,7 +90,8 @@ namespace PlugHub.UnitTests.Services
             this.pluginRegistrar =
                 new PluginRegistrar(
                     new NullLogger<IPluginRegistrar>(),
-                    this.manifest!);
+                    this.manifest!,
+                    []);
         }
 
         [TestCleanup]
@@ -107,7 +113,8 @@ namespace PlugHub.UnitTests.Services
             // Arrange & Act
             PluginRegistrar registrar = new(
                 new NullLogger<IPluginRegistrar>(),
-                this.manifest!);
+                this.manifest!,
+                []);
 
             // Assert
             Assert.IsInstanceOfType<PluginRegistrar>(registrar, "PluginRegistrar should be created successfully");
@@ -119,7 +126,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
-                new PluginRegistrar(null!, this.manifest!));
+                new PluginRegistrar(null!, this.manifest!, []));
         }
 
         [TestMethod]
@@ -128,7 +135,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
-                new PluginRegistrar(new NullLogger<IPluginRegistrar>(), null!));
+                new PluginRegistrar(new NullLogger<IPluginRegistrar>(), null!, []));
         }
 
         #endregion
@@ -141,10 +148,10 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
-            Plugin plugin = CreatePlugin(pluginId, this.enabledImplementationType, this.enabledInterfaceType, this.enabledAssembly);
+            PluginReference plugin = CreatePlugin(pluginId, this.enabledImplementationType, this.enabledInterfaceType, this.enabledAssembly);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(plugin);
+            bool result = this.pluginRegistrar!.IsEnabled(plugin);
 
             // Assert
             Assert.IsTrue(result, "Should return true for enabled plugin");
@@ -156,10 +163,10 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             Guid pluginId = Guid.Parse("87654321-4321-4321-4321-cba987654321");
-            Plugin plugin = CreatePlugin(pluginId, this.disabledImplementationType, this.disabledInterfaceType, this.disabledAssembly);
+            PluginReference plugin = CreatePlugin(pluginId, this.disabledImplementationType, this.disabledInterfaceType, this.disabledAssembly);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(plugin);
+            bool result = this.pluginRegistrar!.IsEnabled(plugin);
 
             // Assert
             Assert.IsFalse(result, "Should return false for disabled plugin");
@@ -171,10 +178,10 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             Guid pluginId = Guid.NewGuid();
-            Plugin plugin = CreatePlugin(pluginId, typeof(HashSet<int>), typeof(ISet<int>), typeof(HashSet<int>).Assembly);
+            PluginReference plugin = CreatePlugin(pluginId, typeof(HashSet<int>), typeof(ISet<int>), typeof(HashSet<int>).Assembly);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(plugin);
+            bool result = this.pluginRegistrar!.IsEnabled(plugin);
 
             // Assert
             Assert.IsFalse(result, "Should return false for non-existent plugin");
@@ -191,7 +198,7 @@ namespace PlugHub.UnitTests.Services
                 InterfaceType: this.enabledInterfaceType);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(pluginInterface);
+            bool result = this.pluginRegistrar!.IsEnabled(pluginInterface);
 
             // Assert
             Assert.IsTrue(result, "Should return true for enabled plugin interface");
@@ -208,7 +215,7 @@ namespace PlugHub.UnitTests.Services
                 InterfaceType: this.disabledInterfaceType);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(pluginInterface);
+            bool result = this.pluginRegistrar!.IsEnabled(pluginInterface);
 
             // Assert
             Assert.IsFalse(result, "Should return false for disabled plugin interface");
@@ -222,10 +229,10 @@ namespace PlugHub.UnitTests.Services
             PluginManifest manifestWithEmptyStates = new() { InterfaceStates = [] };
             await this.manifest!.SaveAsync(manifestWithEmptyStates);
 
-            Plugin plugin = CreatePlugin(Guid.NewGuid(), typeof(StringBuilder), typeof(object), typeof(StringBuilder).Assembly);
+            PluginReference plugin = CreatePlugin(Guid.NewGuid(), typeof(StringBuilder), typeof(object), typeof(StringBuilder).Assembly);
 
             // Act
-            bool result = this.pluginRegistrar!.GetEnabled(plugin);
+            bool result = this.pluginRegistrar!.IsEnabled(plugin);
 
             // Assert
             Assert.IsFalse(result, "Should return false when InterfaceStates is empty");
@@ -241,7 +248,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             Guid pluginId = Guid.Parse("87654321-4321-4321-4321-cba987654321");
-            Plugin plugin = CreatePlugin(pluginId, this.disabledImplementationType, this.disabledInterfaceType, this.disabledAssembly);
+            PluginReference plugin = CreatePlugin(pluginId, this.disabledImplementationType, this.disabledInterfaceType, this.disabledAssembly);
 
             // Act
             this.pluginRegistrar!.SetEnabled(plugin);
@@ -257,7 +264,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Arrange
             Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
-            Plugin plugin = CreatePlugin(pluginId, this.enabledImplementationType, this.enabledInterfaceType, this.enabledAssembly);
+            PluginReference plugin = CreatePlugin(pluginId, this.enabledImplementationType, this.enabledInterfaceType, this.enabledAssembly);
 
             // Act
             this.pluginRegistrar!.SetDisabled(plugin);
@@ -312,7 +319,7 @@ namespace PlugHub.UnitTests.Services
             PluginManifest testManifest = new() { InterfaceStates = [] };
             mockManifest.Setup(x => x.Get()).Returns(testManifest);
 
-            List<Plugin> plugins = [
+            List<PluginReference> plugins = [
                 CreatePlugin(Guid.NewGuid(), typeof(Stack<double>), typeof(IEnumerable<double>), typeof(Stack<double>).Assembly)
             ];
 
@@ -330,7 +337,7 @@ namespace PlugHub.UnitTests.Services
         public void SynchronizePluginConfig_NullPluginManifest_ThrowsArgumentNullException()
         {
             // Arrange
-            List<Plugin> plugins = [];
+            List<PluginReference> plugins = [];
 
             // Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
@@ -365,7 +372,7 @@ namespace PlugHub.UnitTests.Services
             };
             testManifest.Setup(x => x.Get()).Returns(manifest);
 
-            List<Plugin> allPlugins =
+            List<PluginReference> allPlugins =
             [
                 CreatePlugin(
                     Guid.Parse("12345678-1234-1234-1234-123456789abc"),
@@ -380,21 +387,21 @@ namespace PlugHub.UnitTests.Services
             ];
 
             // Act
-            IEnumerable<Plugin> enabledPlugins = PluginRegistrar.GetEnabledInterfaces(
+            IEnumerable<PluginReference> enabledPlugins = PluginRegistrar.GetEnabledInterfaces(
                 new NullLogger<IPluginRegistrar>(),
                 testManifest.Object,
                 allPlugins);
 
             // Assert
             Assert.AreEqual(1, enabledPlugins.Count(), "Should return only plugins with enabled interfaces");
-            Plugin enabledPlugin = enabledPlugins.First();
+            PluginReference enabledPlugin = enabledPlugins.First();
             Assert.AreEqual(Guid.Parse("12345678-1234-1234-1234-123456789abc"), enabledPlugin.Metadata.PluginID,
                 "Should return the plugin with enabled interfaces");
         }
 
         #endregion
 
-        private static Plugin CreatePlugin(Guid pluginId, Type implementationType, Type interfaceType, Assembly assembly)
+        private static PluginReference CreatePlugin(Guid pluginId, Type implementationType, Type interfaceType, Assembly assembly)
         {
             PluginInterface pluginInterface = new(
                 Assembly: assembly,
@@ -410,7 +417,7 @@ namespace PlugHub.UnitTests.Services
                 "Enterlucent",
                 []);
 
-            return new Plugin(assembly, implementationType, metadata, [pluginInterface]);
+            return new PluginReference(assembly, implementationType, metadata, [pluginInterface]);
         }
     }
 }

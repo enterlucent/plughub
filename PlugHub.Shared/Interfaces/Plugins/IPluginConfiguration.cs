@@ -1,7 +1,8 @@
 ﻿using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
+using PlugHub.Shared.Interfaces.Services.Configuration;
+using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.Shared.Interfaces
+namespace PlugHub.Shared.Interfaces.Plugins
 {
     /// <summary>
     /// Describes a plugin component that registers configuration options, schema, or settings with the host system.
@@ -25,8 +26,8 @@ namespace PlugHub.Shared.Interfaces
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null
-    ) : PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+        IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
+            PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Interface for plugins that register configuration options.

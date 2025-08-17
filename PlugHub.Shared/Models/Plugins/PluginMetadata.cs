@@ -1,7 +1,7 @@
 ﻿using PlugHub.Shared.Extensions;
 using System.Reflection;
 
-namespace PlugHub.Shared.Models
+namespace PlugHub.Shared.Models.Plugins
 {
     public record PluginMetadata(
         Guid PluginID,

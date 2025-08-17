@@ -8,7 +8,7 @@ namespace PlugHub.UnitTests.Platform.Storage
     {
         public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> src)
         {
-            List<T> list = new();
+            List<T> list = [];
             await foreach (T? item in src) list.Add(item);
             return list;
         }

@@ -57,7 +57,7 @@ namespace PlugHub.UnitTests.Services
             ITokenSet tokenSet = this.tokenService!.CreateTokenSet(writeToken: write);
 
             // Assert
-            Assert.AreEqual(write, tokenSet.Read);   
+            Assert.AreEqual(write, tokenSet.Read);
             Assert.AreEqual(write, tokenSet.Write);
         }
 
@@ -231,7 +231,7 @@ namespace PlugHub.UnitTests.Services
         {
             // Act
             bool result = this.tokenService!.AllowAccess(
-                resourceOwner: null, 
+                resourceOwner: null,
                 resourcePermission: Token.Public,
                 accessor: Token.New(),
                 accessorPermission: null,
@@ -239,7 +239,7 @@ namespace PlugHub.UnitTests.Services
             );
 
             // Assert
-            Assert.IsTrue(result); 
+            Assert.IsTrue(result);
         }
 
         [TestMethod]

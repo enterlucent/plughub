@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Models;
 using PlugHub.Services;
 using PlugHub.Services.Configuration;
+using PlugHub.Services.Configuration.Providers;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
 
@@ -742,7 +744,7 @@ namespace PlugHub.UnitTests.Services.Configuration
 
             // Assert
             await Task.WhenAll(writers.Concat(readers));
-            
+
             _ = this.configService!.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), this.tokenSet);
         }
 

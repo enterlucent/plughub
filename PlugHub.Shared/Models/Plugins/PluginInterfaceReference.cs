@@ -1,4 +1,4 @@
-﻿namespace PlugHub.Shared
+﻿namespace PlugHub.Shared.Models.Plugins
 {
     /// <summary>
     /// Represents a reference to another plugin interface, describing constraints or requirements for relationships such as dependencies, conflicts, or optional features.

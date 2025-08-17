@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
@@ -15,7 +16,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace PlugHub.Services.Configuration
+namespace PlugHub.Services.Configuration.Providers
 {
     public class UserConfigServiceConfig(IConfigService configService, string configPath, string userConfigPath, IConfiguration config, IConfiguration userConfig, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChange)
         : FileConfigServiceConfig(configService, configPath, config, values, jsonOptions, ownerToken, readToken, writeToken, reloadOnChange)

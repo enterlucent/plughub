@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
@@ -16,7 +17,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace PlugHub.Services.Configuration
+namespace PlugHub.Services.Configuration.Providers
 {
     public class FileConfigServiceConfig(
         IConfigService configService,

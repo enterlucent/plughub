@@ -1,7 +1,8 @@
 ﻿using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.Shared.Interfaces
+namespace PlugHub.Shared.Interfaces.Plugins
 {
     /// <summary>
     /// Describes a plugin component that provides branding assets (such as logos, theme resources),

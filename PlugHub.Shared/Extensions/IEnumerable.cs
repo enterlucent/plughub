@@ -12,7 +12,7 @@
         /// <exception cref="InvalidOperationException">Thrown if a cyclic dependency is detected.</exception>
         public static IList<T> TopologicalSort<T>(this IEnumerable<T> source, Func<T, IEnumerable<T>> getDependencies) where T : notnull
         {
-            List<T> sorted = new();
+            List<T> sorted = [];
             List<T> nodes = [.. source];
 
             Dictionary<T, HashSet<T>> dependencies = nodes.ToDictionary(

@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 
-namespace PlugHub.Shared.Models
+namespace PlugHub.Shared.Models.Plugins
 {
     /// <summary>
     /// Represents a specific implementation of an interface provided by a plugin. Encapsulates the runtime assembly, the concrete class implementing the interface, and the interface type itself.
@@ -44,7 +44,7 @@ namespace PlugHub.Shared.Models
     /// <remarks>
     /// Used throughout PlugHub to persist plugin state, resolve manifests, determine enablement, and to drive loading and registration workflows.
     /// </remarks>
-    public record Plugin(Assembly Assembly, Type Type, PluginMetadata Metadata, IEnumerable<PluginInterface> Interfaces)
+    public record PluginReference(Assembly Assembly, Type Type, PluginMetadata Metadata, IEnumerable<PluginInterface> Interfaces)
     {
         /// <summary>
         /// The file system path of the assembly containing the plugin's entry point.
