@@ -1,6 +1,6 @@
-﻿using PlugHub.Shared.Models;
+﻿using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.Shared.Interfaces.Services
+namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
     /// <summary>
     /// Provides core plugin management operations for discovery and dynamic loading in the PlugHub system.
@@ -12,8 +12,8 @@ namespace PlugHub.Shared.Interfaces.Services
         /// This method loads metadata only and does not instantiate plugin types.
         /// </summary>
         /// <param name="pluginDirectory">The file system directory to scan for plugin assemblies.</param>
-        /// <returns>A collection of <see cref="Plugin"/> objects representing each discovered plugin and its interfaces.</returns>
-        IEnumerable<Plugin> Discover(string pluginDirectory);
+        /// <returns>A collection of <see cref="PluginReference"/> objects representing each discovered plugin and its interfaces.</returns>
+        IEnumerable<PluginReference> Discover(string pluginDirectory);
 
         /// <summary>
         /// Loads and returns an implementation instance for a given plugin interface, cast to the specified type.

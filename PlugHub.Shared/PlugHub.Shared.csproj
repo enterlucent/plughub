@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <!--Avalonia Extras-->
+    <PackageReference Include="Avalonia" Version="11.3.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!--Configuration-->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.7" />

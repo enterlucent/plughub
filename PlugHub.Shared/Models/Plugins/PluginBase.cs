@@ -1,4 +1,4 @@
-﻿namespace PlugHub.Shared
+﻿namespace PlugHub.Shared.Models.Plugins
 {
     /// <summary>
     /// Provides a base class for all plugins in a PlugHub-based application.

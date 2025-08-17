@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
-using PlugHub.Services;
-using PlugHub.Shared;
-using PlugHub.Shared.Models;
+using PlugHub.Services.Plugins;
+using PlugHub.Shared.Models.Plugins;
 
 namespace PlugHub.UnitTests.Services
 {

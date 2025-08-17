@@ -1,7 +1,7 @@
 ﻿using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Models;
 
-namespace PlugHub.Shared.Interfaces.Services
+namespace PlugHub.Shared.Interfaces.Services.Configuration
 {
     public interface IConfigServiceProvider
     {

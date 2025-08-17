@@ -3,6 +3,7 @@ using PlugHub.Shared.Extensions;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
 using System;
 using System.Collections.Concurrent;

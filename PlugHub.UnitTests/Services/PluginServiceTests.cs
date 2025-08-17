@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
-using PlugHub.Services;
-using PlugHub.Shared;
-using PlugHub.Shared.Interfaces;
-using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Services.Plugins;
+using PlugHub.Shared.Interfaces.Plugins;
+using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Mock.Interfaces;
+using PlugHub.Shared.Models.Plugins;
 
 
 namespace PlugHub.UnitTests.Services
@@ -47,7 +47,7 @@ namespace PlugHub.UnitTests.Services
         public void Discovery_ShouldReturnAnyValidPlugins()
         {
             // Arrange & Act
-            IEnumerable<Shared.Models.Plugin> plugins =
+            IEnumerable<PluginReference> plugins =
                 this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
 
             // Assert
@@ -59,19 +59,19 @@ namespace PlugHub.UnitTests.Services
         public void Discovery_ShouldFindPluginMock()
         {
             // Arrange
-            IEnumerable<Shared.Models.Plugin> plugins =
+            IEnumerable<PluginReference> plugins =
                 this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
 
-            Shared.Models.Plugin? foundPlugin = null;
+            PluginReference? foundPlugin = null;
 
             // Act
-            foreach (Shared.Models.Plugin plugin in plugins)
+            foreach (PluginReference plugin in plugins)
                 if (plugin.AssemblyName == "PlugHub.Plugin.Mock")
                     foundPlugin = plugin;
 
             // Assert
             Assert.IsNotNull(foundPlugin, "The mock plugin was not found");
-            Assert.IsInstanceOfType<Shared.Models.Plugin>(foundPlugin, "Instance was not of the mock plugin type");
+            Assert.IsInstanceOfType<PluginReference>(foundPlugin, "Instance was not of the mock plugin type");
         }
 
         [TestMethod]
@@ -84,7 +84,7 @@ namespace PlugHub.UnitTests.Services
             // Act & Assert
             DirectoryNotFoundException exception = Assert.ThrowsException<DirectoryNotFoundException>(() =>
             {
-                IEnumerable<Shared.Models.Plugin> plugins = this.pluginService!.Discover(nonExistentDirectory);
+                IEnumerable<PluginReference> plugins = this.pluginService!.Discover(nonExistentDirectory);
             });
         }
 
@@ -109,13 +109,13 @@ namespace PlugHub.UnitTests.Services
         public void Instantiate_ShouldReturnPluginBase()
         {
             // Arrange
-            IEnumerable<Shared.Models.Plugin> plugins =
+            IEnumerable<PluginReference> plugins =
                 this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
 
-            Shared.Models.Plugin? foundPlugin = null;
+            PluginReference? foundPlugin = null;
 
             // Act
-            foreach (Shared.Models.Plugin plugin in plugins)
+            foreach (PluginReference plugin in plugins)
                 if (plugin.AssemblyName == "PlugHub.Plugin.Mock")
                     foundPlugin = plugin;
 
@@ -131,13 +131,13 @@ namespace PlugHub.UnitTests.Services
         public void Instantiate_ShouldReturnConfigInterface()
         {
             // Arrange
-            IEnumerable<Shared.Models.Plugin> plugins =
+            IEnumerable<PluginReference> plugins =
                 this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
 
-            Shared.Models.Plugin? foundPlugin = null;
+            PluginReference? foundPlugin = null;
 
             // Act
-            foreach (Shared.Models.Plugin plugin in plugins)
+            foreach (PluginReference plugin in plugins)
                 if (plugin.AssemblyName == "PlugHub.Plugin.Mock")
                     foundPlugin = plugin;
 
@@ -154,7 +154,7 @@ namespace PlugHub.UnitTests.Services
         public void GetLoadedPlugin_ShouldReturnNull_ForUnknownInterface()
         {
             // Arrage
-            Shared.Models.PluginInterface fakeInterface = new(
+            PluginInterface fakeInterface = new(
                 Assembly: typeof(object).Assembly,
                 ImplementationType: typeof(object),
                 InterfaceType: typeof(IDisposable));
@@ -171,13 +171,13 @@ namespace PlugHub.UnitTests.Services
         public void GetLoadedInterface_ShouldReturnNull_IfInterfaceNotPresent()
         {
             // Arrange
-            IEnumerable<Shared.Models.Plugin> plugins = this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
-            Shared.Models.Plugin? foundPlugin = plugins.FirstOrDefault();
+            IEnumerable<PluginReference> plugins = this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
+            PluginReference? foundPlugin = plugins.FirstOrDefault();
 
             if (foundPlugin == null)
                 Assert.Inconclusive("No plugins available for negative test.");
 
-            Shared.Models.PluginInterface fakeInterface = new(
+            PluginInterface fakeInterface = new(
                 Assembly: typeof(object).Assembly,
                 ImplementationType: typeof(object),
                 InterfaceType: typeof(IDisposable)
@@ -268,16 +268,16 @@ namespace PlugHub.UnitTests.Services
                 (this.serviceProvider as IDisposable)?.Dispose();
                 this.serviceCollection = this.msTestHelpers.CreateTempServiceCollection();
 
-                IEnumerable<Shared.Models.Plugin> plugins =
+                IEnumerable<PluginReference> plugins =
                     this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
 
-                Shared.Models.PluginInterface mockPluginInterface = plugins
+                PluginInterface mockPluginInterface = plugins
                     .First(p => p.AssemblyName == "PlugHub.Plugin.Mock")
                     .Interfaces
                     .First();
 
-                IPluginDependencyInjector? injectgor =
-                    this.pluginService.GetLoadedInterface<IPluginDependencyInjector>(mockPluginInterface);
+                IPluginDependencyInjection? injectgor =
+                    this.pluginService.GetLoadedInterface<IPluginDependencyInjection>(mockPluginInterface);
 
                 foreach (PluginInjectorDescriptor descriptor in injectgor!.GetInjectionDescriptors())
                 {

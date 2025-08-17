@@ -1,8 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
-using PlugHub.Shared;
-using PlugHub.Shared.Interfaces;
-using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
+using PlugHub.Shared.Interfaces.Plugins;
+using PlugHub.Shared.Interfaces.Services.Plugins;
+using PlugHub.Shared.Models.Plugins;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 
-namespace PlugHub.Services
+namespace PlugHub.Services.Plugins
 {
     public class PluginService : IPluginService
     {
@@ -48,13 +47,13 @@ namespace PlugHub.Services
                 if (type == null)
                 {
                     this.logger.LogWarning("Type {TypeName} not found in assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
-
                     return null;
                 }
 
-                bool isAssignable = typeof(TPlugin).IsAssignableFrom(type);
+                // Validate the type is a subclass of PluginBase and concrete (non-abstract)
+                bool isSubclass = type.IsSubclassOf(typeof(PluginBase));
                 bool isNotAbstract = !type.IsAbstract;
-                bool isValidType = isAssignable && isNotAbstract;
+                bool isValidType = isSubclass && isNotAbstract;
 
                 if (isValidType)
                 {
@@ -71,21 +70,18 @@ namespace PlugHub.Services
                     else
                     {
                         this.logger.LogWarning("Failed to create instance of type {TypeName} from assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
-
                         return null;
                     }
                 }
                 else
                 {
-                    this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} does not implement {TPlugin} or is abstract.", pluginInterface.ImplementationName, pluginInterface.AssemblyName, typeof(TPlugin).Name);
-
+                    this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} is not a subclass of {PluginBase} or is abstract.", pluginInterface.ImplementationName, pluginInterface.AssemblyName, nameof(PluginBase));
                     return null;
                 }
             }
             catch (Exception ex)
             {
                 this.logger.LogError("Failed to load plugin {TypeName} from {AssemblyPath}. Exception: {ExceptionMessage}", pluginInterface.ImplementationName, pluginInterface.AssemblyLocation, ex.Message);
-
                 return null;
             }
             finally
@@ -93,7 +89,6 @@ namespace PlugHub.Services
                 this.iolock.Release();
             }
         }
-
         public TInterface? GetLoadedInterface<TInterface>(PluginInterface pluginInterface) where TInterface : class
         {
             ArgumentNullException.ThrowIfNull(pluginInterface);
@@ -107,7 +102,7 @@ namespace PlugHub.Services
 
         #region PlugHub.Services.PluginService: Discovery
 
-        public IEnumerable<Plugin> Discover(string pluginDirectory)
+        public IEnumerable<PluginReference> Discover(string pluginDirectory)
         {
             ArgumentNullException.ThrowIfNull(pluginDirectory);
 
@@ -118,7 +113,6 @@ namespace PlugHub.Services
 
             return this.BuildPluginsFromGroups(pluginGroups);
         }
-
         private List<Assembly> LoadAssembliesFromDirectory(string pluginDirectory)
         {
             List<Assembly> assemblies = [];
@@ -191,9 +185,9 @@ namespace PlugHub.Services
             {
                 if (type != null)
                 {
-                    bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(type);
+                    bool derivesFromPluginBase = type.IsSubclassOf(typeof(PluginBase));
                     bool isNotAbstract = !type.IsAbstract;
-                    bool isValidPluginType = implementsPlugin && isNotAbstract;
+                    bool isValidPluginType = derivesFromPluginBase && isNotAbstract;
 
                     if (isValidPluginType)
                     {
@@ -204,9 +198,9 @@ namespace PlugHub.Services
 
             return pluginTypes;
         }
-        private List<Plugin> BuildPluginsFromGroups(IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups)
+        private List<PluginReference> BuildPluginsFromGroups(IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups)
         {
-            List<Plugin> plugins = [];
+            List<PluginReference> plugins = [];
 
             foreach (IGrouping<PluginMetadata, Type> group in pluginGroups)
             {
@@ -225,7 +219,7 @@ namespace PlugHub.Services
                 if (primaryType != null)
                 {
                     Assembly primaryAssembly = primaryType.Assembly;
-                    Plugin plugin = new(primaryAssembly, primaryType, pluginMetadata, implementations);
+                    PluginReference plugin = new(primaryAssembly, primaryType, pluginMetadata, implementations);
 
                     plugins.Add(plugin);
                 }

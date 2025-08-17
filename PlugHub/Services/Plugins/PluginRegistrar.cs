@@ -1,35 +1,16 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PlugHub.Shared;
-using PlugHub.Shared.Interfaces;
 using PlugHub.Shared.Interfaces.Accessors;
-using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
+using PlugHub.Shared.Interfaces.Plugins;
+using PlugHub.Shared.Interfaces.Services.Plugins;
+using PlugHub.Shared.Models.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 
-namespace PlugHub.Services
+namespace PlugHub.Services.Plugins
 {
-    public class PluginLoadState(Guid pluginId = default, string assemblyName = "Unknown", string implementationName = "Unknown", string interfaceName = "Unknown", bool enabled = false, int loadOrder = int.MaxValue)
-    {
-        public PluginLoadState()
-            : this(default, "Unknown", "Unknown", "Unknown", false, int.MaxValue) { }
-
-        public Guid PluginId { get; set; } = pluginId;
-        public string AssemblyName { get; set; } = assemblyName;
-        public string ImplementationName { get; set; } = implementationName;
-        public string InterfaceName { get; set; } = interfaceName;
-        public bool Enabled { get; set; } = enabled;
-        public int LoadOrder { get; set; } = loadOrder;
-    }
-
-    public class PluginManifest
-    {
-        public List<PluginLoadState> InterfaceStates { get; set; } = [];
-    }
-
     public class PluginRegistrar : IPluginRegistrar
     {
         private class EnableStateChangeResult
@@ -41,33 +22,40 @@ namespace PlugHub.Services
 
         protected readonly ILogger<IPluginRegistrar> Logger;
         protected readonly IConfigAccessorFor<PluginManifest> PluginManifest;
+        protected readonly IEnumerable<PluginReference> EnabledPlugins;
 
-        public PluginRegistrar(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest)
+        public PluginRegistrar(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<PluginReference> enabledPlugins)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(pluginManifest);
 
             this.Logger = logger;
             this.PluginManifest = pluginManifest;
+            this.EnabledPlugins = enabledPlugins;
         }
 
         #region PluginRegistrar: Enabled Getters & Mutators
 
-        protected bool GetEnableState(Guid pluginId)
+        public IReadOnlyList<PluginReference> GetEnabledPlugins()
+        {
+            return this.EnabledPlugins.ToList().AsReadOnly();
+        }
+
+        protected bool IsEnableState(Guid pluginId)
         {
             return this.GetEnableState(pluginId, (state, id) => state.PluginId == id && state.Enabled);
         }
-        public bool GetEnabled(Plugin plugin)
-            => this.GetEnableState(plugin.Metadata.PluginID);
+        public bool IsEnabled(PluginReference plugin)
+            => this.IsEnableState(plugin.Metadata.PluginID);
 
-        protected bool GetEnableState(PluginInterface pluginInterface)
+        protected bool IsEnableState(PluginInterface pluginInterface)
         {
             ArgumentNullException.ThrowIfNull(pluginInterface);
 
             return this.GetEnableState(pluginInterface, (state, iface) => DoesLoadStateMatch(state, iface) && state.Enabled);
         }
-        public bool GetEnabled(PluginInterface pluginInterface)
-            => this.GetEnableState(pluginInterface);
+        public bool IsEnabled(PluginInterface pluginInterface)
+            => this.IsEnableState(pluginInterface);
 
         protected void SetEnableState(Guid pluginId, bool enabled)
         {
@@ -92,9 +80,9 @@ namespace PlugHub.Services
                 return;
             }
         }
-        public void SetEnabled(Plugin plugin)
+        public void SetEnabled(PluginReference plugin)
             => this.SetEnableState(plugin.Metadata.PluginID, true);
-        public void SetDisabled(Plugin plugin)
+        public void SetDisabled(PluginReference plugin)
             => this.SetEnableState(plugin.Metadata.PluginID, false);
 
         protected void SetEnableState(PluginInterface pluginInterface, bool enabled)
@@ -285,10 +273,6 @@ namespace PlugHub.Services
             }
         }
 
-        #endregion
-
-        #region PluginRegistrar: Static Matching Helpers
-
         private static bool DoesLoadStateMatch(PluginLoadState loadState, PluginInterface pluginInterface)
         {
             bool assemblyMatch = string.Equals(loadState.AssemblyName, pluginInterface.AssemblyName, StringComparison.OrdinalIgnoreCase);
@@ -297,7 +281,7 @@ namespace PlugHub.Services
 
             return assemblyMatch && implementationMatch && interfaceMatch;
         }
-        private static bool DoesLoadStateMatch(PluginLoadState loadState, Plugin plugin, PluginInterface pluginInterface)
+        private static bool DoesLoadStateMatch(PluginLoadState loadState, PluginReference plugin, PluginInterface pluginInterface)
         {
             bool pluginIdMatch = loadState.PluginId == plugin.Metadata.PluginID;
             bool interfaceMatch = DoesLoadStateMatch(loadState, pluginInterface);
@@ -307,9 +291,10 @@ namespace PlugHub.Services
 
         #endregion
 
-        #region PluginRegistrar: Plugin Bootstrapping
 
-        public static void SynchronizePluginConfig(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<Plugin> plugins)
+        #region PluginRegistrar: Bootstrap Plugins
+
+        public static void SynchronizePluginConfig(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<PluginReference> plugins)
         {
             ArgumentNullException.ThrowIfNull(pluginManifest);
             plugins ??= [];
@@ -327,7 +312,7 @@ namespace PlugHub.Services
 
             SaveConfigurationIfNeeded(logger, pluginManifest, pluginData, newEntriesAdded || staleEntriesRemoved);
         }
-        public static IEnumerable<Plugin> GetEnabledInterfaces(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<Plugin> plugins)
+        public static IEnumerable<PluginReference> GetEnabledInterfaces(ILogger<IPluginRegistrar> logger, IConfigAccessorFor<PluginManifest> pluginManifest, IEnumerable<PluginReference> plugins)
         {
             PluginManifest pluginData =
                 PreparePluginManifestCore(
@@ -335,9 +320,9 @@ namespace PlugHub.Services
                     count => logger.LogInformation("Checking enabled plugins against {EntryCount} config entries.",
                     count));
 
-            List<Plugin> result = [];
+            List<PluginReference> result = [];
 
-            foreach (Plugin plugin in plugins)
+            foreach (PluginReference plugin in plugins)
             {
                 logger.LogDebug("Processing plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
@@ -348,7 +333,8 @@ namespace PlugHub.Services
                 if (hasEnabledImplementations)
                 {
                     logger.LogInformation("Plugin {AssemblyName}:{TypeName} has {EnabledCount} enabled implementations.", plugin.AssemblyName, plugin.TypeName, enabledImplementations.Count);
-                    result.Add(new Plugin(plugin.Assembly, plugin.Type, plugin.Metadata, enabledImplementations));
+
+                    result.Add(new PluginReference(plugin.Assembly, plugin.Type, plugin.Metadata, enabledImplementations));
                 }
             }
 
@@ -356,15 +342,15 @@ namespace PlugHub.Services
 
             return result;
         }
-        public static void RegisterInjectors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<Plugin> enabledPlugins)
+        public static void RegisterInjectors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
             Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = CollectInjectorDescriptors(logger, pluginService, enabledPlugins);
 
             ProcessDescriptorRegistrations(logger, pluginSorter, serviceCollection, descriptorsByInterface);
         }
-        public static void RegisterPlugins(ILogger<IPluginRegistrar> logger, IServiceCollection serviceCollection, IEnumerable<Plugin> enabledPlugins)
+        public static void RegisterPlugins(ILogger<IPluginRegistrar> logger, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
-            foreach (Plugin plugin in enabledPlugins)
+            foreach (PluginReference plugin in enabledPlugins)
             {
                 logger.LogInformation("Registering general plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
@@ -390,7 +376,7 @@ namespace PlugHub.Services
 
             return pluginData;
         }
-        private static HashSet<(string, string, string)> BuildDiscoveredInterfaceSet(IEnumerable<Plugin> plugins)
+        private static HashSet<(string, string, string)> BuildDiscoveredInterfaceSet(IEnumerable<PluginReference> plugins)
         {
             return new HashSet<(string, string, string)>(
                 plugins.SelectMany(plugin =>
@@ -398,7 +384,7 @@ namespace PlugHub.Services
                         (pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName))),
                 EqualityComparer<(string, string, string)>.Default);
         }
-        private static PluginLoadState CreateNewPluginLoadState(Plugin plugin, PluginInterface pluginInterface)
+        private static PluginLoadState CreateNewPluginLoadState(PluginReference plugin, PluginInterface pluginInterface)
         {
             return new PluginLoadState(
                 plugin.Metadata.PluginID,
@@ -427,11 +413,11 @@ namespace PlugHub.Services
             return staleEntries;
         }
 
-        private static bool AddNewPluginEntries(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, IEnumerable<Plugin> plugins)
+        private static bool AddNewPluginEntries(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, IEnumerable<PluginReference> plugins)
         {
             bool configChanged = false;
 
-            foreach (Plugin plugin in plugins)
+            foreach (PluginReference plugin in plugins)
             {
                 foreach (PluginInterface pluginInterface in plugin.Interfaces)
                 {
@@ -485,7 +471,7 @@ namespace PlugHub.Services
             }
         }
 
-        private static List<PluginInterface> FindEnabledImplementations(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, Plugin plugin)
+        private static List<PluginInterface> FindEnabledImplementations(ILogger<IPluginRegistrar> logger, PluginManifest pluginData, PluginReference plugin)
         {
             List<PluginInterface> enabledImplementations = [];
 
@@ -510,21 +496,21 @@ namespace PlugHub.Services
 
             return enabledImplementations;
         }
-        private static Dictionary<Type, List<PluginInjectorDescriptor>> CollectInjectorDescriptors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IEnumerable<Plugin> enabledPlugins)
+        private static Dictionary<Type, List<PluginInjectorDescriptor>> CollectInjectorDescriptors(ILogger<IPluginRegistrar> logger, IPluginService pluginService, IEnumerable<PluginReference> enabledPlugins)
         {
             Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = [];
 
-            foreach (Plugin plugin in enabledPlugins)
+            foreach (PluginReference plugin in enabledPlugins)
             {
                 logger.LogInformation("Registering plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
                 foreach (PluginInterface implementation in plugin.Interfaces)
                 {
-                    bool isInjector = implementation.InterfaceType == typeof(IPluginDependencyInjector);
+                    bool isInjector = implementation.InterfaceType == typeof(IPluginDependencyInjection);
 
                     if (!isInjector) continue;
 
-                    IPluginDependencyInjector? injector = pluginService.GetLoadedInterface<IPluginDependencyInjector>(implementation);
+                    IPluginDependencyInjection? injector = pluginService.GetLoadedInterface<IPluginDependencyInjection>(implementation);
 
                     if (injector == null)
                     {

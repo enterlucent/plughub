@@ -1,5 +1,5 @@
 ﻿using PlugHub.Shared.Interfaces.Models;
-using PlugHub.Shared.Interfaces.Services;
+using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
 
 namespace PlugHub.Shared.Interfaces.Accessors

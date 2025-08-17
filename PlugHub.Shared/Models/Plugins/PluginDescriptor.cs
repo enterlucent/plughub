@@ -1,4 +1,4 @@
-﻿namespace PlugHub.Shared.Models
+﻿namespace PlugHub.Shared.Models.Plugins
 {
     /// <summary>
     /// Base descriptor that defines the identity and load characteristics for a plugin or plugin interface.

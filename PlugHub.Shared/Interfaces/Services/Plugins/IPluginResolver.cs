@@ -1,6 +1,6 @@
-﻿using PlugHub.Shared.Models;
+﻿using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.Shared.Interfaces.Services
+namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
     /// <summary>
     /// Resolves plugin interface descriptors into a stable, dependency-valid, conflict-free load order.

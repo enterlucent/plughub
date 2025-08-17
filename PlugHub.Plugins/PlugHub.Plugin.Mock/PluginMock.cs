@@ -1,14 +1,14 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using PlugHub.Plugin.Mock.Services;
-using PlugHub.Shared;
-using PlugHub.Shared.Interfaces;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
+using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Mock;
 using PlugHub.Shared.Mock.Interfaces;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Plugins;
 
 namespace PlugHub.Plugin.Mock
 {
@@ -25,7 +25,7 @@ namespace PlugHub.Plugin.Mock
     /// Implements branding (application identity override), configuration (token-secured configuration), 
     /// and dependency injection (service provision to other plugins) simultaneously.
     /// </summary>
-    public class PluginMock : PluginBase, ISharedMock, IPluginBranding, IPluginConfiguration, IPluginDependencyInjector
+    public class PluginMock : PluginBase, ISharedMock, IPluginBranding, IPluginConfiguration, IPluginDependencyInjection
     {
         protected static ITokenSet? TokenSet { get; set; }
 

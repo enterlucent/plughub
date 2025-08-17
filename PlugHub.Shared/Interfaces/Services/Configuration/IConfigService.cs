@@ -3,7 +3,7 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Models;
 using System.Text.Json;
 
-namespace PlugHub.Shared.Interfaces.Services
+namespace PlugHub.Shared.Interfaces.Services.Configuration
 {
     /// <summary>
     /// Enumerates the types of configuration operations that can trigger a fire-and-forget save error.
@@ -192,7 +192,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <param name="read">Optional read token used for authorization. If <c>null</c>, a new token will be generated.</param>
         /// <param name="write">Optional write token used for authorization. If <c>null</c>, a new token will be generated.</param>
         /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
-        /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
+        /// <returns>An <see cref="IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
         /// <exception cref="KeyNotFoundException">Thrown if the configuration type <typeparamref name="TConfig"/> is not registered.</exception>
         /// <exception cref="InvalidOperationException">Thrown if no accessor provider is registered for the configuration's required accessor interface.</exception>
         IConfigAccessorFor<TConfig> GetAccessor<TConfig>(Token? owner = null, Token? read = null, Token? write = null) where TConfig : class;
@@ -200,7 +200,7 @@ namespace PlugHub.Shared.Interfaces.Services
         /// <summary>Retrieves a configuration accessor for the specified configuration type <typeparamref name="TConfig"/>, using the provided token set for authorization.</summary>
         /// <param name="tokenSet">The set of tokens (owner, read, write) used for authorization.</param>
         /// <typeparam name="TConfig">The type of the configuration to access. Must be a reference type.</typeparam>
-        /// <returns>An <see cref="Accessors.IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
+        /// <returns>An <see cref="IConfigAccessorFor{TConfig}"/> instance to access and manipulate the specified configuration.</returns>
         IConfigAccessorFor<TConfig> GetAccessor<TConfig>(ITokenSet tokenSet) where TConfig : class;
 
         /// <summary>Retrieves a strongly-typed configuration accessor of type <typeparamref name="TAccessor"/> for the specified configuration type <typeparamref name="TConfig"/>.</summary>

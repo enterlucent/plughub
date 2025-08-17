@@ -1,4 +1,4 @@
-﻿using PlugHub.Shared.Interfaces;
+﻿using PlugHub.Shared.Interfaces.Plugins;
 
 namespace PlugHub.Shared.Mock.Interfaces
 {

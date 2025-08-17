@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.Shared.Interfaces
+namespace PlugHub.Shared.Interfaces.Plugins
 {
     /// <summary>
     /// Describes a plugin component that supports dependency injection.
@@ -37,7 +37,7 @@ namespace PlugHub.Shared.Interfaces
     /// Interface for plugins that participate in dependency injection.
     /// Provides descriptors for services the plugin injects into the host or other plugins.
     /// </summary>
-    public interface IPluginDependencyInjector : IPlugin
+    public interface IPluginDependencyInjection : IPlugin
     {
         /// <summary>
         /// Returns a collection of descriptors detailing the dependency injection points

@@ -1,14 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
-using PlugHub.Shared;
 using PlugHub.Shared.Extensions;
-using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Models;
+using PlugHub.Shared.Interfaces.Services.Plugins;
+using PlugHub.Shared.Models.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 
-namespace PlugHub.Services
+namespace PlugHub.Services.Plugins
 {
     public class PluginResolver : IPluginResolver
     {
