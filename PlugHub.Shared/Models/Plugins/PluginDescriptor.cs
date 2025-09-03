@@ -7,7 +7,7 @@
     /// </summary>
     public abstract record PluginDescriptor(
         Guid PluginID,
-        Guid InterfaceID,
+        Guid DescriptorID,
         string Version,
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,

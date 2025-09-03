@@ -1,6 +1,6 @@
 ﻿namespace PlugHub.Shared.Extensions
 {
-    public static class TopologicalSortExtensions
+    public static class ListExtensions
     {
         /// <summary>
         /// Performs a topological sort on the given source collection using the specified dependency selector.

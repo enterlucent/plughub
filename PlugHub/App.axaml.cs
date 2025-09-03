@@ -6,46 +6,69 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PlugHub.Accessors.Configuration;
+using PlugHub.Bootstrap;
 using PlugHub.Models;
 using PlugHub.Platform.Storage;
 using PlugHub.Services;
 using PlugHub.Services.Configuration;
 using PlugHub.Services.Configuration.Providers;
-using PlugHub.Services.Plugins;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Platform.Storage;
-using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
-using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
-using PlugHub.Shared.Models.Plugins;
+using PlugHub.Shared.Utility;
 using PlugHub.ViewModels;
 using PlugHub.Views;
 using PlugHub.Views.Windows;
 using Serilog;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace PlugHub
 {
     public partial class App : Application
     {
-        private static readonly TokenSet tokenSet =
-            new(Token.New(), Token.Public, Token.Blocked);
-
         private static IServiceProvider? serviceProvider;
-
+        private static readonly ServiceCollection services = new();
+        private static readonly AppConfig appConfig = new();
+        private static readonly TokenSet tokenSet = new(Token.New(), Token.Public, Token.Blocked);
 
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
 
-            serviceProvider = BuildServices();
+            services.AddLogging(builder =>
+            {
+                string temp = Path.GetTempPath();
+
+                Log.Logger = new LoggerConfiguration()
+                    .MinimumLevel.Debug()
+                    .WriteTo.File(Path.Combine(temp, $"plughub-{Environment.ProcessId}.log"), rollingInterval: RollingInterval.Day)
+                    .CreateLogger();
+
+                builder.ClearProviders();
+                builder.AddSerilog(Log.Logger, dispose: true);
+            });
+
+            CollectServices(services);
+            CollectViewModels(services);
+
+            IConfigService configService = ConfigService.GetInstance(services, appConfig);
+
+            AppConfig baseConfig = GetBaseAppConfig(configService, appConfig, tokenSet);
+            AppConfig userConfig = new();
+
+            ConfigService.GetEnvConfig().Bind(baseConfig);
+
+            (serviceProvider, userConfig) = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig);
+
+            ConfigureSystemLogs(configService, tokenSet);
+            ConfigureStorageLocation(serviceProvider, configService, tokenSet);
         }
         public override void OnFrameworkInitializationCompleted()
         {
@@ -71,102 +94,35 @@ namespace PlugHub
             base.OnFrameworkInitializationCompleted();
         }
 
-
-        private static IServiceProvider BuildServices()
+        private static void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
         {
-            IServiceCollection services = new ServiceCollection();
+            (serviceProvider as IDisposable)?.Dispose();
 
-            services.AddLogging(builder =>
-            {
-                string temp = Path.GetTempPath();
-
-                Log.Logger = new LoggerConfiguration()
-                    .MinimumLevel.Debug()
-                    .WriteTo.File(Path.Combine(temp, $"plughub-{Environment.ProcessId}.log"), rollingInterval: RollingInterval.Day)
-                    .CreateLogger();
-
-                builder.ClearProviders();
-                builder.AddSerilog(Log.Logger, dispose: true);
-            });
-
-            BuildCoreServices(services);
-
-            //TODO: Move this into plugin
-            services.AddSingleton<IConfigServiceProvider, SecureFileConfigService>();
-            services.AddSingleton<IConfigServiceProvider, UserFileConfigService>();
-            services.AddSingleton<IConfigServiceProvider, SecureUserFileConfigService>();
-            services.AddTransient<IConfigAccessor, SecureFileConfigAccessor>();
-
-            BuildGlobalViewModels(services);
-
-            BuildPluginServices(services);
-
-            IServiceProvider provider = services.BuildServiceProvider();
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
-
-            //TODO: This is bad.  It should ensure that it can save the manifest to a stable location
-            //      however, this branding doesn't happen until of course those interfaces are loaded
-            //      right now manifest is being stored (or tries to be stored) next to the .exe
-            configService.RegisterConfig(typeof(PluginManifest),
-                new FileConfigServiceParams(
-                    Owner: tokenSet.Owner,
-                    Read: tokenSet.Read,
-                    Write: tokenSet.Write));
-
-            BrandingPlugins(provider);
-            ConfigurationPlugins(provider);
-
-            return provider;
+            Serilog.Log.CloseAndFlush();
         }
-        private static void BuildCoreServices(IServiceCollection services)
+        private static void DisableAvaloniaDataAnnotationValidation()
+        {
+            DataAnnotationsValidationPlugin[] dataValidationPluginsToRemove =
+                [.. BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>()];
+
+            foreach (DataAnnotationsValidationPlugin? plugin in dataValidationPluginsToRemove)
+                BindingPlugins.DataValidators.Remove(plugin);
+        }
+
+        #region App: Core Services & ViewModels
+
+        private static void CollectServices(IServiceCollection services)
         {
             ArgumentNullException.ThrowIfNull(services);
 
             services.AddSingleton<ITokenService, TokenService>();
             services.AddSingleton<ISecureStorage, InsecureStorage>();
             services.AddSingleton<IEncryptionService, EncryptionService>();
-            services.AddSingleton<IPluginResolver, PluginResolver>();
-            services.AddSingleton<IPluginService, PluginService>();
 
             services.AddSingleton<IConfigServiceProvider, FileConfigService>();
             services.AddTransient<IConfigAccessor, FileConfigAccessor>();
-
-            services.AddSingleton<IConfigService>(provider =>
-            {
-                IEnumerable<IConfigServiceProvider> configProviders = provider.GetRequiredService<IEnumerable<IConfigServiceProvider>>();
-                IEnumerable<IConfigAccessor> configAccessors = provider.GetRequiredService<IEnumerable<IConfigAccessor>>();
-                ILogger<IConfigService> logger = provider.GetRequiredService<ILogger<IConfigService>>();
-                ITokenService tokenService = provider.GetRequiredService<ITokenService>();
-                IConfiguration envConfig = ConfigService.GetEnvConfig();
-
-                AppConfig appConfig = new()
-                {
-                    // set default location (same folder as the .exe)
-                    // but also allow overrides by env
-                    ConfigDirectory = AppContext.BaseDirectory
-                };
-                envConfig.Bind(appConfig);
-
-                ConfigService configService =
-                    new(configProviders,
-                        configAccessors,
-                        logger,
-                        tokenService,
-                        AppContext.BaseDirectory,
-                        appConfig.ConfigDirectory,
-                        appConfig.ConfigJsonOptions);
-
-                configService.RegisterConfig(
-                    typeof(AppConfig),
-                    new FileConfigServiceParams(
-                        Owner: tokenSet.Owner,
-                        Read: tokenSet.Read,
-                        Write: tokenSet.Write));
-
-                return configService;
-            });
         }
-        private static void BuildGlobalViewModels(IServiceCollection services)
+        private static void CollectViewModels(IServiceCollection services)
         {
             ArgumentNullException.ThrowIfNull(services);
 
@@ -175,137 +131,20 @@ namespace PlugHub
 
             services.AddSingleton<MainWindow>();
         }
-        private static void BuildPluginServices(IServiceCollection services)
+
+        #endregion
+
+        #region App: System Logging and Storage Configuration
+
+        private static void ConfigureSystemLogs(IConfigService configService, TokenSet tokenSet)
         {
-            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configService);
+            ArgumentNullException.ThrowIfNull(tokenSet);
 
-            IEnumerable<PluginReference>? enabled;
-
-            using (ServiceProvider provider = services.BuildServiceProvider())
-            {
-                ILogger<IPluginRegistrar> logger = provider.GetRequiredService<ILogger<IPluginRegistrar>>();
-                ITokenService tokenSearvice = provider.GetRequiredService<ITokenService>();
-                IPluginService pluginService = provider.GetRequiredService<IPluginService>();
-                IPluginResolver pluginSorter = provider.GetRequiredService<IPluginResolver>();
-                IConfigService configService = provider.GetRequiredService<IConfigService>();
-
-                IEnumerable<PluginReference> plugins =
-                    pluginService.Discover(
-                        configService.GetSetting<string>(typeof(AppConfig), "PluginFolderPath", tokenSet));
-
-                configService.RegisterConfig(
-                    new FileConfigServiceParams(Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
-                    out IConfigAccessorFor<PluginManifest>? pluginConfig);
-
-                PluginRegistrar.SynchronizePluginConfig(logger, pluginConfig, plugins);
-
-                enabled = PluginRegistrar.GetEnabledInterfaces(logger, pluginConfig, plugins);
-
-                PluginRegistrar.RegisterInjectors(logger, pluginService, pluginSorter, services, enabled);
-                PluginRegistrar.RegisterPlugins(logger, services, enabled);
-            }
-
-            services.AddSingleton<IPluginRegistrar>(provider =>
-            {
-                ILogger<IPluginRegistrar> logger = provider.GetRequiredService<ILogger<IPluginRegistrar>>();
-                IConfigService configService = provider.GetRequiredService<IConfigService>();
-
-                IConfigAccessorFor<PluginManifest>? pluginConfig =
-                    configService.GetAccessor<PluginManifest>(owner: tokenSet.Owner, read: tokenSet.Read, write: tokenSet.Write);
-
-                return new PluginRegistrar(logger, pluginConfig, enabled);
-            });
-        }
-
-        private static void BrandingPlugins(IServiceProvider provider)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
-            IConfigAccessorFor<AppConfig> accessor = configService.GetAccessor<AppConfig>(tokenSet);
-            IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-            IEnumerable<IPluginBranding> brandingPlugins = provider.GetServices<IPluginBranding>();
-
-            List<PluginBrandingDescriptor> allDescriptors = [];
-
-            string configPath = accessor.Get().ConfigDirectory;
-
-            foreach (IPluginBranding brandingPlugin in brandingPlugins)
-            {
-                IEnumerable<PluginBrandingDescriptor> descriptors = brandingPlugin.GetBrandingDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            PluginBrandingDescriptor[] reverseSortedDescriptors = [.. pluginResolver.ResolveDescriptors(allDescriptors).Reverse()];
-
-            foreach (PluginBrandingDescriptor descriptor in reverseSortedDescriptors)
-            {
-                try
-                {
-                    descriptor.BrandConfiguration?.Invoke(accessor);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Failed to apply configuration branding for plugin {PluginID}", descriptor.PluginID);
-                }
-            }
-
-            foreach (PluginBrandingDescriptor descriptor in reverseSortedDescriptors)
-            {
-                try
-                {
-                    descriptor.BrandServices?.Invoke(provider);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Failed to apply service branding for plugin {PluginID}", descriptor.PluginID);
-                }
-            }
-
-            string baseDir = Path.GetFullPath(AppContext.BaseDirectory)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string currentConfigDir = Path.GetFullPath(configPath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            if (currentConfigDir.Equals(baseDir,
-                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal))
-            {
-                string appConfigPath = Path.Combine(baseDir, "AppConfig.json");
-
-                if (!File.Exists(appConfigPath))
-                {
-                    AppConfig appConfigBase = new();
-                    accessor.Set<string>(nameof(appConfigBase.ConfigDirectory), appConfigBase.ConfigDirectory);
-                    accessor.Save();
-                }
-            }
-            else if (configPath != accessor.Get().ConfigDirectory)
-            {
-                Directory.CreateDirectory(accessor.Get().ConfigDirectory);
-
-                configService.UnregisterConfig(typeof(AppConfig), tokenSet);
-                configService.RegisterConfig(typeof(AppConfig),
-                    new FileConfigServiceParams(
-                        Owner: tokenSet.Owner,
-                        Read: tokenSet.Read,
-                        Write: tokenSet.Write));
-            }
-
-            ConfigureSystemLogs(provider);
-            ConfigureStorageLocation(provider);
-        }
-        private static void ConfigureSystemLogs(IServiceProvider provider)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
             IConfigAccessorFor<AppConfig> configAccessor = configService.GetAccessor<AppConfig>(tokenSet);
             AppConfig appConfig = configAccessor.Get();
 
-            RollingInterval rolloverInterval = (RollingInterval)appConfig.LoggingRolloverInterval;
+            RollingInterval rolloverInterval = (RollingInterval)(appConfig.LoggingRolloverInterval ?? LoggingRollingInterval.Day);
 
             string? defaultFileName = new AppConfig().LoggingFileName;
 
@@ -343,10 +182,8 @@ namespace PlugHub
             if (string.IsNullOrWhiteSpace(runtimeDir))
             {
                 Log.Warning("ConfigureSystemLogs: Runtime log directory is missing or empty. Exiting log configuration.");
-
                 return;
             }
-
             string configLogPath
                 = Path.GetFullPath(Path.Combine(runtimeDir, logFileName))
                       .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -368,55 +205,58 @@ namespace PlugHub
                 Log.CloseAndFlush();
             }
         }
-        private static void ConfigureStorageLocation(IServiceProvider provider)
+        private static void ConfigureStorageLocation(IServiceProvider provider, IConfigService configService, TokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(provider);
+            ArgumentNullException.ThrowIfNull(configService);
+            ArgumentNullException.ThrowIfNull(tokenSet);
 
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
             IConfigAccessorFor<AppConfig> configAccessor = configService.GetAccessor<AppConfig>(tokenSet);
             ISecureStorage secureStorage = provider.GetRequiredService<ISecureStorage>();
 
-            secureStorage.Initialize(configAccessor.Get().StorageFolderPath);
+            string? storageFolder = configAccessor.Get().StorageFolderPath;
+
+            if (storageFolder != null)
+                secureStorage.Initialize(storageFolder);
         }
 
-        private static void ConfigurationPlugins(IServiceProvider provider)
+        #endregion
+
+        #region App: Configuration Service Initialization
+
+        private static AppConfig GetBaseAppConfig(IConfigService configService, AppConfig config, TokenSet tokenSet)
         {
-            ArgumentNullException.ThrowIfNull(provider);
+            string configFilePath = Path.Combine(AppContext.BaseDirectory, "AppConfig.json");
 
-            ITokenService tokenService = provider.GetRequiredService<ITokenService>();
-            IConfigService configService = provider.GetRequiredService<IConfigService>();
-            IEnumerable<IPluginConfiguration> configurationPlugins = provider.GetServices<IPluginConfiguration>();
-
-            foreach (IPluginConfiguration configurationPlugin in configurationPlugins)
+            if (PathUtilities.ExistsOsAware(configFilePath))
             {
-                IEnumerable<PluginConfigurationDescriptor> descriptors =
-                    configurationPlugin.GetConfigurationDescriptors(tokenService);
+                if (configService.IsConfigRegistered(typeof(AppConfig)))
+                    configService.UnregisterConfig(typeof(AppConfig), tokenSet);
 
-                foreach (PluginConfigurationDescriptor descriptor in descriptors)
-                    configService.RegisterConfig(descriptor.ConfigType, descriptor.ConfigServiceParams);
+                configService.RegisterConfig(
+                    new FileConfigServiceParams(configFilePath, Owner: tokenSet.Owner),
+                    out IConfigAccessorFor<AppConfig>? accessor);
+
+                AppConfig? loadedConfig = accessor?.Get() ?? new AppConfig();
+
+                foreach (PropertyInfo prop in typeof(AppConfig).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                {
+                    if (prop.CanRead && prop.CanWrite)
+                    {
+                        object? loadedValue = prop.GetValue(loadedConfig);
+
+                        if (loadedValue != null)
+                        {
+                            prop.SetValue(config, loadedValue);
+                        }
+                    }
+                }
+
+                configService.UnregisterConfig(typeof(AppConfig), tokenSet);
             }
+            return config;
         }
-        
 
-        private static void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
-        {
-            // Dispose DI container and all services
-            (serviceProvider as IDisposable)?.Dispose();
-
-            // Flush and dispose Serilog
-            Serilog.Log.CloseAndFlush();
-        }
-        private static void DisableAvaloniaDataAnnotationValidation()
-        {
-            // Get an array of plugins to remove
-            DataAnnotationsValidationPlugin[] dataValidationPluginsToRemove =
-                [.. BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>()];
-
-            // remove each entry found
-            foreach (DataAnnotationsValidationPlugin? plugin in dataValidationPluginsToRemove)
-            {
-                BindingPlugins.DataValidators.Remove(plugin);
-            }
-        }
+        #endregion
     }
 }

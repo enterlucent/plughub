@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using PlugHub.Shared.Extensions;
 using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
 using System;
@@ -11,17 +10,6 @@ namespace PlugHub.Services.Plugins
 {
     public class PluginResolver : IPluginResolver
     {
-        private class ResolutionContext<TDescriptor>(List<TDescriptor> descriptors) where TDescriptor : PluginDescriptor
-        {
-            public Dictionary<Guid, TDescriptor> IdToDescriptor { get; } =
-                descriptors.ToDictionary(d => d.InterfaceID, d => d);
-
-            public HashSet<TDescriptor> InvalidDescriptors { get; } = [];
-
-            public Dictionary<TDescriptor, HashSet<TDescriptor>> Graph { get; } =
-                descriptors.ToDictionary(d => d, _ => new HashSet<TDescriptor>());
-        }
-
         private readonly ILogger<PluginResolver> logger;
 
         public PluginResolver(ILogger<PluginResolver> logger)
@@ -33,30 +21,33 @@ namespace PlugHub.Services.Plugins
 
         #region PluginResolver: Resolution
 
-        public IEnumerable<TDescriptor> ResolveDescriptors<TDescriptor>(IEnumerable<TDescriptor> descriptors) where TDescriptor : PluginDescriptor
+        public PluginResolutionContext<TDescriptor> ResolveContext<TDescriptor>(IEnumerable<TDescriptor> descriptors) where TDescriptor : PluginDescriptor
         {
             ArgumentNullException.ThrowIfNull(descriptors);
 
             List<TDescriptor> descriptorsList = [.. descriptors];
-            ResolutionContext<TDescriptor> context = new(descriptorsList);
+            PluginResolutionContext<TDescriptor> context = new(descriptorsList);
 
-            this.ProcessAllDescriptorRelationships(descriptorsList, context);
-
-            RemoveInvalidDescriptors(context);
-
-            return context.Graph.Keys.TopologicalSort(d => context.Graph[d]);
-        }
-
-        private void ProcessAllDescriptorRelationships<TDescriptor>(List<TDescriptor> descriptorsList, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
-        {
             foreach (TDescriptor descriptor in descriptorsList)
             {
                 this.ProcessDependencies(descriptor, context);
                 this.ProcessConflicts(descriptor, context);
-                this.ProcessLoadOrder(descriptor, context);
+                this.ProcessLoadBefore(descriptor, context);
+                this.ProcessLoadAfter(descriptor, context);
             }
+
+            RemoveInvalidDescriptors(context);
+
+            return context;
         }
-        private void ProcessDependencies<TDescriptor>(TDescriptor descriptor, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
+        public IEnumerable<TDescriptor> ResolveDescriptors<TDescriptor>(IEnumerable<TDescriptor> descriptors) where TDescriptor : PluginDescriptor
+        {
+            PluginResolutionContext<TDescriptor> context = this.ResolveContext(descriptors);
+
+            return context.GetSorted();
+        }
+
+        private void ProcessDependencies<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
             foreach (PluginInterfaceReference dep in descriptor.DependsOn ?? [])
             {
@@ -64,19 +55,19 @@ namespace PlugHub.Services.Plugins
 
                 if (!hasDep)
                 {
-                    this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.InterfaceID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion);
+                    this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion);
 
-                    context.InvalidDescriptors.Add(descriptor);
+                    context.DependencyDisabled.Add(descriptor);
                 }
                 else if (depDesc != null)
                 {
-                    bool matchesDep = dep.Matches(depDesc.PluginID, depDesc.InterfaceID, depDesc.Version);
+                    bool matchesDep = dep.Matches(depDesc.PluginID, depDesc.DescriptorID, depDesc.Version);
 
                     if (!matchesDep)
                     {
-                        this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.InterfaceID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
+                        this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
 
-                        context.InvalidDescriptors.Add(descriptor);
+                        context.DependencyDisabled.Add(descriptor);
                     }
                 }
                 else
@@ -87,42 +78,31 @@ namespace PlugHub.Services.Plugins
                 }
             }
         }
-        private void ProcessConflicts<TDescriptor>(TDescriptor descriptor, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
+        private void ProcessConflicts<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
-            foreach (PluginInterfaceReference conflict in descriptor.ConflictsWith ?? [])
-            {
-                bool hasConflict = context.IdToDescriptor.TryGetValue(conflict.InterfaceID, out TDescriptor? conflictDesc);
+            if (descriptor.ConflictsWith == null) return;
 
-                if (!hasConflict)
-                {
+            foreach (TDescriptor otherDescriptor in context.Graph.Keys)
+            {
+                if (otherDescriptor == descriptor)
                     continue;
-                }
-                else if (conflictDesc != null)
+
+                foreach (PluginInterfaceReference conflict in descriptor.ConflictsWith)
                 {
-                    bool matchesConflict = conflict.Matches(conflictDesc.PluginID, conflictDesc.InterfaceID, conflictDesc.Version);
+                    bool matchesConflict = conflict.Matches(otherDescriptor.PluginID, otherDescriptor.DescriptorID, otherDescriptor.Version);
 
                     if (matchesConflict)
                     {
-                        this.logger.LogWarning("Interface {InterfaceID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.InterfaceID, conflict.InterfaceID, conflict.MinVersion, conflict.MaxVersion, conflictDesc.Version);
+                        this.logger.LogWarning("Interface {InterfaceID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.DescriptorID, conflict.InterfaceID, conflict.MinVersion, conflict.MaxVersion, otherDescriptor.Version);
 
-                        context.InvalidDescriptors.Add(descriptor);
+                        context.ConflictDisabled.Add(descriptor);
+
+                        return;
                     }
-                }
-                else
-                {
-                    this.logger.LogError("Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", conflict.InterfaceID);
-
-                    throw new InvalidOperationException($"Descriptor lookup returned null for interface {conflict.InterfaceID} despite successful lookup");
                 }
             }
         }
-
-        private void ProcessLoadOrder<TDescriptor>(TDescriptor descriptor, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
-        {
-            this.ProcessLoadBefore(descriptor, context);
-            this.ProcessLoadAfter(descriptor, context);
-        }
-        private void ProcessLoadBefore<TDescriptor>(TDescriptor descriptor, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
+        private void ProcessLoadBefore<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
             foreach (PluginInterfaceReference before in descriptor.LoadBefore ?? [])
             {
@@ -134,8 +114,8 @@ namespace PlugHub.Services.Plugins
                 }
                 else if (beforeDesc != null)
                 {
-                    bool matchesBefore = before.Matches(beforeDesc.PluginID, beforeDesc.InterfaceID, beforeDesc.Version);
-                    bool notInvalid = !context.InvalidDescriptors.Contains(beforeDesc);
+                    bool matchesBefore = before.Matches(beforeDesc.PluginID, beforeDesc.DescriptorID, beforeDesc.Version);
+                    bool notInvalid = !context.ConflictDisabled.Contains(beforeDesc) && !context.DependencyDisabled.Contains(beforeDesc);
 
                     if (matchesBefore && notInvalid)
                     {
@@ -150,7 +130,7 @@ namespace PlugHub.Services.Plugins
                 }
             }
         }
-        private void ProcessLoadAfter<TDescriptor>(TDescriptor descriptor, ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
+        private void ProcessLoadAfter<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
             foreach (PluginInterfaceReference after in descriptor.LoadAfter ?? [])
             {
@@ -162,8 +142,8 @@ namespace PlugHub.Services.Plugins
                 }
                 else if (afterDesc != null)
                 {
-                    bool matchesAfter = after.Matches(afterDesc.PluginID, afterDesc.InterfaceID, afterDesc.Version);
-                    bool notInvalid = !context.InvalidDescriptors.Contains(afterDesc);
+                    bool matchesAfter = after.Matches(afterDesc.PluginID, afterDesc.DescriptorID, afterDesc.Version);
+                    bool notInvalid = !context.ConflictDisabled.Contains(afterDesc) && !context.DependencyDisabled.Contains(afterDesc);
 
                     if (matchesAfter && notInvalid)
                     {
@@ -179,12 +159,14 @@ namespace PlugHub.Services.Plugins
             }
         }
 
-        private static void RemoveInvalidDescriptors<TDescriptor>(ResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
+        private static void RemoveInvalidDescriptors<TDescriptor>(PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
-            foreach (TDescriptor invalid in context.InvalidDescriptors)
-            {
+            IEnumerable<TDescriptor> allDisabled = context.ConflictDisabled
+                    .Concat(context.DependencyDisabled)
+                    .Distinct();
+
+            foreach (TDescriptor invalid in allDisabled)
                 context.Graph.Remove(invalid);
-            }
         }
 
         #endregion

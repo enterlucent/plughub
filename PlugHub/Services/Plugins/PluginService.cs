@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
@@ -50,7 +51,6 @@ namespace PlugHub.Services.Plugins
                     return null;
                 }
 
-                // Validate the type is a subclass of PluginBase and concrete (non-abstract)
                 bool isSubclass = type.IsSubclassOf(typeof(PluginBase));
                 bool isNotAbstract = !type.IsAbstract;
                 bool isValidType = isSubclass && isNotAbstract;
@@ -107,12 +107,17 @@ namespace PlugHub.Services.Plugins
             ArgumentNullException.ThrowIfNull(pluginDirectory);
 
             List<Assembly> assemblies = this.LoadAssembliesFromDirectory(pluginDirectory);
+
             Dictionary<Assembly, Type[]> assemblyTypes = this.ExtractTypesFromAssemblies(assemblies);
-            List<Type> pluginTypes = FilterPluginTypes(assemblyTypes);
+
+            List<Type> filteredpluginTypes = this.FilterPluginTypes(assemblyTypes);
+            List<Type> pluginTypes = this.FilterInterfaceTypes(filteredpluginTypes);
+
             IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups = pluginTypes.GroupBy(t => PluginMetadata.FromPlugin(t));
 
             return this.BuildPluginsFromGroups(pluginGroups);
         }
+
         private List<Assembly> LoadAssembliesFromDirectory(string pluginDirectory)
         {
             List<Assembly> assemblies = [];
@@ -177,7 +182,7 @@ namespace PlugHub.Services.Plugins
 
             return assemblyTypes;
         }
-        private static List<Type> FilterPluginTypes(Dictionary<Assembly, Type[]> assemblyTypes)
+        private List<Type> FilterPluginTypes(Dictionary<Assembly, Type[]> assemblyTypes)
         {
             List<Type> pluginTypes = [];
 
@@ -187,16 +192,76 @@ namespace PlugHub.Services.Plugins
                 {
                     bool derivesFromPluginBase = type.IsSubclassOf(typeof(PluginBase));
                     bool isNotAbstract = !type.IsAbstract;
-                    bool isValidPluginType = derivesFromPluginBase && isNotAbstract;
 
-                    if (isValidPluginType)
+                    if (!(derivesFromPluginBase && isNotAbstract))
                     {
-                        pluginTypes.Add(type);
+                        this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} rejected: must be non-abstract subclass of PluginBase.", type.FullName, type.Assembly.FullName);
+
+                        continue;
                     }
+                    pluginTypes.Add(type);
+                }
+            }
+            return pluginTypes;
+        }
+        private List<Type> FilterInterfaceTypes(List<Type> pluginInterfaceTypes)
+        {
+            List<Type> validInterfaces = [];
+
+            foreach (Type interfaceType in pluginInterfaceTypes)
+            {
+                ProvidesDescriptorAttribute? attr = null;
+
+                Type[] allInterfaces = [interfaceType, .. interfaceType.GetInterfaces()];
+
+                foreach (Type it in allInterfaces)
+                {
+                    attr = it.GetCustomAttribute<ProvidesDescriptorAttribute>(inherit: false);
+                    if (attr != null)
+                        break;
+                }
+
+                if (attr == null)
+                {
+                    this.logger.LogWarning("Interface {InterfaceName} rejected: missing required ProvidesDescriptor attribute (including base interfaces).", interfaceType.FullName);
+                    continue;
+                }
+
+                string methodName = attr.DescriptorAccessorName;
+                MethodInfo? methodInfo = interfaceType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+
+                if (methodInfo == null)
+                {
+                    this.logger.LogWarning("Interface {InterfaceName} rejected: method {MethodName} not declared on interface.", interfaceType.FullName, methodName);
+                    continue;
+                }
+
+                validInterfaces.Add(interfaceType);
+            }
+
+            return validInterfaces;
+        }
+        private static List<PluginInterface> ExtractPluginInterfaces(Type concreteType)
+        {
+            List<PluginInterface> implementations = [];
+            Assembly pluginAssembly = concreteType.Assembly;
+
+            Type[] allInterfaces = concreteType.GetInterfaces();
+
+            foreach (Type interfaceType in allInterfaces)
+            {
+                bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(interfaceType);
+                bool isNotBasePlugin = interfaceType != typeof(IPlugin);
+                bool isValidInterface = implementsPlugin && isNotBasePlugin;
+
+                if (isValidInterface)
+                {
+                    PluginInterface pluginInterface = new(pluginAssembly, concreteType, interfaceType);
+                    implementations.Add(pluginInterface);
                 }
             }
 
-            return pluginTypes;
+            return implementations;
         }
         private List<PluginReference> BuildPluginsFromGroups(IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups)
         {
@@ -232,28 +297,6 @@ namespace PlugHub.Services.Plugins
             }
 
             return plugins;
-        }
-        private static List<PluginInterface> ExtractPluginInterfaces(Type concreteType)
-        {
-            List<PluginInterface> implementations = [];
-            Assembly pluginAssembly = concreteType.Assembly;
-
-            Type[] allInterfaces = concreteType.GetInterfaces();
-
-            foreach (Type interfaceType in allInterfaces)
-            {
-                bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(interfaceType);
-                bool isNotBasePlugin = interfaceType != typeof(IPlugin);
-                bool isValidInterface = implementsPlugin && isNotBasePlugin;
-
-                if (isValidInterface)
-                {
-                    PluginInterface pluginInterface = new(pluginAssembly, concreteType, interfaceType);
-                    implementations.Add(pluginInterface);
-                }
-            }
-
-            return implementations;
         }
 
         #endregion
