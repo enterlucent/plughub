@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Services.Configuration
 {
-    public abstract class ConfigServiceBase : IConfigServiceProvider, IDisposable
+    public abstract class ConfigProviderBase : IConfigServiceProvider, IDisposable
     {
         private class ConfigChangeContext(Type configType, ReaderWriterLockSlim configLock, UserConfigServiceConfig? config, bool configFound)
         {
@@ -43,7 +43,7 @@ namespace PlugHub.Services.Configuration
         protected JsonSerializerOptions JsonOptions { get; init; } = new JsonSerializerOptions();
         protected bool IsDisposed = false;
 
-        public ConfigServiceBase(ILogger<IConfigServiceProvider> logger, ITokenService tokenService)
+        public ConfigProviderBase(ILogger<IConfigServiceProvider> logger, ITokenService tokenService)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(tokenService);

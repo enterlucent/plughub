@@ -32,7 +32,7 @@ namespace PlugHub.Services.Configuration.Providers
         public object? UserValue { get; set; } = userValue;
     }
 
-    public class UserFileConfigService : ConfigServiceBase, IConfigServiceProvider, IDisposable
+    public class UserFileConfigService : ConfigProviderBase, IConfigServiceProvider, IDisposable
     {
         public UserFileConfigService(ILogger<IConfigServiceProvider> logger, ITokenService tokenService)
             : base(logger, tokenService)

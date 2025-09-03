@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
@@ -133,7 +134,16 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region ConfigService: Configuration Registration
+        #region ConfigService: Predicate Operations
+
+        public bool IsConfigRegistered(Type configType)
+        {
+            return this.ProvidersByConfigType.ContainsKey(configType);
+        }
+
+        #endregion
+
+        #region ConfigService: Registration Operations
 
         public void RegisterConfig(Type configType, IConfigServiceParams configParams)
         {
@@ -143,7 +153,7 @@ namespace PlugHub.Services.Configuration
             Type paramType = configParams.GetType();
             bool hasProvider = this.ProvidersByParamsType.TryGetValue(paramType, out IConfigServiceProvider? provider);
 
-            if (!hasProvider)
+            if (!hasProvider || provider == null)
             {
                 this.Logger.LogError("No config implementation registered for parameter type: {ParamType}", paramType.Name);
 
@@ -159,7 +169,7 @@ namespace PlugHub.Services.Configuration
                 throw new InvalidOperationException($"{configType.Name} was already registered.");
             }
 
-            provider!.RegisterConfig(configType, configParams, this);
+            provider.RegisterConfig(configType, configParams, this);
 
             this.Logger.LogDebug("Registered configuration: {ConfigType} with {ParamType}", configType.Name, paramType.Name);
         }
@@ -197,6 +207,38 @@ namespace PlugHub.Services.Configuration
             IConfigServiceProvider provider = this.GetProviderForParamsType(paramType);
 
             accessor = this.GetAccessor(provider.RequiredAccessorInterface, configTypes, configParams.Owner, configParams.Read, configParams.Write);
+        }
+
+        public bool TryRegisterConfig(Type configType, IConfigServiceParams configParams)
+        {
+            bool success = false;
+
+            try
+            {
+                this.RegisterConfig(configType, configParams);
+
+                success = true;
+            }
+            catch { }
+
+            return success;
+        }
+        public bool TryRegisterConfig<TConfig>(IConfigServiceParams configParams, out IConfigAccessorFor<TConfig>? accessor) where TConfig : class
+        {
+            bool success = false;
+
+            try
+            {
+                this.RegisterConfig(configParams, out accessor);
+
+                success = true;
+            }
+            catch
+            {
+                accessor = null;
+            }
+
+            return success;
         }
 
         public void UnregisterConfig(Type configType, Token? token = null)
@@ -244,6 +286,35 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(tokenSet);
 
             this.UnregisterConfigs(configTypes, tokenSet.Owner);
+        }
+
+        public bool TryUnregsterConfig(Type configType, Token? token = null)
+        {
+            bool success = false;
+
+            try
+            {
+                this.UnregisterConfig(configType, token);
+
+                success = true;
+            }
+            catch { }
+
+            return success;
+        }
+        public bool TryUnregsterConfig(Type configType, ITokenSet tokenSet)
+        {
+            bool success = false;
+
+            try
+            {
+                this.UnregisterConfig(configType, tokenSet);
+
+                success = true;
+            }
+            catch { }
+
+            return success;
         }
 
         #endregion
@@ -424,7 +495,6 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-
         public static IConfiguration GetEnvConfig()
         {
             return new ConfigurationBuilder()
@@ -433,7 +503,25 @@ namespace PlugHub.Services.Configuration
                 .AddCommandLine(Environment.GetCommandLineArgs())
                 .Build();
         }
+        public static IConfigService GetInstance(IServiceCollection services, AppConfig appConfig)
+        {
+            using (ServiceProvider provider = services.BuildServiceProvider())
+            {
+                IEnumerable<IConfigServiceProvider> providers = provider.GetRequiredService<IEnumerable<IConfigServiceProvider>>();
+                IEnumerable<IConfigAccessor> accessors = provider.GetRequiredService<IEnumerable<IConfigAccessor>>();
+                ILogger<IConfigService> logger = provider.GetRequiredService<ILogger<IConfigService>>();
+                ITokenService tokenService = provider.GetRequiredService<ITokenService>();
 
+                return new ConfigService(
+                        providers,
+                        accessors,
+                        logger,
+                        tokenService,
+                        AppContext.BaseDirectory,
+                        appConfig.ConfigDirectory ?? AppContext.BaseDirectory,
+                        appConfig.ConfigJsonOptions);
+            }
+        }
 
         #region ConfigService: Event Handlers
 
