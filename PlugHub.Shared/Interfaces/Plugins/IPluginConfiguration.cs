@@ -34,7 +34,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Interface for plugins that register configuration options.
     /// Provides metadata describing configuration settings.
     /// </summary>
-    [ProvidesDescriptor("GetConfigurationDescriptors", false)]
+    [DescriptorProvider("GetConfigurationDescriptors", false)]
     public interface IPluginConfiguration : IPlugin
     {
         /// <summary>

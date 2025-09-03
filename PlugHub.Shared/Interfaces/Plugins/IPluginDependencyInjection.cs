@@ -38,7 +38,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Interface for plugins that participate in dependency injection.
     /// Provides descriptors for services the plugin injects into the host or other plugins.
     /// </summary>
-    [ProvidesDescriptor("GetInjectionDescriptors", false)]
+    [DescriptorProvider("GetInjectionDescriptors", false)]
     public interface IPluginDependencyInjection : IPlugin
     {
         /// <summary>

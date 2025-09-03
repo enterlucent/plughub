@@ -32,7 +32,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Interface for plugins that supply branding assets, configuration and/or metadata.
     /// Provides descriptors for visual, branding, and identity-related resources included with the plugin.
     /// </summary>
-    [ProvidesDescriptor("GetAppConfigDescriptors", false)]
+    [DescriptorProvider("GetAppConfigDescriptors", false)]
     public interface IPluginAppConfig : IPlugin
     {
         /// <summary>

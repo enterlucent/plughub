@@ -31,9 +31,7 @@ namespace PlugHub.Shared.Utility
             bool directoryExists = Directory.Exists(dir);
 
             if (!directoryExists)
-            {
                 Directory.CreateDirectory(dir);
-            }
 
             string tempPath = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".tmp");
             File.WriteAllBytes(tempPath, data.ToArray());
@@ -61,7 +59,6 @@ namespace PlugHub.Shared.Utility
 
                 try
                 {
-                    // Stage 1: Write to temporary file with optimal settings
                     await using (FileStream fs = new(
                         tempPath,
                         FileMode.Create,
@@ -73,17 +70,12 @@ namespace PlugHub.Shared.Utility
                         await fs.WriteAsync(bytes, cancellationToken);
                     }
 
-                    // Stage 2: Atomically move to final destination
                     bool destinationExists = File.Exists(destinationPath);
 
                     if (destinationExists)
-                    {
                         File.Replace(tempPath, destinationPath, null, ignoreMetadataErrors: true);
-                    }
                     else
-                    {
                         File.Move(tempPath, destinationPath);
-                    }
 
                     return;
                 }
@@ -99,7 +91,6 @@ namespace PlugHub.Shared.Utility
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            // Stage 3: Throw exception for max retries exceeded
             throw new IOException($"Unable to write '{destinationPath}' after {maxRetries} attempts.");
         }
 
@@ -111,9 +102,7 @@ namespace PlugHub.Shared.Utility
             string? dir = Path.GetDirectoryName(path);
 
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
                 Directory.CreateDirectory(dir);
-            }
         }
 
         private static void CleanupTempFile(string tempPath)
@@ -121,15 +110,11 @@ namespace PlugHub.Shared.Utility
             try
             {
                 bool tempFileExists = File.Exists(tempPath);
+
                 if (tempFileExists)
-                {
                     File.Delete(tempPath);
-                }
             }
-            catch
-            {
-                // Cleanup failures are non-critical - ignored intentionally
-            }
+            catch { /* Nothing to see here */ }
         }
 
         #endregion
