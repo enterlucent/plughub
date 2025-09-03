@@ -164,6 +164,12 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <summary>Gets the platform-specific data directory.</summary>
         public string ConfigDataDirectory { get; }
 
+        #region COnfigService: Predicates
+
+        bool IsConfigRegistered(Type configType);
+
+        #endregion
+
         #region ConfigService: Accessors
 
         /// <summary>
@@ -227,7 +233,6 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
 
         #endregion
 
-
         #region IConfigService: Registration
 
         /// <summary>
@@ -277,6 +282,36 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
 
 
         /// <summary>
+        /// Attempts to register a single configuration type with the configuration service.
+        /// </summary>
+        /// <param name="configType">The <see cref="Type"/> representing the configuration section to register.</param>
+        /// <param name="configParams">An <see cref="IConfigServiceParams"/> instance used to select the config provider and configure registration behavior.</param>
+        /// <returns>
+        /// <see langword="true"/> if registration succeeded; <see langword="false"/> if the configuration type is already registered 
+        /// or no provider is registered for the params type, or an error occurred.
+        /// </returns>
+        /// <remarks>
+        /// This method calls <see cref="RegisterConfig(Type, IConfigServiceParams)"/> internally and catches exceptions.
+        /// </remarks>
+        bool TryRegisterConfig(Type configType, IConfigServiceParams configParams);
+
+        /// <summary>
+        /// Attempts to register a single configuration type with parameters and outputs a typed accessor for it.
+        /// </summary>
+        /// <typeparam name="TConfig">The configuration type to register.</typeparam>
+        /// <param name="configParams">Parameters guiding registration and accessor behavior.</param>
+        /// <param name="accessor">When this method returns, contains the typed accessor if registration succeeded; otherwise, <see langword="null"/>.</param>
+        /// <returns>
+        /// <see langword="true"/> if registration succeeded and accessor is provided; <see langword="false"/> if the configuration type is already registered
+        /// or no provider is registered for the params type, or an error occurred.
+        /// </returns>
+        /// <remarks>
+        /// This method calls <see cref="RegisterConfig{TConfig}(IConfigServiceParams, out IConfigAccessorFor{TConfig})"/> internally and catches exceptions.
+        /// </remarks>
+        bool TryRegisterConfig<TConfig>(IConfigServiceParams configParams, out IConfigAccessorFor<TConfig>? accessor) where TConfig : class;
+
+
+        /// <summary>
         /// Unregisters a single configuration type from the service, removing all associated settings and change listeners.
         /// </summary>
         /// <param name="configType">The <see cref="Type"/> of the configuration to unregister.</param>
@@ -310,6 +345,29 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <exception cref="ArgumentNullException"/>
         /// <exception cref="UnauthorizedAccessException"/>
         public void UnregisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet);
+
+
+        /// <summary>
+        /// Attempts to unregister a single configuration type from the service.
+        /// </summary>
+        /// <param name="configType">The <see cref="Type"/> of the configuration to unregister.</param>
+        /// <param name="token">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
+        /// <returns><see langword="true"/> if unregistration succeeded; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// This method calls <see cref="UnregisterConfig(Type, Token?)"/> internally and catches exceptions.
+        /// </remarks>
+        bool TryUnregsterConfig(Type configType, Token? token = null);
+
+        /// <summary>
+        /// Attempts to unregister a single configuration type from the service using a consolidated token set.
+        /// </summary>
+        /// <param name="configType">The <see cref="Type"/> of the configuration to unregister.</param>
+        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
+        /// <returns><see langword="true"/> if unregistration succeeded; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// This method calls <see cref="UnregisterConfig(Type, ITokenSet)"/> internally and catches exceptions.
+        /// </remarks>
+        bool TryUnregsterConfig(Type configType, ITokenSet tokenSet);
 
         #endregion
 

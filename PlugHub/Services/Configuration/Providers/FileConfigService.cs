@@ -19,16 +19,7 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Services.Configuration.Providers
 {
-    public class FileConfigServiceConfig(
-        IConfigService configService,
-        string configPath,
-        IConfiguration config,
-        Dictionary<string, object?> values,
-        JsonSerializerOptions? jsonOptions,
-        Token ownerToken,
-        Token readToken,
-        Token writeToken,
-        bool reloadOnChanged)
+    public class FileConfigServiceConfig(IConfigService configService, string configPath, IConfiguration config, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChanged)
     {
         public IConfigService ConfigService { get; init; } = configService ?? throw new ArgumentNullException(nameof(configService));
         public string ConfigPath { get; init; } = configPath ?? throw new ArgumentNullException(nameof(configPath));
@@ -53,7 +44,7 @@ namespace PlugHub.Services.Configuration.Providers
         public bool WriteAccess { get; init; } = writeValue;
     }
 
-    public class FileConfigService : ConfigServiceBase, IConfigServiceProvider, IDisposable
+    public class FileConfigService : ConfigProviderBase, IConfigServiceProvider, IDisposable
     {
         public FileConfigService(ILogger<IConfigServiceProvider> logger, ITokenService tokenService)
             : base(logger, tokenService)
@@ -695,22 +686,22 @@ namespace PlugHub.Services.Configuration.Providers
                 if (value == null)
                 {
                     bool canAcceptNull = !prop.PropertyType.IsValueType || Nullable.GetUnderlyingType(prop.PropertyType) != null;
+                    bool isCollection = typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) && prop.PropertyType != typeof(string);
 
-                    if (canAcceptNull)
+                    if (canAcceptNull && !isCollection)
                     {
                         prop.SetValue(instance, null);
                     }
+
                     return;
                 }
 
                 if (prop.PropertyType.IsEnum)
                 {
                     bool enumValueIsValid = Enum.IsDefined(prop.PropertyType, value);
-
                     object enumValue = enumValueIsValid
                         ? Enum.ToObject(prop.PropertyType, value)
                         : Activator.CreateInstance(prop.PropertyType)!;
-
                     prop.SetValue(instance, enumValue);
                 }
                 else if (prop.PropertyType.IsInstanceOfType(value))
