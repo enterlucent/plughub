@@ -116,7 +116,7 @@ namespace PlugHub.UnitTests.Services
 
             // Act
             foreach (PluginReference plugin in plugins)
-                if (plugin.AssemblyName == "PlugHub.Plugin.Mock")
+                if (plugin.AssemblyName == "PlugHub.Plugin.Mock" && plugin.Interfaces.Any())
                     foundPlugin = plugin;
 
             PluginBase? mockPlugin = this.pluginService.GetLoadedPlugin<PluginBase>(foundPlugin!.Interfaces.FirstOrDefault()!);
@@ -133,21 +133,26 @@ namespace PlugHub.UnitTests.Services
             // Arrange
             IEnumerable<PluginReference> plugins =
                 this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
-
             PluginReference? foundPlugin = null;
+            PluginInterface? interfaceToTest;
 
             // Act
-            foreach (PluginReference plugin in plugins)
-                if (plugin.AssemblyName == "PlugHub.Plugin.Mock")
-                    foundPlugin = plugin;
+            foundPlugin = plugins
+                .FirstOrDefault(plugin => plugin.AssemblyName == "PlugHub.Plugin.Mock" && plugin.Interfaces.Any());
+
+            interfaceToTest = foundPlugin!.Interfaces
+                .FirstOrDefault(i => i.InterfaceType == typeof(IPluginConfiguration));
+
+            Assert.IsNotNull(interfaceToTest, "Expected interface IPluginConfiguration not found in plugin interfaces");
 
             IPluginConfiguration? configInterface =
-                this.pluginService.GetLoadedInterface<IPluginConfiguration>(foundPlugin!.Interfaces.FirstOrDefault()!);
+                this.pluginService.GetLoadedInterface<IPluginConfiguration>(interfaceToTest!);
 
             // Assert
             Assert.IsNotNull(configInterface, "The mock plugin's configuration descriptor provider was not found");
-            Assert.IsInstanceOfType<IPluginConfiguration>(configInterface, "Instance was not of the configuration descriptor interface");
+            Assert.IsInstanceOfType(configInterface, typeof(IPluginConfiguration), "Instance was not of the configuration descriptor interface");
         }
+
 
         [TestMethod]
         [TestCategory("Instantiate")]

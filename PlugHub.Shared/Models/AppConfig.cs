@@ -49,13 +49,13 @@ namespace PlugHub.Shared.Models
         /// Gets or sets the display name of the application.
         /// Used in logging, UI elements, and configuration file naming.
         /// </summary>
-        public string AppName { get; set; } = "PlugHub";
+        public string? AppName { get; set; } = "PlugHub";
 
         /// <summary>
         /// Gets or sets the root directory for all PlugHub application data.
         /// Defaults to %APPDATA%\PlugHub on Windows or equivalent on other platforms.
         /// </summary>
-        public string BaseDirectory { get; set; } =
+        public string? BaseDirectory { get; set; } =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub");
 
         #region AppConfig: Logging Settings
@@ -64,21 +64,21 @@ namespace PlugHub.Shared.Models
         /// Gets or sets the directory where log files will be written.
         /// Defaults to a "Logging" subdirectory within the base directory.
         /// </summary>
-        public string LoggingDirectory { get; set; } =
+        public string? LoggingDirectory { get; set; } =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Logging");
 
         /// <summary>
         /// Gets or sets how frequently log files should roll over to new files.
         /// Daily rollover provides a good balance between file management and granularity.
         /// </summary>
-        public LoggingRollingInterval LoggingRolloverInterval { get; set; } = LoggingRollingInterval.Day;
+        public LoggingRollingInterval? LoggingRolloverInterval { get; set; } = LoggingRollingInterval.Day;
 
         /// <summary>
         /// Gets or sets the filename pattern for log files.
         /// The dash in "application-.log" will be replaced with timestamp information
         /// based on the rollover interval (e.g., "application-20250123.log" for daily).
         /// </summary>
-        public string LoggingFileName { get; set; } = "application-.log";
+        public string? LoggingFileName { get; set; } = "application-.log";
 
         #endregion
 
@@ -88,20 +88,14 @@ namespace PlugHub.Shared.Models
         /// Gets or sets the directory where configuration files will be stored.
         /// Defaults to a "Config" subdirectory within the base directory.
         /// </summary>
-        public string ConfigDirectory { get; set; } =
+        public string? ConfigDirectory { get; set; } =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Config");
 
         /// <summary>
         /// Gets or sets the JSON serialization options used for configuration file operations.
         /// Customize this to control formatting, naming policies, and other serialization behavior.
         /// </summary>
-        public JsonSerializerOptions ConfigJsonOptions { get; set; } = new JsonSerializerOptions();
-
-        /// <summary>
-        /// Gets or sets whether configuration files should be monitored for changes
-        /// and automatically reloaded when modified. Disabled by default for stability.
-        /// </summary>
-        public bool HotReloadOnChange { get; set; } = false;
+        public JsonSerializerOptions? ConfigJsonOptions { get; set; } = new JsonSerializerOptions();
 
         #endregion
 
@@ -112,7 +106,7 @@ namespace PlugHub.Shared.Models
         /// Used by plugins and the core application for persistent data storage.
         /// Defaults to a "Storage" subdirectory within the base directory.
         /// </summary>
-        public string StorageFolderPath { get; set; }
+        public string? StorageFolderPath { get; set; }
             = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Storage");
 
         #endregion
@@ -124,7 +118,7 @@ namespace PlugHub.Shared.Models
         /// Defaults to a "Plugins" subdirectory within the application's base directory,
         /// making it suitable for portable deployments and easy plugin management.
         /// </summary>
-        public string PluginFolderPath { get; set; }
+        public string? PluginFolderPath { get; set; }
             = Path.Combine(AppContext.BaseDirectory, "Plugins");
 
         #endregion

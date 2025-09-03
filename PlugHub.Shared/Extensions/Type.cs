@@ -61,7 +61,6 @@ namespace PlugHub.Shared.Extensions
             ArgumentNullException.ThrowIfNull(type);
             ArgumentNullException.ThrowIfNull(propertyName);
 
-            // Stage 1: Try to get cached metadata dictionary
             bool memberFoundInCache = metadataCache.TryGetValue(type, out Dictionary<string, MemberInfo>? memberInfos);
             MemberInfo? member;
             bool memberFoundAfterRefresh;
@@ -75,7 +74,6 @@ namespace PlugHub.Shared.Extensions
                 }
             }
 
-            // Stage 2: Refresh cache and try again
             memberInfos = GetOrAddMetadataCache(type);
             memberFoundAfterRefresh = memberInfos.TryGetValue(propertyName, out member);
 
@@ -84,7 +82,6 @@ namespace PlugHub.Shared.Extensions
                 return GetValueFromMember<T>(propertyName, member);
             }
 
-            // Stage 3: Throw exception for missing member
             throw new ArgumentException(
                 $"The property or field '{propertyName}' does not exist on type '{type.FullName}' or its ancestors.",
                 nameof(propertyName));
@@ -119,7 +116,7 @@ namespace PlugHub.Shared.Extensions
         {
             return metadataCache.GetOrAdd(type, t =>
             {
-                var members = t.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                Dictionary<string, MemberInfo> members = t.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
                                .Where(m => m.MemberType is MemberTypes.Property or MemberTypes.Field)
                                .ToDictionary(m => m.Name, m => m, StringComparer.OrdinalIgnoreCase);
                 return members;

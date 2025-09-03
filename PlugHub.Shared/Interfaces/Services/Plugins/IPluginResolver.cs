@@ -11,6 +11,23 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
     public interface IPluginResolver
     {
         /// <summary>
+        /// Builds a full resolution context for the given set of plugin descriptors,
+        /// preserving both valid order information and any rejection reasons.  
+        /// </summary>
+        /// <typeparam name="TDescriptor">
+        /// The interface descriptor type being resolved; must inherit from <see cref="PluginDescriptor"/>.
+        /// </typeparam>
+        /// <param name="descriptors">
+        /// The collection of interface descriptors to evaluate for ordering and conflicts.
+        /// </param>
+        /// <returns>
+        /// A <see cref="PluginResolutionContext{TDescriptor}"/> containing deterministic
+        /// ordering results along with detailed state about rejected or disabled descriptors.
+        /// </returns>
+        PluginResolutionContext<TDescriptor> ResolveContext<TDescriptor>(IEnumerable<TDescriptor> descriptors)
+            where TDescriptor : PluginDescriptor;
+
+        /// <summary>
         /// Returns a dependency- and conflict-aware, stable ordering of interface descriptors.
         /// Sorting operates on individual interfaces, assembling an order that respects each descriptor’s
         /// declared dependencies, ordering constraints, and conflict exclusions. Unsatisfiable or conflicting

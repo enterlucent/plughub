@@ -35,12 +35,10 @@
         public static Guid PluginID { get; } = Guid.Empty;
 
         /// <summary>
-        /// Path, URI, or resource key for the plugin icon.
+        /// The plugin icon is specified using a URI. This can be an Avalonia resource URI starting with "avares://", such as "avares://YourApp/Assets/plugin-icon.png", 
+        /// or a standard remote URI beginning with "http://" or "https://". 
         /// 
-        /// - If the value starts with the "avares://" prefix, it is treated as an Avalonia resource URI (e.g., "avares://YourApp/Assets/plugin-icon.png").
-        /// - If the value is a standard URI (e.g., "http://..." or "https://..."), it is used as a remote image source.
-        /// - If the value does not have the "avares://" prefix and is not a URI, it is treated as a resource key in the application's resources.
-        /// - If null or empty, the default icon will be used.
+        /// If the URI is null or empty, a default icon will be used.
         /// </summary>
         public static string IconSource { get; } = string.Empty;
 

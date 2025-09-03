@@ -1,10 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using PlugHub.Plugin.Mock.Services;
-using PlugHub.Shared.Interfaces.Accessors;
-using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Plugins;
-using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Mock;
 using PlugHub.Shared.Mock.Interfaces;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
@@ -25,22 +21,21 @@ namespace PlugHub.Plugin.Mock
     /// Implements branding (application identity override), configuration (token-secured configuration), 
     /// and dependency injection (service provision to other plugins) simultaneously.
     /// </summary>
-    public class PluginMock : PluginBase, ISharedMock, IPluginBranding, IPluginConfiguration, IPluginDependencyInjection
+    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginConfiguration
     {
-        protected static ITokenSet? TokenSet { get; set; }
-
         #region PluginMock: Key Fields
 
-        public new static Guid PluginID { get; } = Guid.Parse("25bd2f8d-7840-469f-9e57-af23e8ae0755");
-        public new static string IconSource { get; } = "plugin.mock.svg";
-        public new static string Name { get; } = "Plughub:Mock";
-        public new static string Description { get; } = "A mock plugin that will test the usability to the plugin echo system.";
-        public new static string Version { get; } = "1.0.0";
-        public new static string Author { get; } = "Entercluent";
+        public new static Guid PluginID { get; } = Guid.Parse("8e4c7077-e57a-46fc-b4fa-15ebba04ee65");
+        public new static string IconSource { get; } = "avares://PlugHub.Plugin.Mock/Assets/ic_fluent_chat_24_regular.png";
+        public new static string Name { get; } = "Plughub: Mock Service";
+        public new static string Description { get; } = "A mock plugin that will test the plugin service features.";
+        public new static string Version { get; } = "0.0.1";
+        public new static string Author { get; } = "Enterlucent";
         public new static List<string> Categories { get; } =
         [
             "TestHarness",
             "Diagnostics",
+            "Pages",
         ];
 
         #endregion
@@ -60,22 +55,45 @@ namespace PlugHub.Plugin.Mock
 
         #endregion
 
-        #region PluginMock: IPluginBranding
+        #region PluginMock: IPluginDependencyInjector
+
+        /// <summary>
+        /// Provides IEchoService with handler-based extensibility - other plugins can implement 
+        /// IEchoSuccessHandler or IEchoErrorHandler to extend service behavior.
+        /// </summary>
+        public IEnumerable<PluginInjectorDescriptor> GetInjectionDescriptors()
+        {
+            return [
+                new PluginInjectorDescriptor(
+                    PluginID: PluginID,
+                    InterfaceID: Guid.Parse("34834c3e-313f-40b7-a8a1-ea021b74daa1"),
+                    Version: Version,
+                    InterfaceType: typeof(IEchoService),
+                    ImplementationType: typeof(EchoService),
+                    Lifetime: ServiceLifetime.Singleton,
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: [])
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginAppConfig
 
         /// <summary>
         /// Demonstrates complete application rebranding - transforms PlugHub into "MockHub" 
         /// with custom paths and identity.
         /// </summary>
-        public IEnumerable<PluginBrandingDescriptor> GetBrandingDescriptors()
+        public IEnumerable<PluginAppConfigDescriptor> GetAppConfigDescriptors()
         {
             return [
-                new PluginBrandingDescriptor(
+                new PluginAppConfigDescriptor(
                     PluginID: PluginID,
-                    InterfaceID: Guid.Parse("f26d3290-c058-4641-8280-d229ee2c2c62"),
+                    InterfaceID: Guid.Parse("f26d3290-c059-4641-8280-d229ee2c2c32"),
                     Version: Version,
-                    BrandConfiguration: (IConfigAccessorFor<AppConfig> appConfig) => {
-                        AppConfig liveAppConfig = appConfig.Get();
-
+                    AppConfiguration: (AppConfig liveAppConfig) => {
                         liveAppConfig.AppName = "👽 MockHub 👽";
                         liveAppConfig.LoggingDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Logging");
@@ -83,10 +101,8 @@ namespace PlugHub.Plugin.Mock
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Config");
                         liveAppConfig.StorageFolderPath =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Storage");
-
-                        appConfig.Save(liveAppConfig);
                     },
-                    BrandServices: (IServiceProvider provider) => {
+                    AppServices: (IServiceProvider provider) => {
                         // Access services for branding needs: includes registered views and viewmodels 
                     },
                     LoadBefore: [],
@@ -103,50 +119,20 @@ namespace PlugHub.Plugin.Mock
         /// <summary>
         /// Demonstrates token-secured configuration management with Owner/Read/Write permissions.
         /// </summary>
-        public IEnumerable<PluginConfigurationDescriptor> GetConfigurationDescriptors(ITokenService tokenService)
+        public IEnumerable<PluginConfigurationDescriptor> GetConfigurationDescriptors()
         {
-            TokenSet ??=
-                tokenService.CreateTokenSet(
-                    Token.New(),
-                    Token.Public,
-                    Token.Blocked);
+            Token owner = Token.New();
 
             return [
                 new PluginConfigurationDescriptor(
                     PluginID: PluginID,
-                    InterfaceID: Guid.Parse("dde7eb3a-6223-4016-bfb8-b3e0bba5a1c9"),
+                    DescriptorID: Guid.Parse("ddf7eb3a-6223-4016-bfb8-b4e0bba5a1c9"),
                     Version: Version,
                     ConfigType: typeof(PluginMockConfig),
-                    ConfigServiceParams:
-                        new FileConfigServiceParams(
-                            Owner: TokenSet.Owner,
-                            Read:TokenSet.Read,
-                            Write:TokenSet.Write),
-                    LoadBefore: [],
-                    LoadAfter: [],
-                    ConflictsWith: [],
-                    DependsOn: [])
-            ];
-        }
-
-        #endregion
-
-        #region PluginMock: IPluginDependencyInjector
-
-        /// <summary>
-        /// Provides IEchoService with handler-based extensibility - other plugins can implement 
-        /// IEchoSuccessHandler or IEchoErrorHandler to extend service behavior.
-        /// </summary>
-        public IEnumerable<PluginInjectorDescriptor> GetInjectionDescriptors()
-        {
-            return [
-                new PluginInjectorDescriptor(
-                    PluginID: PluginID,
-                    InterfaceID: Guid.Parse("34834c2e-313f-40b7-a8a1-ea021b74daa1"),
-                    Version: Version,
-                    InterfaceType: typeof(IEchoService),
-                    ImplementationType: typeof(EchoService),
-                    Lifetime: ServiceLifetime.Singleton,
+                    ConfigServiceParams: ts => new FileConfigServiceParams(
+                        Owner: owner,
+                        Read: Token.Public,
+                        Write: Token.Blocked),
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [],

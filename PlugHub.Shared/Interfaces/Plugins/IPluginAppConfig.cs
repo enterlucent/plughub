@@ -1,4 +1,4 @@
-﻿using PlugHub.Shared.Interfaces.Accessors;
+﻿using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Plugins;
 
@@ -16,12 +16,12 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// <param name="LoadAfter">Branding descriptors that should be applied before this one.</param>
     /// <param name="DependsOn">Assets/descriptors that this branding depends on.</param>
     /// <param name="ConflictsWith">Branding assets that cannot coexist with this descriptor.</param>
-    public record PluginBrandingDescriptor(
+    public record PluginAppConfigDescriptor(
         Guid PluginID,
         Guid InterfaceID,
         string Version,
-        Action<IConfigAccessorFor<AppConfig>>? BrandConfiguration = null,
-        Action<IServiceProvider>? BrandServices = null,
+        Action<AppConfig>? AppConfiguration = null,
+        Action<IServiceProvider>? AppServices = null,
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
@@ -32,12 +32,13 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Interface for plugins that supply branding assets, configuration and/or metadata.
     /// Provides descriptors for visual, branding, and identity-related resources included with the plugin.
     /// </summary>
-    public interface IPluginBranding : IPlugin
+    [ProvidesDescriptor("GetAppConfigDescriptors", false)]
+    public interface IPluginAppConfig : IPlugin
     {
         /// <summary>
         /// Returns a collection of descriptors defining branding elements
         /// (such as icons, logos, configuration, or theme colors) offered by this plugin.
         /// </summary>
-        IEnumerable<PluginBrandingDescriptor> GetBrandingDescriptors();
+        IEnumerable<PluginAppConfigDescriptor> GetAppConfigDescriptors();
     }
 }
