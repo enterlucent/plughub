@@ -210,13 +210,13 @@ namespace PlugHub.Services.Plugins
 
             foreach (Type interfaceType in pluginInterfaceTypes)
             {
-                ProvidesDescriptorAttribute? attr = null;
+                DescriptorProviderAttribute? attr = null;
 
                 Type[] allInterfaces = [interfaceType, .. interfaceType.GetInterfaces()];
 
                 foreach (Type it in allInterfaces)
                 {
-                    attr = it.GetCustomAttribute<ProvidesDescriptorAttribute>(inherit: false);
+                    attr = it.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
                     if (attr != null)
                         break;
                 }

@@ -104,12 +104,12 @@ namespace PlugHub.Services.Plugins
                         continue;
                     }
 
-                    ProvidesDescriptorAttribute? attr = null;
+                    DescriptorProviderAttribute? attr = null;
                     Type[] allInterfaces = [pluginInterface.InterfaceType, .. pluginInterface.InterfaceType.GetInterfaces()];
 
                     foreach (Type it in allInterfaces)
                     {
-                        attr = it.GetCustomAttribute<ProvidesDescriptorAttribute>(inherit: false);
+                        attr = it.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
                         if (attr != null)
                             break;
                     }
