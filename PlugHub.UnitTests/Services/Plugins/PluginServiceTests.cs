@@ -8,7 +8,7 @@ using PlugHub.Shared.Mock.Interfaces;
 using PlugHub.Shared.Models.Plugins;
 
 
-namespace PlugHub.UnitTests.Services
+namespace PlugHub.UnitTests.Services.Plugins
 {
     [TestClass]
     public sealed class PluginServiceTests
@@ -29,7 +29,7 @@ namespace PlugHub.UnitTests.Services
         {
             (this.serviceProvider as IDisposable)?.Dispose();
 
-            System.Threading.Thread.Sleep(100);
+            Thread.Sleep(100);
 
             Serilog.Log.CloseAndFlush();
 

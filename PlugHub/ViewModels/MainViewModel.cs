@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PlugHub.Shared.Interfaces.Events;
 using PlugHub.Shared.ViewModels;
+using PlugHub.ViewModels.Pages;
+using PlugHub.Views;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -15,8 +17,8 @@ namespace PlugHub.ViewModels
     {
         public event EventHandler<PageNavigationChangedEventArgs>? PageNavigationChanged;
 
-
         private readonly ILogger<MainViewModel> logger;
+        private readonly ContentItemViewModel? settingsPage;
 
 
         [ObservableProperty]
@@ -31,24 +33,31 @@ namespace PlugHub.ViewModels
         [ObservableProperty]
         private Control? selectedMainPageContent;
 
+        [ObservableProperty]
+        private ObservableCollection<ContentItemViewModel> mainPageItems;
 
-        private ObservableCollection<ContentItemViewModel> MainPageItems { get; } = [];
-        public ReadOnlyObservableCollection<ContentItemViewModel> MainPageItemSource { get; }
 
-
-        public MainViewModel(ILogger<MainViewModel> logger)
+        public MainViewModel(ILogger<MainViewModel> logger, SettingsView settingsView, SettingsViewModel settingsViewModel)
         {
             this.logger = logger;
+            this.settingsPage = new(typeof(SettingsView), typeof(SettingsViewModel), "", "")
+            {
+                Control = settingsView,
+                ViewModel = settingsViewModel
+            };
+            this.mainPageItems = [];
 
-            this.MainPageItemSource =
-                new ReadOnlyObservableCollection<ContentItemViewModel>(this.MainPageItems);
+            if (this.MainPageItems.Count > 0)
+                this.OnSelectedMainMenuViewModelChanged(this.MainPageItems[0]);
         }
 
         public void AddMainPageItem(ContentItemViewModel mainPageItem)
         {
             this.MainPageItems.Add(mainPageItem);
-        }
 
+            if (this.MainPageItems.Count == 1)
+                this.OnSelectedMainMenuViewModelChanged(this.MainPageItems[0]);
+        }
 
         public void OnSelectedMainMenuViewModelChanged(ContentItemViewModel? mainPageItem)
         {
@@ -57,10 +66,14 @@ namespace PlugHub.ViewModels
             ContentItemViewModel? previousPageItem = this.SelectedMainPageItem;
 
             this.SelectedMainPageContent = mainPageItem.Control ?? new TextBlock { Text = "Unable to find content" };
+            this.SelectedMainPageItem = mainPageItem;
 
             PageNavigationChanged?.Invoke(this, new PageNavigationChangedEventArgs(previousPageItem, mainPageItem));
         }
-
+        public void OnSelectedSettingsViewModelChanged()
+        {
+            this.SelectedMainPageContent = this.settingsPage?.Control ?? new TextBlock { Text = "Unable to find content" };
+        }
 
         [RelayCommand]
         private static void AppIconClicked()

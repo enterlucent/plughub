@@ -27,7 +27,7 @@
     <!-- NavigationView -->
     <ui:NavigationView Grid.Row="1"
                        IsPaneOpen="{Binding IsPaneOpen}"
-                       MenuItemsSource="{Binding MainPageItemSource}"
+                       MenuItemsSource="{Binding MainPageItems}"
                        SelectedItem="{Binding SelectedMainPageItem}"
                        SelectionChanged="OnNavigationView_SelectionChanged">
       <ui:NavigationView.Resources>

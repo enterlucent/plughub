@@ -9,24 +9,23 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// interface-specific branding, or related metadata.
     /// Declares all dependency and ordering relationships for conflict-free, deterministic branding integration.
     /// </summary>
-    /// <param name="PluginID">Unique identifier for the branding-providing plugin.</param>
-    /// <param name="InterfaceID">Unique identifier for the interface provided by this descriptor.</param>
-    /// <param name="Version">Version of the branding descriptor.</param>
-    /// <param name="LoadBefore">Branding descriptors that should be applied after this one.</param>
-    /// <param name="LoadAfter">Branding descriptors that should be applied before this one.</param>
-    /// <param name="DependsOn">Assets/descriptors that this branding depends on.</param>
-    /// <param name="ConflictsWith">Branding assets that cannot coexist with this descriptor.</param>
+    /// <param name="PluginID">Unique identifier for the plugin providing this injector.</param>
+    /// <param name="DescriptorID">Unique identifier for the descriptor.</param>
+    /// <param name="Version">Version of the descriptor.</param>
+    /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
+    /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
+    /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
+    /// <param name="ConflictsWith">Descriptors with which this descriptor cannot coexist.</param>
     public record PluginAppConfigDescriptor(
         Guid PluginID,
-        Guid InterfaceID,
+        Guid DescriptorID,
         string Version,
-        Action<AppConfig>? AppConfiguration = null,
-        Action<IServiceProvider>? AppServices = null,
+        Action<AppConfig>? AppConfig= null,
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
         IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
-            PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+            PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Interface for plugins that supply branding assets, configuration and/or metadata.

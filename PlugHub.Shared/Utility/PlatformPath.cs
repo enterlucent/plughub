@@ -2,9 +2,9 @@
 
 namespace PlugHub.Shared.Utility
 {
-    public static class PathUtilities
+    public static class PlatformPath
     {
-        public static bool EqualsPath(string path1, string path2)
+        public static bool Equals(string path1, string path2)
         {
             if (path1 == null || path2 == null)
                 return false;
@@ -17,7 +17,7 @@ namespace PlugHub.Shared.Utility
                     ? StringComparison.OrdinalIgnoreCase
                     : StringComparison.Ordinal);
         }
-        public static bool ExistsOsAware(string filePath)
+        public static bool Exists(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 return false;

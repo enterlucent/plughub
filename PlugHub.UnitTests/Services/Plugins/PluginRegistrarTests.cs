@@ -13,9 +13,9 @@ using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Models.Plugins;
 using System.Collections.Concurrent;
 using System.Reflection;
-using System.Text;
 
-namespace PlugHub.UnitTests.Services
+
+namespace PlugHub.UnitTests.Services.Plugins
 {
     [TestClass]
     public sealed class PluginRegistrarTests
@@ -73,14 +73,14 @@ namespace PlugHub.UnitTests.Services
                     new(
                         pluginId: Guid.Parse("12345678-1234-1234-1234-123456789abc"),
                         assemblyName: this.enabledAssembly.GetName().Name!,
-                        implementationName: this.enabledImplementationType.FullName!,
+                        className: this.enabledImplementationType.FullName!,
                         interfaceName: this.enabledInterfaceType.FullName!,
                         enabled: true,
                         loadOrder: 1),
                     new(
                         pluginId: Guid.Parse("87654321-4321-4321-4321-cba987654321"),
                         assemblyName: this.disabledAssembly.GetName().Name!,
-                        implementationName: this.disabledImplementationType.FullName!,
+                        className: this.disabledImplementationType.FullName!,
                         interfaceName: this.disabledInterfaceType.FullName!,
                         enabled: false,
                         loadOrder: 2)

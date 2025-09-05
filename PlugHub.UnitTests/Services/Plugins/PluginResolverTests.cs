@@ -2,7 +2,8 @@
 using PlugHub.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
 
-namespace PlugHub.UnitTests.Services
+
+namespace PlugHub.UnitTests.Services.Plugins
 {
     internal record TestPluginDescriptor(
         Guid PluginID,
