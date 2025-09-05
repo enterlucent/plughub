@@ -1,29 +1,25 @@
 ﻿using PlugHub.Shared.Attributes;
-using PlugHub.Shared.Interfaces.Services;
-using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models.Plugins;
 
 namespace PlugHub.Shared.Interfaces.Plugins
 {
     /// <summary>
-    /// Describes a plugin component that registers configuration options, schema, or settings with the host system.
-    /// Integrates full dependency graph metadata for controlled initialization order, and provides explicit service parameterization.
+    /// Describes a plugin component that provides runtime initialization or setup logic during application startup using the built service provider.
+    /// Declares all dependency and ordering relationships for conflict-free, deterministic integration of runtime setup tasks.
     /// </summary>
     /// <param name="PluginID">Unique identifier for the plugin providing this injector.</param>
     /// <param name="DescriptorID">Unique identifier for the descriptor.</param>
     /// <param name="Version">Version of the descriptor.</param>
-    /// <param name="ConfigType">Strongly typed POCO schema used for plugin configuration.</param>
-    /// <param name="ConfigServiceParams">A factory lambda that, when provided an ITokenService, returns the configuration service parameters and policy information (see IConfigServiceParams) chosen by this plugin.</param>
+    /// <param name="AppSetup">Delegate invoked during application startup to perform runtime initialization or setup tasks using the provided <see cref="IServiceProvider"/>. This allows the plugin to resolve services and configure runtime behavior after DI container construction.</param>
     /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
     /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
     /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
     /// <param name="ConflictsWith">Descriptors with which this descriptor cannot coexist.</param>
-    public record PluginConfigurationDescriptor(
+    public record PluginAppSetupDescriptor(
         Guid PluginID,
         Guid DescriptorID,
         string Version,
-        Type ConfigType,
-        Func<ITokenService, IConfigServiceParams> ConfigServiceParams,
+        Action<IServiceProvider>? AppSetup = null,
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
@@ -31,16 +27,15 @@ namespace PlugHub.Shared.Interfaces.Plugins
             PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
-    /// Interface for plugins that register configuration options.
-    /// Provides metadata describing configuration settings.
+    /// Interface for plugins that supply runtime initialization or setup logic at application startup.
+    /// Provides descriptors defining runtime setup actions which accept the built service provider.
     /// </summary>
-    [DescriptorProvider("GetConfigurationDescriptors", false)]
-    public interface IPluginConfiguration : IPlugin
+    [DescriptorProvider("GetAppSetupDescriptors", false)]
+    public interface IPluginAppSetup : IPlugin
     {
         /// <summary>
-        /// Returns a collection of descriptors representing the configuration
-        /// settings exposed by this plugin.
+        /// Returns a collection of descriptors defining runtime setup actions that are invoked during application startup with the built <see cref="IServiceProvider"/>. These actions enable plugins to perform initialization, configuration, or event wiring.
         /// </summary>
-        IEnumerable<PluginConfigurationDescriptor> GetConfigurationDescriptors();
+        IEnumerable<PluginAppSetupDescriptor> GetAppSetupDescriptors();
     }
 }

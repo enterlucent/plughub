@@ -11,22 +11,22 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Contains type and factory information required to create page instances,
     /// as well as dependency, conflict, and ordering relationships relative to other page providers.
     /// </summary>
-    /// <param name="PluginID">Unique identifier for the plugin providing this page.</param>
-    /// <param name="InterfaceID">Unique identifier for the interface provided by this descriptor.</param>
-    /// <param name="Version">Version of the providing plugin.</param>
+    /// <param name="PluginID">Unique identifier for the plugin providing this injector.</param>
+    /// <param name="DescriptorID">Unique identifier for the descriptor.</param>
+    /// <param name="Version">Version of the descriptor.</param>
     /// <param name="ViewType">The concrete type of the Avalonia UserControl for the page.</param>
     /// <param name="ViewModelType">The type of the associated ViewModel.</param>
     /// <param name="Name">Display name for the page.</param>
     /// <param name="IconSource">Resource key or path for the page icon.</param>
     /// <param name="ViewFactory">Factory function to create the UserControl instance.</param>
     /// <param name="ViewModelFactory">Factory function to create the ViewModel instance.</param>
-    /// <param name="LoadBefore">Plugins/interface pages that must load after this one.</param>
-    /// <param name="LoadAfter">Plugins/interface pages that must load before this one.</param>
-    /// <param name="DependsOn">Plugins that this page explicitly depends on.</param>
-    /// <param name="ConflictsWith">Plugins that cannot be loaded concurrently with this page.</param>
+    /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
+    /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
+    /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
+    /// <param name="ConflictsWith">Descriptors with which this descriptor cannot coexist.</param>
     public record PluginPageDescriptor(
             Guid PluginID,
-            Guid InterfaceID,
+            Guid DescriptorID,
             string Version,
 
             Type ViewType,
@@ -40,7 +40,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
             IEnumerable<PluginInterfaceReference>? LoadAfter = null,
             IEnumerable<PluginInterfaceReference>? DependsOn = null,
             IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
-                ControlDescsriptor(PluginID, InterfaceID, Version, ViewType, ViewModelType, Name, IconSource, ViewFactory, ViewModelFactory, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+                PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Interface for plugins that provide pages to the host application.

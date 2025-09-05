@@ -20,6 +20,7 @@ using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
 using PlugHub.ViewModels;
+using PlugHub.ViewModels.Pages;
 using PlugHub.Views;
 using PlugHub.Views.Windows;
 using Serilog;
@@ -61,11 +62,10 @@ namespace PlugHub
             IConfigService configService = ConfigService.GetInstance(services, appConfig);
 
             AppConfig baseConfig = GetBaseAppConfig(configService, appConfig, tokenSet);
-            AppConfig userConfig = new();
 
             ConfigService.GetEnvConfig().Bind(baseConfig);
 
-            (serviceProvider, userConfig) = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig);
+            serviceProvider = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig);
 
             ConfigureSystemLogs(configService, tokenSet);
             ConfigureStorageLocation(serviceProvider, configService, tokenSet);
@@ -128,6 +128,8 @@ namespace PlugHub
 
             services.AddSingleton<MainView>();
             services.AddSingleton<MainViewModel>();
+            services.AddSingleton<SettingsView>();
+            services.AddSingleton<SettingsViewModel>();
 
             services.AddSingleton<MainWindow>();
         }
@@ -173,35 +175,31 @@ namespace PlugHub
                 return;
             }
 
-            string standardLogPath
-                = Path.GetFullPath(Path.Combine(defaultDir, defaultFileName))
-                      .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
             string? runtimeDir = appConfig.LoggingDirectory;
 
             if (string.IsNullOrWhiteSpace(runtimeDir))
             {
                 Log.Warning("ConfigureSystemLogs: Runtime log directory is missing or empty. Exiting log configuration.");
+
                 return;
             }
-            string configLogPath
-                = Path.GetFullPath(Path.Combine(runtimeDir, logFileName))
-                      .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            StringComparison comparison =
-                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal;
+            string configLogPath =
+                Path.GetFullPath(Path.Combine(runtimeDir, logFileName))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            if (!string.Equals(configLogPath, standardLogPath, comparison))
+            string standardLogPath =
+                Path.GetFullPath(Path.Combine(defaultDir, defaultFileName))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // Replace manual comparison with PlatformPath.Equals
+            if (!PlatformPath.Equals(configLogPath, standardLogPath))
             {
                 Directory.CreateDirectory(runtimeDir);
-
                 Log.Logger = new LoggerConfiguration()
                     .MinimumLevel.Debug()
                     .WriteTo.File(configLogPath, rollingInterval: rolloverInterval)
                     .CreateLogger();
-
                 Log.CloseAndFlush();
             }
         }
@@ -228,11 +226,8 @@ namespace PlugHub
         {
             string configFilePath = Path.Combine(AppContext.BaseDirectory, "AppConfig.json");
 
-            if (PathUtilities.ExistsOsAware(configFilePath))
+            if (PlatformPath.Exists(configFilePath))
             {
-                if (configService.IsConfigRegistered(typeof(AppConfig)))
-                    configService.UnregisterConfig(typeof(AppConfig), tokenSet);
-
                 configService.RegisterConfig(
                     new FileConfigServiceParams(configFilePath, Owner: tokenSet.Owner),
                     out IConfigAccessorFor<AppConfig>? accessor);
@@ -246,9 +241,7 @@ namespace PlugHub
                         object? loadedValue = prop.GetValue(loadedConfig);
 
                         if (loadedValue != null)
-                        {
                             prop.SetValue(config, loadedValue);
-                        }
                     }
                 }
 

@@ -10,19 +10,19 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// as well as dependency, conflict, and ordering relationships relative to other injectors.
     /// </summary>
     /// <param name="PluginID">Unique identifier for the plugin providing this injector.</param>
-    /// <param name="InterfaceID">Unique identifier for the interface provided by this descriptor.</param>
-    /// <param name="Version">Version of the providing plugin.</param>
+    /// <param name="DescriptorID">Unique identifier for the descriptor.</param>
+    /// <param name="Version">Version of the descriptor.</param>
     /// <param name="InterfaceType">The interface type to be injected.</param>
     /// <param name="ImplementationType">Optional explicit implementation type; if null, Instance is used.</param>
     /// <param name="Instance">Optional singleton instance to provide if implementation type is not specified.</param>
     /// <param name="Lifetime">Registration lifetime (singleton, scoped, transient) for this injector.</param>
-    /// <param name="LoadBefore">Plugins/interface injectors that must load after this one.</param>
-    /// <param name="LoadAfter">Plugins/interface injectors that must load before this one.</param>
-    /// <param name="DependsOn">Plugins that this injector explicitly depends on.</param>
-    /// <param name="ConflictsWith">Plugins that cannot be loaded concurrently with this injector.</param>
+    /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
+    /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
+    /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
+    /// <param name="ConflictsWith">Descriptors with which this descriptor cannot coexist.</param>
     public record PluginInjectorDescriptor(
         Guid PluginID,
-        Guid InterfaceID,
+        Guid DescriptorID,
         string Version,
         Type InterfaceType,
         Type? ImplementationType = null,
@@ -32,7 +32,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,
         IEnumerable<PluginInterfaceReference>? DependsOn = null,
         IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
-            PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+            PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Interface for plugins that participate in dependency injection.

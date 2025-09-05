@@ -66,7 +66,7 @@ namespace PlugHub.Plugin.Mock
             return [
                 new PluginInjectorDescriptor(
                     PluginID: PluginID,
-                    InterfaceID: Guid.Parse("34834c3e-313f-40b7-a8a1-ea021b74daa1"),
+                    DescriptorID: Guid.Parse("34834c3e-313f-40b7-a8a1-ea021b74daa1"),
                     Version: Version,
                     InterfaceType: typeof(IEchoService),
                     ImplementationType: typeof(EchoService),
@@ -91,9 +91,9 @@ namespace PlugHub.Plugin.Mock
             return [
                 new PluginAppConfigDescriptor(
                     PluginID: PluginID,
-                    InterfaceID: Guid.Parse("f26d3290-c059-4641-8280-d229ee2c2c32"),
+                    DescriptorID: Guid.Parse("f26d3290-c059-4641-8280-d229ee2c2c32"),
                     Version: Version,
-                    AppConfiguration: (AppConfig liveAppConfig) => {
+                    AppConfig: (AppConfig liveAppConfig) => {
                         liveAppConfig.AppName = "👽 MockHub 👽";
                         liveAppConfig.LoggingDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Logging");
@@ -101,9 +101,6 @@ namespace PlugHub.Plugin.Mock
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Config");
                         liveAppConfig.StorageFolderPath =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Storage");
-                    },
-                    AppServices: (IServiceProvider provider) => {
-                        // Access services for branding needs: includes registered views and viewmodels 
                     },
                     LoadBefore: [],
                     LoadAfter: [],

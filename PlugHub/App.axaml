@@ -5,6 +5,7 @@
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
   <Application.Styles>
-    <fs:FluentAvaloniaTheme PreferUserAccentColor="True" PreferSystemTheme="True"/>
+    <StyleInclude Source="avares://PlugHub/Styles/Icons.axaml"/>
+    <fs:FluentAvaloniaTheme PreferUserAccentColor="True" PreferSystemTheme="True" />
   </Application.Styles>
 </Application>
