@@ -351,7 +351,7 @@ namespace PlugHub.Bootstrap
 
                         configChanged = true;
 
-                        Log.Information("[Bootstrapper] Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
+                        Log.Debug("[Bootstrapper] Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
                     }
                 }
             }

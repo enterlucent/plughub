@@ -368,7 +368,7 @@ namespace PlugHub.ViewModels.Pages
 
             this.isUpdating = true;
 
-            foreach (var pluginVm in this.Plugins)
+            foreach (PluginViewModel pluginVm in this.Plugins)
             {
                 if (pluginVm.ProvidedDescriptors != null && pluginVm.ProvidedDescriptors.Any())
                 {
