@@ -471,6 +471,12 @@ namespace PlugHub.ViewModels.Pages
                             ? string.Join(", ", conflictingNames)
                             : "Unknown plugin(s).");
                 }
+                else if (context.DuplicateIDDisabled.Contains(descriptor))
+                {
+                    state = "🌀";
+                    sortOrder = -3;
+                    message = "Ignored due to duplicate DescriptorID.";
+                }
                 else if (sortedIndexLookup.TryGetValue(descriptor, out int index))
                 {
                     sortOrder = index;
