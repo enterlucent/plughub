@@ -113,7 +113,27 @@ namespace PlugHub.Services.Plugins
 
             IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups = pluginTypes.GroupBy(t => PluginMetadata.FromPlugin(t));
 
-            return this.BuildPluginsFromGroups(pluginGroups);
+            HashSet<Guid> seenPluginIds = [];
+
+            List<IGrouping<PluginMetadata, Type>> uniquePluginGroups = [];
+
+            foreach (IGrouping<PluginMetadata, Type> group in pluginGroups)
+            {
+                Guid pluginId = group.Key.PluginID;
+
+                if (seenPluginIds.Contains(pluginId))
+                {
+                    this.logger.LogWarning("Duplicate plugin ID detected and ignored: {PluginID}", pluginId);
+
+                    continue;
+                }
+
+                seenPluginIds.Add(pluginId);
+
+                uniquePluginGroups.Add(group);
+            }
+
+            return this.BuildPluginsFromGroups(uniquePluginGroups);
         }
 
         private List<Assembly> LoadAssembliesFromDirectory(string pluginDirectory)
@@ -240,11 +260,11 @@ namespace PlugHub.Services.Plugins
             {
                 bool implementsPlugin = typeof(IPlugin).IsAssignableFrom(interfaceType);
                 bool isNotBasePlugin = interfaceType != typeof(IPlugin);
-                bool isValidInterface = implementsPlugin && isNotBasePlugin;
 
-                if (isValidInterface)
+                if (implementsPlugin && isNotBasePlugin)
                 {
                     PluginInterface pluginInterface = new(pluginAssembly, concreteType, interfaceType);
+
                     implementations.Add(pluginInterface);
                 }
             }
