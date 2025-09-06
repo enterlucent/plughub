@@ -1,4 +1,5 @@
 ﻿using PlugHub.Shared.Models.Plugins;
+
 namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
     /// <summary>
@@ -29,10 +30,34 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
         public PluginManifest GetManifest();
 
         /// <summary>
-        /// Persists the given plugin manifest to the underlying storage,
+        /// Persists the given <see cref="PluginManifest"/> to the underlying storage.
         /// </summary>
-        /// <param name="manifest">The <see cref="PluginManifest"/> instance containing updated interface states.</param>
+        /// <param name="manifest">
+        /// The <see cref="PluginManifest"/> instance containing updated interface states to write.
+        /// </param>
+        /// <remarks>
+        /// This is the synchronous entry point.  
+        /// It delegates to <see cref="SaveManifestAsync(PluginManifest)"/> but blocks on completion.  
+        /// Use this method only when calling code cannot be async (e.g., constructors, legacy APIs).  
+        /// For new code paths, prefer the async version to avoid blocking the thread.
+        /// </remarks>
+        /// <exception cref="ArgumentException">Thrown if the manifest is null or contains null <c>InterfaceStates</c>.</exception>
+        /// <exception cref="InvalidOperationException">Propagated if the underlying accessor fails.</exception>
         public void SaveManifest(PluginManifest manifest);
+
+        /// <summary>
+        /// Asynchronously persists the given <see cref="PluginManifest"/> to the underlying storage.
+        /// </summary>
+        /// <param name="manifest">
+        /// The <see cref="PluginManifest"/> instance containing updated interface states to write.
+        /// </param>
+        /// <remarks>
+        /// This is the async-first implementation.  
+        /// It should be preferred in most scenarios as it does not block the calling thread.
+        /// </remarks>
+        /// <exception cref="ArgumentException">Thrown if the manifest is null or contains null <c>InterfaceStates</c>.</exception>
+        /// <exception cref="InvalidOperationException">Propagated if the underlying accessor fails.</exception>
+        public Task SaveManifestAsync(PluginManifest manifest);
 
         /// <summary>
         /// Determines whether a specific plugin interface is currently enabled for a given plugin ID.
