@@ -28,7 +28,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace PlugHub
 {
@@ -48,12 +47,13 @@ namespace PlugHub
                 string temp = Path.GetTempPath();
 
                 Log.Logger = new LoggerConfiguration()
-                    .MinimumLevel.Debug()
-                    .WriteTo.File(Path.Combine(temp, $"plughub-{Environment.ProcessId}.log"), rollingInterval: RollingInterval.Day)
+                    .MinimumLevel.Information()
+                    //.WriteTo.File(Path.Combine(temp, $"plughub-{Environment.ProcessId}.log"), rollingInterval: RollingInterval.Day)
+                    .WriteTo.File(Path.Combine(temp, $"plughub.log"), rollingInterval: RollingInterval.Infinite)
                     .CreateLogger();
 
                 builder.ClearProviders();
-                builder.AddSerilog(Log.Logger, dispose: true);
+                builder.AddSerilog(Log.Logger, dispose: false);
             });
 
             CollectServices(services);
@@ -152,7 +152,7 @@ namespace PlugHub
 
             if (string.IsNullOrWhiteSpace(defaultFileName))
             {
-                Log.Warning("ConfigureSystemLogs: Default log file name is missing or empty. Exiting log configuration.");
+                Log.Warning("[App] Default log file name is missing or empty. Exiting log configuration.");
 
                 return;
             }
@@ -161,7 +161,7 @@ namespace PlugHub
 
             if (string.IsNullOrWhiteSpace(logFileName))
             {
-                Log.Warning("ConfigureSystemLogs: Runtime log file name is missing or empty. Exiting log configuration.");
+                Log.Warning("[App] Runtime log file name is missing or empty. Exiting log configuration.");
 
                 return;
             }
@@ -170,7 +170,7 @@ namespace PlugHub
 
             if (string.IsNullOrWhiteSpace(defaultDir))
             {
-                Log.Warning("ConfigureSystemLogs: Default log directory is missing or empty. Exiting log configuration.");
+                Log.Warning("[App] Default log directory is missing or empty. Exiting log configuration.");
 
                 return;
             }
@@ -179,7 +179,7 @@ namespace PlugHub
 
             if (string.IsNullOrWhiteSpace(runtimeDir))
             {
-                Log.Warning("ConfigureSystemLogs: Runtime log directory is missing or empty. Exiting log configuration.");
+                Log.Warning("[App] Runtime log directory is missing or empty. Exiting log configuration.");
 
                 return;
             }
@@ -192,15 +192,16 @@ namespace PlugHub
                 Path.GetFullPath(Path.Combine(defaultDir, defaultFileName))
                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            // Replace manual comparison with PlatformPath.Equals
             if (!PlatformPath.Equals(configLogPath, standardLogPath))
             {
+                Log.CloseAndFlush();
+
                 Directory.CreateDirectory(runtimeDir);
+
                 Log.Logger = new LoggerConfiguration()
                     .MinimumLevel.Debug()
                     .WriteTo.File(configLogPath, rollingInterval: rolloverInterval)
                     .CreateLogger();
-                Log.CloseAndFlush();
             }
         }
         private static void ConfigureStorageLocation(IServiceProvider provider, IConfigService configService, TokenSet tokenSet)
