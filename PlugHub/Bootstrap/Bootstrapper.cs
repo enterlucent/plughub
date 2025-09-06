@@ -32,79 +32,75 @@ namespace PlugHub.Bootstrap
     {
         public static IServiceProvider BuildEnv(IServiceCollection services, IConfigService baseConfigService, TokenSet tokenSet, AppConfig baseConfig)
         {
-            // ✅ Fail fast if arguments are null
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(baseConfigService);
             ArgumentNullException.ThrowIfNull(tokenSet);
             ArgumentNullException.ThrowIfNull(baseConfig);
 
-            IServiceProvider baseProvider;
+            PluginManifest baseManifest;
+            AppConfig sysConfig;
+            PluginManifest pluginManifest;
+            AppConfig pluginConfig;
 
-            // STEP 1: Register core framework + plugin infrastructure services (IPluginService, IPluginResolver, etc.)
             CollectServices(services, tokenSet);
-
-            // STEP 2: Register host-specific ViewModels into DI
             CollectViewModels(services);
-
-            // STEP 3: Load the *base PluginManifest* (system-level plugin config) 
-            //         from disk if it exists in AppContext.BaseDirectory
-            PluginManifest baseManifest = GetPluginManifest(baseConfigService, tokenSet, AppContext.BaseDirectory);
 
             // Initialize an empty plugin reference collection
             IEnumerable<PluginReference> plugins = [];
 
-            // STEP 4: If the base AppConfig specifies a plugin folder, discover & register those plugins
-            if (!string.IsNullOrWhiteSpace(baseConfig.PluginFolderPath))
-                plugins = RegisterPlugins(services, baseManifest, baseConfig.PluginFolderPath, plugins);
+            // Build a temporary DI provider (to resolve things like logging, services, etc.)
+            using (ServiceProvider tempProvider = services.BuildServiceProvider())
+            {
+                // Load the *base PluginManifest* (system-level plugin config) 
+                //         from disk if it exists in AppContext.BaseDirectory
+                baseManifest = GetPluginManifest(baseConfigService, tokenSet, AppContext.BaseDirectory);
 
-            // STEP 5: Build a temporary DI provider (to resolve things like logging, services, etc.)
-            baseProvider = services.BuildServiceProvider();
+                // If the base AppConfig specifies a plugin folder, discover & register those plugins
+                if (!string.IsNullOrWhiteSpace(baseConfig.PluginFolderPath))
+                    plugins = RegisterPlugins(tempProvider, services, baseManifest, baseConfig.PluginFolderPath, plugins);
+            }
 
-            // STEP 6: Apply plugin-provided AppConfig mutations 
-            //         (Plugins can override or extend AppConfig here)
-            AppConfig userConfig = PluginsAppConfig(baseProvider, baseConfig);
+            // Build a temporary DI provider including system plugins
+            using (ServiceProvider tempProvider = services.BuildServiceProvider())
+            {
+                // Apply system-plugin-provided AppConfig mutations 
+                //         (Plugins can override or extend AppConfig here)
+                sysConfig = PluginsAppConfig(tempProvider, baseConfig);
 
-            // STEP 7: Merge user manifest with the base manifest and discovered plugin states
-            PluginManifest userManifest =
-                ResolvePluginManifest(baseConfigService, baseProvider, tokenSet, userConfig, baseManifest);
+                // Merge user manifest with the base manifest and discovered plugin states
+                pluginManifest = ResolvePluginManifest(tempProvider, baseConfigService, tokenSet, sysConfig, baseManifest);
 
-            // STEP 8: If the user AppConfig has its own plugin folder, discover and register additional plugins
-            if (!string.IsNullOrWhiteSpace(userConfig.PluginFolderPath))
-                plugins = RegisterPlugins(services, userManifest, userConfig.PluginFolderPath, plugins);
+                if (!string.IsNullOrWhiteSpace(sysConfig.PluginFolderPath))
+                    plugins = RegisterPlugins(tempProvider, services, pluginManifest, sysConfig.PluginFolderPath, plugins);
+            }
 
-            // STEP 9: Persist a cache of the loaded plugin references
-            services.AddSingleton<IPluginCache>(new PluginCache(plugins));
+            // Build a temporary DI provider including user plugins
+            using (ServiceProvider tempProvider = services.BuildServiceProvider())
+            {
+                // Apply plugin-provided AppConfig mutations 
+                //         (Plugins can override or extend AppConfig here)
+                pluginConfig = PluginsAppConfig(tempProvider, sysConfig);
 
-            // STEP 10: Persist user AppConfig (only write to disk if changes detected)
-            SaveAppConfig(baseConfigService, tokenSet, userConfig);
+                // Persist a cache of the loaded plugin references
+                services.AddSingleton<IPluginCache>(new PluginCache(plugins));
 
-            // STEP 11: Persist user PluginManifest (only write if changes occurred vs disk)
-            SavePluginManifest(baseConfigService, tokenSet, userConfig, userManifest);
+                SaveAppConfig(baseConfigService, tokenSet, pluginConfig);
+                SavePluginManifest(baseConfigService, tokenSet, pluginConfig, pluginManifest);
 
-            // STEP 12: Register a ConfigService instance bound to the user’s AppConfig
-            IConfigService configService = ConfigService.GetInstance(services, userConfig);
+                // Register a ConfigService instance bound to the plugin AppConfig
+                services.AddSingleton(ConfigService.GetInstance(services, pluginConfig));
+            }
 
-            services.AddSingleton(configService);
-
-            // STEP 13: Build the *final* DI provider including plugins and configs
+            // Build the *final* DI provider including plugins and configs
             IServiceProvider provider = services.BuildServiceProvider();
 
-            // STEP 14: Apply plugin-provided configurations into ConfigService
-            PluginsConfigs(provider, configService);
-
-            // STEP 15: Apply any UI styling declared by plugins (Themes, Resource Dictionaries, etc.)
+            PluginsConfigs(provider);
             PluginsStyleInclude(provider);
-
-            // STEP 16: Register plugin-provided main UI pages into the MainViewModel
             PluginsPages(provider);
-
-            // STEP 17: Register plugin-provided **settings pages** into SettingsViewModel
             PluginsSettingPages(provider);
 
-            // STEP 18: Allow plugins to do additional app-level DI or setup (IPluginAppSetup)
             PluginAppServices(provider);
 
-            // ✅ Return the initialized service provider and the final merged AppConfig
             return provider;
         }
 
@@ -129,6 +125,8 @@ namespace PlugHub.Bootstrap
 
                 return new PluginRegistrar(logger, accessor, pluginService, pluginCache);
             });
+
+            Log.Information("[Bootstrapper] Plugin Services Added");
         }
         private static void CollectViewModels(IServiceCollection services)
         {
@@ -136,6 +134,8 @@ namespace PlugHub.Bootstrap
 
             services.AddSingleton<SettingsPluginsView>();
             services.AddSingleton<SettingsPluginsViewModel>();
+
+            Log.Information("[Bootstrapper] Plugin Static UI Added");
         }
 
         #endregion
@@ -150,8 +150,7 @@ namespace PlugHub.Bootstrap
 
             if (PlatformPath.Exists(pluginFilePath))
             {
-                if (configService.IsConfigRegistered(typeof(PluginManifest)))
-                    configService.UnregisterConfig(typeof(PluginManifest), tokenSet);
+                Log.Information("[Bootstrapper] Plugin manifest found at {PluginManifestPath}, loading.", pluginFilePath);
 
                 configService.RegisterConfig(
                     new FileConfigServiceParams(pluginFilePath, Owner: tokenSet.Owner),
@@ -164,7 +163,8 @@ namespace PlugHub.Bootstrap
 
             return pluginManifest;
         }
-        private static PluginManifest ResolvePluginManifest(IConfigService configService, IServiceProvider provider, TokenSet tokenSet, AppConfig appConfig, PluginManifest baseManifest)
+
+        private static PluginManifest ResolvePluginManifest(IServiceProvider provider, IConfigService configService, TokenSet tokenSet, AppConfig appConfig, PluginManifest baseManifest)
         {
             ArgumentNullException.ThrowIfNull(configService);
             ArgumentNullException.ThrowIfNull(provider);
@@ -172,7 +172,6 @@ namespace PlugHub.Bootstrap
             ArgumentNullException.ThrowIfNull(appConfig);
             ArgumentNullException.ThrowIfNull(baseManifest);
 
-            ILogger<Bootstrapper> logger = provider.GetRequiredService<ILogger<Bootstrapper>>();
             IPluginService pluginService = provider.GetRequiredService<IPluginService>();
 
             PluginManifest userManifest = new();
@@ -217,7 +216,7 @@ namespace PlugHub.Bootstrap
 
                     mergedStates.Add(imposedCopy);
 
-                    logger.LogInformation("Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
+                    Log.Information("[Bootstrapper] Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
                 }
 
                 mergedKeys.Add(key);
@@ -229,16 +228,20 @@ namespace PlugHub.Bootstrap
 
             userManifest.InterfaceStates = mergedStates;
 
-            return SynchronizePluginConfig(logger, userManifest, discoveredPlugins);
+            PluginManifest synced = SynchronizePluginConfig(userManifest, discoveredPlugins);
+
+            Log.Information("[Bootstrapper] Resolved and synchronized plugin manifest with {PluginCount} interface states and {DiscoveredCount} discovered plugins.", synced.InterfaceStates?.Count ?? 0, discoveredPlugins.Count());
+
+            return synced;
         }
-        private static PluginManifest SynchronizePluginConfig(ILogger<Bootstrapper> logger, PluginManifest pluginManifest, IEnumerable<PluginReference> plugins)
+        private static PluginManifest SynchronizePluginConfig(PluginManifest pluginManifest, IEnumerable<PluginReference> plugins)
         {
             ArgumentNullException.ThrowIfNull(pluginManifest);
 
             plugins ??= [];
             pluginManifest.InterfaceStates ??= [];
 
-            logger.LogInformation("Synchronizing plugin config. Current entries: {EntryCount}", pluginManifest.InterfaceStates.Count);
+            Log.Information("[Bootstrapper] Synchronizing plugin config. Current entries: {EntryCount}", pluginManifest.InterfaceStates.Count);
 
             HashSet<(string AssemblyName, string ImplementationName, string InterfaceName)> discoveredSet =
                 new(plugins.SelectMany(plugin =>
@@ -246,13 +249,13 @@ namespace PlugHub.Bootstrap
                             (pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName))),
                 EqualityComparer<(string, string, string)>.Default);
 
-            bool newEntriesAdded = AddNewPluginEntries(logger, pluginManifest, plugins);
-            bool staleEntriesRemoved = RemoveStalePluginEntries(logger, pluginManifest, discoveredSet, ignoreDefault: true);
+            bool newEntriesAdded = AddNewPluginEntries(pluginManifest, plugins);
+            bool staleEntriesRemoved = RemoveStalePluginEntries(pluginManifest, discoveredSet, ignoreDefault: true);
 
             if (newEntriesAdded || staleEntriesRemoved)
-                logger.LogInformation("Plugin config changes detected and saved.");
+                Log.Information("[Bootstrapper] Plugin config changes detected and saved.");
             else
-                logger.LogInformation("No plugin config changes detected.");
+                Log.Information("[Bootstrapper] No plugin config changes detected.");
 
             return pluginManifest;
         }
@@ -276,8 +279,15 @@ namespace PlugHub.Bootstrap
             string appLocalJson = JsonSerializer.Serialize(appConfig, options);
             string appPersistJson = JsonSerializer.Serialize(persistAppConfig, options);
 
-            if (appLocalJson != appPersistJson)
-                Task.Run(() => accessor.SaveAsync(appConfig)).GetAwaiter().GetResult();
+            try
+            {
+                if (appLocalJson != appPersistJson)
+                    Task.Run(() => accessor.SaveAsync(appConfig)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Bootstrapper] Failed to save AppConfig to {ConfigPath}", configPath);
+            }
         }
         private static void SavePluginManifest(IConfigService configService, TokenSet tokenSet, AppConfig appConfig, PluginManifest pluginManifest)
         {
@@ -299,11 +309,18 @@ namespace PlugHub.Bootstrap
             string manifestLocalJson = JsonSerializer.Serialize(pluginManifest, options);
             string manifestPersistJson = JsonSerializer.Serialize(persistManifest, options);
 
-            if (manifestLocalJson != manifestPersistJson)
-                Task.Run(() => accessor.SaveAsync(pluginManifest)).GetAwaiter().GetResult();
+            try
+            {
+                if (manifestLocalJson != manifestPersistJson)
+                    Task.Run(() => accessor.SaveAsync(pluginManifest)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Bootstrapper] Failed to save PluginManifest to {ConfigPath}", configPath);
+            }
         }
 
-        private static bool AddNewPluginEntries(ILogger<Bootstrapper> logger, PluginManifest pluginData, IEnumerable<PluginReference> plugins)
+        private static bool AddNewPluginEntries(PluginManifest pluginData, IEnumerable<PluginReference> plugins)
         {
             bool configChanged = false;
 
@@ -334,14 +351,14 @@ namespace PlugHub.Bootstrap
 
                         configChanged = true;
 
-                        logger.LogInformation("Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
+                        Log.Information("[Bootstrapper] Added new config entry for {AssemblyName}:{TypeName}:{ImplementationName}", pluginInterface.AssemblyName, pluginInterface.ImplementationName, pluginInterface.InterfaceName);
                     }
                 }
             }
 
             return configChanged;
         }
-        private static bool RemoveStalePluginEntries(ILogger<Bootstrapper> logger, PluginManifest pluginManifest, HashSet<(string AssemblyName, string ImplementationName, string InterfaceName)> discoveredSet, bool ignoreDefault)
+        private static bool RemoveStalePluginEntries(PluginManifest pluginManifest, HashSet<(string AssemblyName, string ImplementationName, string InterfaceName)> discoveredSet, bool ignoreDefault)
         {
             bool removedAny = false;
 
@@ -357,7 +374,7 @@ namespace PlugHub.Bootstrap
 
                 if (!discoveredSet.Contains(key))
                 {
-                    logger.LogInformation("Removing stale plugin entry {InterfaceName}", state.InterfaceName);
+                    Log.Information("[Bootstrapper] Removing stale plugin entry {InterfaceName}", state.InterfaceName);
 
                     pluginManifest.InterfaceStates.RemoveAt(i);
 
@@ -371,57 +388,53 @@ namespace PlugHub.Bootstrap
 
         #region Bootstrapper: Plugin Registration
 
-        private static IEnumerable<PluginReference> RegisterPlugins(IServiceCollection services, PluginManifest? pluginManifest, string pluginFolderPath, IEnumerable<PluginReference> pluginReferences)
+        private static IEnumerable<PluginReference> RegisterPlugins(IServiceProvider provider, IServiceCollection services, PluginManifest? pluginManifest, string pluginFolderPath, IEnumerable<PluginReference> pluginReferences)
         {
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(pluginFolderPath);
 
             IEnumerable<PluginReference> enabled = [];
 
-            using (ServiceProvider tempProvider = services.BuildServiceProvider())
-            {
-                ILogger<Bootstrapper> logger = tempProvider.GetRequiredService<ILogger<Bootstrapper>>();
+            IPluginService pluginService = provider.GetRequiredService<IPluginService>();
+            IPluginResolver pluginSorter = provider.GetRequiredService<IPluginResolver>();
 
-                IPluginService pluginService = tempProvider.GetRequiredService<IPluginService>();
-                IPluginResolver pluginSorter = tempProvider.GetRequiredService<IPluginResolver>();
+            if (!pluginReferences.Any())
+                pluginReferences = pluginService.Discover(pluginFolderPath);
 
-                if (!pluginReferences.Any())
-                    pluginReferences = pluginService.Discover(pluginFolderPath);
+            if (pluginManifest != null)
+                enabled = GetEnabledInterfaces(pluginManifest, pluginReferences);
 
-                if (pluginManifest != null)
-                    enabled = GetEnabledInterfaces(logger, pluginManifest, pluginReferences);
+            RegisterInjectors(pluginService, pluginSorter, services, enabled);
+            RegisterPlugins(services, enabled);
 
-                RegisterInjectors(logger, pluginService, pluginSorter, services, enabled);
-                RegisterPlugins(logger, services, enabled);
-
-                return pluginReferences;
-            }
+            return pluginReferences;
         }
-        private static List<PluginReference> GetEnabledInterfaces(ILogger<Bootstrapper> logger, PluginManifest pluginData, IEnumerable<PluginReference> plugins)
+        private static List<PluginReference> GetEnabledInterfaces(PluginManifest pluginData, IEnumerable<PluginReference> plugins)
         {
             List<PluginReference> result = [];
 
             foreach (PluginReference plugin in plugins)
             {
-                logger.LogDebug("Processing plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
+                Log.Debug("[Bootstrapper] Processing plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
-                List<PluginInterface> enabledImplementations = FindEnabledImplementations(logger, pluginData, plugin);
+                List<PluginInterface> enabledImplementations = FindEnabledImplementations(pluginData, plugin);
 
                 bool hasEnabledImplementations = enabledImplementations.Count > 0;
 
                 if (hasEnabledImplementations)
                 {
-                    logger.LogInformation("Plugin {AssemblyName}:{TypeName} has {EnabledCount} enabled implementations.", plugin.AssemblyName, plugin.TypeName, enabledImplementations.Count);
+                    Log.Information("[Bootstrapper] Plugin {AssemblyName}:{TypeName} has {EnabledCount} enabled implementations.", plugin.AssemblyName, plugin.TypeName, enabledImplementations.Count);
 
                     result.Add(new PluginReference(plugin.Assembly, plugin.Type, plugin.Metadata, enabledImplementations));
                 }
             }
 
-            logger.LogInformation("Found {PluginCount} plugins with enabled implementations.", result.Count);
+            if (result.Count > 0)
+                Log.Information("[Bootstrapper] Found {PluginCount} plugins with enabled implementations.", result.Count);
 
             return result;
         }
-        private static List<PluginInterface> FindEnabledImplementations(ILogger<Bootstrapper> logger, PluginManifest pluginData, PluginReference plugin)
+        private static List<PluginInterface> FindEnabledImplementations(PluginManifest pluginData, PluginReference plugin)
         {
             List<PluginInterface> enabledImplementations = [];
 
@@ -437,7 +450,7 @@ namespace PlugHub.Bootstrap
                     {
                         enabledImplementations.Add(iface);
 
-                        logger.LogDebug("Enabled implementation {AssemblyName}:{TypeName}:{ImplementationName}", iface.AssemblyName, iface.ImplementationName, iface.InterfaceName);
+                        Log.Debug("[Bootstrapper] Enabled implementation {AssemblyName}:{TypeName}:{ImplementationName}", iface.AssemblyName, iface.ImplementationName, iface.InterfaceName);
 
                         break;
                     }
@@ -447,14 +460,12 @@ namespace PlugHub.Bootstrap
             return enabledImplementations;
         }
 
-        private static void RegisterInjectors(ILogger<Bootstrapper> logger, IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
+        private static void RegisterInjectors(IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
             Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = [];
 
             foreach (PluginReference plugin in enabledPlugins)
             {
-                logger.LogInformation("Registering plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
-
                 foreach (PluginInterface implementation in plugin.Interfaces)
                 {
                     if (implementation.InterfaceType != typeof(IPluginDependencyInjection))
@@ -464,7 +475,7 @@ namespace PlugHub.Bootstrap
 
                     if (injector == null)
                     {
-                        logger.LogWarning("Failed to create injector instance for {TypeName} in {AssemblyName}.", implementation.ImplementationName, implementation.AssemblyName);
+                        Log.Error("[Bootstrapper] Failed to create injector instance for {TypeName} in {AssemblyName}.", implementation.ImplementationName, implementation.AssemblyName);
 
                         continue;
                     }
@@ -493,13 +504,13 @@ namespace PlugHub.Bootstrap
 
                     if (hasNeitherType)
                     {
-                        logger.LogWarning("Descriptor for {InterfaceType} must specify either ImplementationType or Instance; skipping malformed registration.", descriptor.InterfaceType.Name);
+                        Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Instance; skipping malformed registration.", descriptor.InterfaceType.Name);
 
                         continue;
                     }
                     else if (hasBothTypes)
                     {
-                        logger.LogWarning("Descriptor for {InterfaceType} specifies both ImplementationType and Instance; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
+                        Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Instance; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
 
                         continue;
                     }
@@ -509,18 +520,20 @@ namespace PlugHub.Bootstrap
                         serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.ImplementationType!, descriptor.Lifetime));
                 }
             }
+
+            Log.Information("[Bootstrapper] Plugin DI injection complete: processed {Count} interface contracts across enabled plugins.", descriptorsByInterface.Count);
         }
-        private static void RegisterPlugins(ILogger<Bootstrapper> logger, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
+        private static void RegisterPlugins(IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
             foreach (PluginReference plugin in enabledPlugins)
             {
-                logger.LogInformation("Registering general plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
+                Log.Debug("[Bootstrapper] Registering general plugin {AssemblyName}:{TypeName}", plugin.AssemblyName, plugin.TypeName);
 
-                foreach (PluginInterface implementation in plugin.Interfaces)
+                foreach (PluginInterface iface in plugin.Interfaces)
                 {
-                    logger.LogInformation("Registered {Interface} directly via {TypeName}.", implementation.InterfaceName, implementation.ImplementationName);
+                    Log.Debug("[Bootstrapper] Registered {AssemblyName}:{TypeName}:{Interface}.", iface.AssemblyName, iface.ImplementationName, iface.InterfaceName);
 
-                    serviceCollection.AddSingleton(implementation.InterfaceType, implementation.ImplementationType);
+                    serviceCollection.AddSingleton(iface.InterfaceType, iface.ImplementationType);
                 }
             }
         }
@@ -535,11 +548,11 @@ namespace PlugHub.Bootstrap
             ArgumentNullException.ThrowIfNull(appConfig);
 
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-            IEnumerable<IPluginAppConfig> brandingPlugins = provider.GetServices<IPluginAppConfig>();
+            IEnumerable<IPluginAppConfig> appConfigPlugins = provider.GetServices<IPluginAppConfig>();
 
             List<PluginAppConfigDescriptor> allDescriptors = [];
 
-            foreach (IPluginAppConfig brandingPlugin in brandingPlugins)
+            foreach (IPluginAppConfig brandingPlugin in appConfigPlugins)
             {
                 IEnumerable<PluginAppConfigDescriptor> descriptors = brandingPlugin.GetAppConfigDescriptors();
 
@@ -556,18 +569,20 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
+                    Log.Error(ex, "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
                 }
             }
+
+            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", allDescriptors.Count);
 
             return appConfig;
         }
 
-        private static void PluginsConfigs(IServiceProvider provider, IConfigService configService)
+        private static void PluginsConfigs(IServiceProvider provider)
         {
             ArgumentNullException.ThrowIfNull(provider);
-            ArgumentNullException.ThrowIfNull(configService);
 
+            IConfigService configService = provider.GetRequiredService<IConfigService>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             ITokenService tokenService = provider.GetRequiredService<ITokenService>();
             IEnumerable<IPluginConfiguration> configurationPlugins = provider.GetServices<IPluginConfiguration>();
@@ -587,6 +602,8 @@ namespace PlugHub.Bootstrap
             {
                 configService.RegisterConfig(descriptor.ConfigType, descriptor.ConfigServiceParams(tokenService));
             }
+
+            Log.Information("[Bootstrapper] PluginsConfigs completed: Added {ConfigCount} configuration descriptors from plugins.", allDescriptors.Count);
         }
         private static void PluginsStyleInclude(IServiceProvider provider)
         {
@@ -630,11 +647,13 @@ namespace PlugHub.Bootstrap
                         }
                         catch (Exception ex)
                         {
-                            logger.LogError(ex, "Failed to load resource dictionary at {Resource}", resource);
+                            logger.LogError(ex, "[Bootstrapper] Failed to load resource dictionary at {Resource}", resource);
                         }
                     }
                 }
             }
+
+            logger.LogInformation("[Bootstrapper] PluginsStyleIncludes completed: Added {StyleCount} unique plugin style resource dictionaries.", loadedResourceDictionaries.Count);
         }
         private static void PluginsPages(IServiceProvider provider)
         {
@@ -664,6 +683,8 @@ namespace PlugHub.Bootstrap
                     ViewModel = descriptor.ViewModelFactory.Invoke(provider)
                 });
             }
+
+            Log.Information("[Bootstrapper] PluginsPages completed: added {PageCount} plugin-provided UI pages into main navigation.", allDescriptors.Count);
         }
         private static void PluginsSettingPages(IServiceProvider provider)
         {
@@ -694,6 +715,8 @@ namespace PlugHub.Bootstrap
                 };
                 settingsViewModel.AddSettingsPage(descriptor.Group, contentItem);
             }
+
+            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", allDescriptors.Count);
         }
 
         private static void PluginAppServices(IServiceProvider provider)
@@ -722,9 +745,11 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Failed to apply service setup for plugin {PluginID}", descriptor.PluginID);
+                    Log.Error(ex, "[Bootstrapper] Failed to apply service setup for plugin {PluginID}", descriptor.PluginID);
                 }
             }
+
+            Log.Information("[Bootstrapper] PluginAppServices completed: applied {SetupCount} service mutation descriptors.", allDescriptors.Count);
         }
 
         #endregion

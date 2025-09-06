@@ -55,7 +55,7 @@ namespace PlugHub.Services.Plugins
 
                 if (!hasDep)
                 {
-                    this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion);
+                    this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion);
 
                     context.DependencyDisabled.Add(descriptor);
                 }
@@ -65,14 +65,14 @@ namespace PlugHub.Services.Plugins
 
                     if (!matchesDep)
                     {
-                        this.logger.LogWarning("Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
+                        this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
 
                         context.DependencyDisabled.Add(descriptor);
                     }
                 }
                 else
                 {
-                    this.logger.LogError("Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", dep.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", dep.InterfaceID);
 
                     throw new InvalidOperationException($"Descriptor lookup returned null for interface {dep.InterfaceID} despite successful lookup");
                 }
@@ -93,7 +93,7 @@ namespace PlugHub.Services.Plugins
 
                     if (matchesConflict)
                     {
-                        this.logger.LogWarning("Interface {InterfaceID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.DescriptorID, conflict.InterfaceID, conflict.MinVersion, conflict.MaxVersion, otherDescriptor.Version);
+                        this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.DescriptorID, conflict.InterfaceID, conflict.MinVersion, conflict.MaxVersion, otherDescriptor.Version);
 
                         context.ConflictDisabled.Add(descriptor);
 
@@ -124,7 +124,7 @@ namespace PlugHub.Services.Plugins
                 }
                 else
                 {
-                    this.logger.LogError("Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", before.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", before.InterfaceID);
 
                     throw new InvalidOperationException($"Descriptor lookup returned null for interface {before.InterfaceID} despite successful lookup");
                 }
@@ -152,7 +152,7 @@ namespace PlugHub.Services.Plugins
                 }
                 else
                 {
-                    this.logger.LogError("Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", after.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", after.InterfaceID);
 
                     throw new InvalidOperationException($"Descriptor lookup returned null for interface {after.InterfaceID} despite successful lookup");
                 }

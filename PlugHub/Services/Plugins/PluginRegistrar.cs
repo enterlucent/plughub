@@ -40,7 +40,7 @@ namespace PlugHub.Services.Plugins
             if (state.Enabled == enabled) return;
 
             state.Enabled = enabled;
-            this.manifestAccessor.Save(manifest);
+            this.SaveManifest(manifest);
             this.logger.LogInformation("{Action} interface {Interface} of plugin {PluginId}.",
                 enabled ? "Enabled" : "Disabled", interfaceType.Name, pluginId);
         }
@@ -54,33 +54,54 @@ namespace PlugHub.Services.Plugins
                 if (state.Enabled != enabled)
                 {
                     state.Enabled = enabled;
+
                     changed = true;
                 }
             }
 
             if (changed)
             {
-                this.manifestAccessor.Save(manifest);
-                this.logger.LogInformation("{Action} all interfaces of plugin {PluginId}.",
-                    enabled ? "Enabled" : "Disabled", pluginId);
+                this.SaveManifest(manifest);
+
+                this.logger.LogInformation("[PluginRegistrar] {Action} all interfaces of plugin {PluginId}.", enabled ? "Enabled" : "Disabled", pluginId);
             }
         }
 
         public PluginManifest GetManifest()
         {
             PluginManifest manifest = this.manifestAccessor.Get();
+
             if (manifest?.InterfaceStates == null)
+            {
+                this.logger.LogError("[PluginRegistrar] Plugin manifest is unavailable or invalid (null or missing interface states).");
+
                 throw new InvalidOperationException("Plugin manifest is unavailable or invalid.");
+            }
             return manifest;
         }
         public void SaveManifest(PluginManifest manifest)
         {
             if (manifest?.InterfaceStates == null)
-                throw new ArgumentException("Manifest is invalid.", nameof(manifest));
+            {
+                this.logger.LogError("[PluginRegistrar] Attempted to save an invalid plugin manifest (null or missing interface states).");
 
-            this.manifestAccessor.Save(manifest);
-            this.logger.LogInformation("Plugin manifest saved with {Count} interface states.", manifest.InterfaceStates.Count);
+                throw new ArgumentException("Manifest is invalid.", nameof(manifest));
+            }
+
+            try
+            {
+                this.manifestAccessor.Save(manifest);
+
+                this.logger.LogInformation("[PluginRegistrar] Plugin manifest saved with {Count} interface states.", manifest.InterfaceStates.Count);
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "[PluginRegistrar] Failed to save plugin manifest with {Count} interface states.", manifest.InterfaceStates?.Count ?? 0);
+
+                throw;
+            }
         }
+
 
         public List<PluginDescriptor> GetDescriptorsForInterface(Type pluginInterfaceType)
         {
@@ -99,7 +120,7 @@ namespace PlugHub.Services.Plugins
 
                     if (pluginInstance == null)
                     {
-                        this.logger.LogWarning("Failed to instantiate plugin interface {Interface} from plugin {Plugin}.", pluginInterface.InterfaceType.FullName, pluginReference.AssemblyName);
+                        this.logger.LogWarning("[PluginRegistrar] Failed to instantiate plugin interface {Interface} from plugin {Plugin}.", pluginInterface.InterfaceType.FullName, pluginReference.AssemblyName);
 
                         continue;
                     }
@@ -116,7 +137,7 @@ namespace PlugHub.Services.Plugins
 
                     if (attr == null)
                     {
-                        this.logger.LogWarning("Plugin interface {Interface} missing ProvidesDescriptor attribute.", pluginInterface.InterfaceType.FullName);
+                        this.logger.LogWarning("[PluginRegistrar] Plugin interface {Interface} missing ProvidesDescriptor attribute.", pluginInterface.InterfaceType.FullName);
 
                         continue;
                     }
@@ -126,7 +147,7 @@ namespace PlugHub.Services.Plugins
 
                     if (descriptorMethod == null)
                     {
-                        this.logger.LogWarning("Descriptor method {Method} not found on plugin interface {Interface}.", descriptorMethodName, pluginInterface.InterfaceType.FullName);
+                        this.logger.LogWarning("[PluginRegistrar] Descriptor method {Method} not found on plugin interface {Interface}.", descriptorMethodName, pluginInterface.InterfaceType.FullName);
 
                         continue;
                     }
@@ -139,7 +160,7 @@ namespace PlugHub.Services.Plugins
                     }
                     else
                     {
-                        this.logger.LogWarning("Descriptor method {Method} on plugin interface {Interface} did not return expected descriptors.", descriptorMethodName, pluginInterface.InterfaceType.FullName);
+                        this.logger.LogWarning("[PluginRegistrar] Descriptor method {Method} on plugin interface {Interface} did not return expected descriptors.", descriptorMethodName, pluginInterface.InterfaceType.FullName);
                     }
                 }
             }

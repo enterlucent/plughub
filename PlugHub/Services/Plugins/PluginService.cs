@@ -34,11 +34,10 @@ namespace PlugHub.Services.Plugins
 
             try
             {
-                bool fileExists = File.Exists(pluginInterface.AssemblyLocation);
-
-                if (!fileExists)
+                if (!File.Exists(pluginInterface.AssemblyLocation))
                 {
-                    this.logger.LogWarning("Plugin assembly does not exist: {AssemblyPath}", pluginInterface.AssemblyLocation);
+                    this.logger.LogWarning("[IPluginService] Plugin assembly does not exist: {AssemblyPath}", pluginInterface.AssemblyLocation);
+
                     return null;
                 }
 
@@ -47,41 +46,40 @@ namespace PlugHub.Services.Plugins
 
                 if (type == null)
                 {
-                    this.logger.LogWarning("Type {TypeName} not found in assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+                    this.logger.LogWarning("[IPluginService] Type {TypeName} not found in assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+
                     return null;
                 }
 
                 bool isSubclass = type.IsSubclassOf(typeof(PluginBase));
                 bool isNotAbstract = !type.IsAbstract;
-                bool isValidType = isSubclass && isNotAbstract;
 
-                if (isValidType)
+                if (isSubclass && isNotAbstract)
                 {
                     object? instance = Activator.CreateInstance(type);
+
                     bool instanceCreated = instance != null;
                     bool instanceIsCorrectType = instance is TPlugin;
 
                     if (instanceCreated && instanceIsCorrectType)
                     {
-                        this.logger.LogInformation("Loaded plugin: {PluginName} ({TypeName})", pluginInterface.AssemblyName, pluginInterface.ImplementationName);
+                        this.logger.LogInformation("[IPluginService] Loaded plugin: {PluginName} ({TypeName})", pluginInterface.AssemblyName, pluginInterface.ImplementationName);
 
                         return (TPlugin)instance!;
                     }
                     else
                     {
-                        this.logger.LogWarning("Failed to create instance of type {TypeName} from assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+                        this.logger.LogError("[IPluginService] Failed to create instance of type {TypeName} from assembly {AssemblyName}.", pluginInterface.ImplementationName, pluginInterface.AssemblyName);
+
                         return null;
                     }
                 }
-                else
-                {
-                    this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} is not a subclass of {PluginBase} or is abstract.", pluginInterface.ImplementationName, pluginInterface.AssemblyName, nameof(PluginBase));
-                    return null;
-                }
+                else return null;
             }
             catch (Exception ex)
             {
-                this.logger.LogError("Failed to load plugin {TypeName} from {AssemblyPath}. Exception: {ExceptionMessage}", pluginInterface.ImplementationName, pluginInterface.AssemblyLocation, ex.Message);
+                this.logger.LogError("[IPluginService] Failed to load plugin {TypeName} from {AssemblyPath}. Exception: {ExceptionMessage}", pluginInterface.ImplementationName, pluginInterface.AssemblyLocation, ex.Message);
+
                 return null;
             }
             finally
@@ -110,8 +108,8 @@ namespace PlugHub.Services.Plugins
 
             Dictionary<Assembly, Type[]> assemblyTypes = this.ExtractTypesFromAssemblies(assemblies);
 
-            List<Type> filteredpluginTypes = this.FilterPluginTypes(assemblyTypes);
-            List<Type> pluginTypes = this.FilterInterfaceTypes(filteredpluginTypes);
+            List<Type> filteredpluginTypes = FilterPluginTypes(assemblyTypes);
+            List<Type> pluginTypes = FilterInterfaceTypes(filteredpluginTypes);
 
             IEnumerable<IGrouping<PluginMetadata, Type>> pluginGroups = pluginTypes.GroupBy(t => PluginMetadata.FromPlugin(t));
 
@@ -137,7 +135,7 @@ namespace PlugHub.Services.Plugins
                     }
                     catch (Exception ex)
                     {
-                        this.logger.LogError("Failed to load assembly {AssemblyPath}: {ExceptionMessage}", assemblyPath, ex.Message);
+                        this.logger.LogError("[IPluginService] Failed to load assembly {AssemblyPath}: {ExceptionMessage}", assemblyPath, ex.Message);
                     }
                 }
             }
@@ -164,7 +162,7 @@ namespace PlugHub.Services.Plugins
                     {
                         if (loaderEx != null)
                         {
-                            this.logger.LogError("Loader exception in assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, loaderEx.Message);
+                            this.logger.LogError("[IPluginService] Loader exception in assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, loaderEx.Message);
                         }
                     }
 
@@ -174,7 +172,7 @@ namespace PlugHub.Services.Plugins
                 }
                 catch (Exception ex)
                 {
-                    this.logger.LogError("Failed to get types from assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, ex.Message);
+                    this.logger.LogError("[IPluginService] Failed to get types from assembly {AssemblyName}: {ExceptionMessage}", assembly.FullName, ex.Message);
 
                     assemblyTypes[assembly] = [];
                 }
@@ -182,7 +180,7 @@ namespace PlugHub.Services.Plugins
 
             return assemblyTypes;
         }
-        private List<Type> FilterPluginTypes(Dictionary<Assembly, Type[]> assemblyTypes)
+        private static List<Type> FilterPluginTypes(Dictionary<Assembly, Type[]> assemblyTypes)
         {
             List<Type> pluginTypes = [];
 
@@ -194,17 +192,14 @@ namespace PlugHub.Services.Plugins
                     bool isNotAbstract = !type.IsAbstract;
 
                     if (!(derivesFromPluginBase && isNotAbstract))
-                    {
-                        this.logger.LogWarning("Type {TypeName} in assembly {AssemblyName} rejected: must be non-abstract subclass of PluginBase.", type.FullName, type.Assembly.FullName);
-
                         continue;
-                    }
+
                     pluginTypes.Add(type);
                 }
             }
             return pluginTypes;
         }
-        private List<Type> FilterInterfaceTypes(List<Type> pluginInterfaceTypes)
+        private static List<Type> FilterInterfaceTypes(List<Type> pluginInterfaceTypes)
         {
             List<Type> validInterfaces = [];
 
@@ -217,24 +212,17 @@ namespace PlugHub.Services.Plugins
                 foreach (Type it in allInterfaces)
                 {
                     attr = it.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
-                    if (attr != null)
-                        break;
+
+                    if (attr != null) break;
                 }
 
-                if (attr == null)
-                {
-                    this.logger.LogWarning("Interface {InterfaceName} rejected: missing required ProvidesDescriptor attribute (including base interfaces).", interfaceType.FullName);
-                    continue;
-                }
+                if (attr == null) continue;
 
                 string methodName = attr.DescriptorAccessorName;
+
                 MethodInfo? methodInfo = interfaceType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
 
-                if (methodInfo == null)
-                {
-                    this.logger.LogWarning("Interface {InterfaceName} rejected: method {MethodName} not declared on interface.", interfaceType.FullName, methodName);
-                    continue;
-                }
+                if (methodInfo == null) continue;
 
                 validInterfaces.Add(interfaceType);
             }
@@ -290,7 +278,7 @@ namespace PlugHub.Services.Plugins
                 }
                 else
                 {
-                    this.logger.LogError("Plugin discovery failed: No plugin types found for metadata {PluginName} (ID={PluginID}).", pluginMetadata.Name, pluginMetadata.PluginID);
+                    this.logger.LogError("[IPluginService] Plugin discovery failed: No plugin types found for metadata {PluginName} (ID={PluginID}).", pluginMetadata.Name, pluginMetadata.PluginID);
 
                     throw new InvalidOperationException($"No plugin types found in group for metadata: {pluginMetadata.Name} ({pluginMetadata.PluginID})");
                 }
