@@ -40,7 +40,6 @@ namespace PlugHub.Bootstrap
             PluginManifest baseManifest;
             AppConfig sysConfig;
             PluginManifest pluginManifest;
-            AppConfig pluginConfig;
 
             CollectServices(services, tokenSet);
             CollectViewModels(services);
@@ -72,23 +71,15 @@ namespace PlugHub.Bootstrap
 
                 if (!string.IsNullOrWhiteSpace(sysConfig.PluginFolderPath))
                     plugins = RegisterPlugins(tempProvider, services, pluginManifest, sysConfig.PluginFolderPath, plugins);
-            }
-
-            // Build a temporary DI provider including user plugins
-            using (ServiceProvider tempProvider = services.BuildServiceProvider())
-            {
-                // Apply plugin-provided AppConfig mutations 
-                //         (Plugins can override or extend AppConfig here)
-                pluginConfig = PluginsAppConfig(tempProvider, sysConfig);
 
                 // Persist a cache of the loaded plugin references
                 services.AddSingleton<IPluginCache>(new PluginCache(plugins));
 
-                SaveAppConfig(baseConfigService, tokenSet, pluginConfig);
-                SavePluginManifest(baseConfigService, tokenSet, pluginConfig, pluginManifest);
+                SaveAppConfig(baseConfigService, tokenSet, sysConfig);
+                SavePluginManifest(baseConfigService, tokenSet, sysConfig, pluginManifest);
 
                 // Register a ConfigService instance bound to the plugin AppConfig
-                services.AddSingleton(ConfigService.GetInstance(services, pluginConfig));
+                services.AddSingleton(ConfigService.GetInstance(services, sysConfig));
             }
 
             // Build the *final* DI provider including plugins and configs
