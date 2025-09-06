@@ -1,7 +1,7 @@
 ---
 name: Feature Request
 about: Suggest a feature enhancement for PlugHub
-title: "<short summary of your request>"
+title: "<short title for your request>"
 labels: enhancement
 ---
 
@@ -16,9 +16,6 @@ labels: enhancement
 
 ## Possible Implementation
 <!--- Not obligatory, but suggest an idea for implementing the addition or change. -->
-
-## Related Issues
-<!--- If this feature requires new or changed assets, documentation, or plugins, add the relevant issue links here. -->
 
 ## Target Platform(s)
 <!--- If this feature request is for a specific platform or set of platforms, list them here. -->

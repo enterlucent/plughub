@@ -1,7 +1,7 @@
 ---
 name: Documentation Request
 about: Request new or improved documentation for PlugHub
-title: "<short summary of your request>"
+title: "<short title for your request>"
 labels: documentation
 ---
 
