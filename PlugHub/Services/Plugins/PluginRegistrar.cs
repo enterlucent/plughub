@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace PlugHub.Services.Plugins
 {
@@ -81,6 +82,10 @@ namespace PlugHub.Services.Plugins
         }
         public void SaveManifest(PluginManifest manifest)
         {
+            Task.Run(() => this.SaveManifestAsync(manifest)).GetAwaiter().GetResult();
+        }
+        public async Task SaveManifestAsync(PluginManifest manifest)
+        {
             if (manifest?.InterfaceStates == null)
             {
                 this.logger.LogError("[PluginRegistrar] Attempted to save an invalid plugin manifest (null or missing interface states).");
@@ -90,7 +95,7 @@ namespace PlugHub.Services.Plugins
 
             try
             {
-                this.manifestAccessor.Save(manifest);
+                await this.manifestAccessor.SaveAsync(manifest);
 
                 this.logger.LogInformation("[PluginRegistrar] Plugin manifest saved with {Count} interface states.", manifest.InterfaceStates.Count);
             }
@@ -101,7 +106,6 @@ namespace PlugHub.Services.Plugins
                 throw;
             }
         }
-
 
         public List<PluginDescriptor> GetDescriptorsForInterface(Type pluginInterfaceType)
         {
