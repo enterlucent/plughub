@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-
 namespace PlugHub.Services.Plugins
 {
     public class PluginResolver : IPluginResolver
@@ -25,8 +24,16 @@ namespace PlugHub.Services.Plugins
         {
             ArgumentNullException.ThrowIfNull(descriptors);
 
-            List<TDescriptor> descriptorsList = [.. descriptors];
-            PluginResolutionContext<TDescriptor> context = new(descriptorsList);
+            HashSet<TDescriptor> duplicates = FilterDuplicates(descriptors, out List<TDescriptor> descriptorsList);
+
+            foreach (TDescriptor duplicate in duplicates)
+                this.logger.LogError(
+                    "[PluginResolver] Duplicate DescriptorID {DescriptorID} for plugin {PluginID}, version {Version} detected and excluded.",
+                    duplicate.DescriptorID,
+                    duplicate.PluginID,
+                    duplicate.Version);
+
+            PluginResolutionContext<TDescriptor> context = new(descriptorsList, duplicates);
 
             foreach (TDescriptor descriptor in descriptorsList)
             {
@@ -47,6 +54,21 @@ namespace PlugHub.Services.Plugins
             return context.GetSorted();
         }
 
+        private static HashSet<TDescriptor> FilterDuplicates<TDescriptor>(IEnumerable<TDescriptor> descriptors, out List<TDescriptor> cleanDescriptors) where TDescriptor : PluginDescriptor
+        {
+            cleanDescriptors = [];
+            HashSet<TDescriptor> duplicates = [];
+            HashSet<Guid> seenIDs = [];
+
+            foreach (var descriptor in descriptors)
+            {
+                if (seenIDs.Add(descriptor.DescriptorID))
+                    cleanDescriptors.Add(descriptor);
+                else
+                    duplicates.Add(descriptor);
+            }
+            return duplicates;
+        }
         private void ProcessDependencies<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
             foreach (PluginInterfaceReference dep in descriptor.DependsOn ?? [])
