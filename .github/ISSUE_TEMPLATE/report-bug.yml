@@ -1,6 +1,6 @@
 name: Bug Report
 description: Create a report to help us improve PlugHub
-title: "<short summary of your identified issue>"
+title: "<short title for your identified issue>"
 type: bug
 labels: bug
 

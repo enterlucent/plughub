@@ -1,4 +1,5 @@
-<!--- Provide a general summary of your changes in the Title above -->
+# Title
+<!--- Provide a concise title for your set of changes -->
 
 ## Description
 <!--- Describe your changes in detail -->
@@ -7,15 +8,16 @@
 <!--- This project only accepts pull requests related to open issues -->
 <!--- If suggesting a new feature or change, please discuss it in an issue first -->
 <!--- If fixing a bug, there should be an issue describing it with steps to reproduce -->
-<!--- Please link to the issue, asset, and/or documentation issues here: -->
+<!--- Link the issue here using keywords like "Resolves #123" or "Fixes #123".  
+      This helps automatically close the issue when merged. -->
 
 ## Motivation and Context
 <!--- Why is this change required? What problem does it solve? -->
 
 ## How Has This Been Tested?
-<!--- Please describe in detail how you tested your changes. -->
-<!--- Include details of your testing environment, and the tests you ran to -->
-<!--- see how your change affects other areas of the code, etc. -->
+<!--- Describe in detail how you tested your changes. -->
+<!--- Include information about your testing environment and the test cases you ran. -->
+<!--- Explain how you verified that your change works and does not affect other parts of the code. -->
 
 ## Screenshots (if appropriate):
 
@@ -33,10 +35,10 @@
 <!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
 - [ ] I have read the **CONTRIBUTING** document.
 - [ ] My change requires a change to the core logic.
-    - [ ] I have linked the project issue above.
+  - [ ] I have linked the project issue above.
 - [ ] My change requires a change to the assets.
-    - [ ] I have linked the asset issue above.
+  - [ ] I have linked the asset issue above.
 - [ ] My change requires a change to the documentation.
-    - [ ] I have linked the documentation issue above.
+  - [ ] I have linked the documentation issue above.
 - [ ] My change requires a change to a plugin.
-    - [ ] I have linked the plugin issue above.
+  - [ ] I have linked the plugin issue above.
