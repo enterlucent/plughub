@@ -17,9 +17,14 @@ namespace PlugHub.ViewModels.Pages
         private CancellationTokenSource? searchDebounceCts;
         private readonly ILogger<SettingsViewModel> logger;
 
-        protected ObservableCollection<ContentItemGroupViewModel> SettingsPageItems { get; } = [];
-        public ObservableCollection<ContentItemGroupViewModel> SettingsPageItemSource { get; } = [];
-        public ObservableCollection<string> SearchSuggestions { get; } = [];
+        [ObservableProperty]
+        private ObservableCollection<ContentItemGroupViewModel> settingsPageItems = [];
+
+        [ObservableProperty]
+        private ObservableCollection<ContentItemGroupViewModel> settingsPageItemSource = [];
+
+        [ObservableProperty]
+        private ObservableCollection<string> searchSuggestions = [];
 
 
         [ObservableProperty]

@@ -123,7 +123,7 @@ namespace PlugHub.Services.Plugins
 
                 if (seenPluginIds.Contains(pluginId))
                 {
-                    this.logger.LogWarning("Duplicate plugin ID detected and ignored: {PluginID}", pluginId);
+                    this.logger.LogError("[IPluginService] Duplicate plugin ID detected and ignored: {PluginID}", pluginId);
 
                     continue;
                 }

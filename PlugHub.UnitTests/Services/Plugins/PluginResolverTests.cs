@@ -70,7 +70,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_EmptyCollection_ReturnsEmpty()
+        public void ResolveDescriptors_EmptyCollectionReturnsEmpty()
         {
             // Arrange
             List<TestPluginDescriptor> descriptors = [];
@@ -84,7 +84,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_SingleDescriptor_ReturnsSingle()
+        public void ResolveDescriptors_SingleDescriptorReturnsSingle()
         {
             // Arrange
             List<TestPluginDescriptor> descriptors =
@@ -102,7 +102,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_MultipleIndependentDescriptors_ReturnsAll()
+        public void ResolveDescriptors_MultipleIndependentDescriptorsReturnsAll()
         {
             // Arrange
             List<TestPluginDescriptor> descriptors =
@@ -125,13 +125,42 @@ namespace PlugHub.UnitTests.Services.Plugins
             Assert.IsTrue(returnedIds.Contains(descriptors[2].PluginID), "Should contain Plugin3");
         }
 
+        [TestMethod]
+        [TestCategory("ResolveDescriptors")]
+        public void ResolveDescriptors_DuplicateDescriptorIDFiltersOutDuplicates()
+        {
+            // Arrange
+            Guid sharedInterfaceId = Guid.NewGuid();
+            Guid plugin1Id = Guid.NewGuid();
+            Guid plugin2Id = Guid.NewGuid();
+            var version = "1.0.0";
+
+            // Create two descriptors with the same InterfaceID (duplicate)
+            List<TestPluginDescriptor> descriptors =
+            [
+                CreateTestDescriptor(plugin1Id, sharedInterfaceId, version),
+                CreateTestDescriptor(plugin2Id, sharedInterfaceId, version) // duplicate
+            ];
+
+            // Act
+            PluginResolutionContext<TestPluginDescriptor> context = this.pluginResolver!.ResolveContext(descriptors);
+
+            // Assert
+            Assert.AreEqual(2, descriptors.Count, "Original input contains two descriptors");
+            Assert.AreEqual(1, context.DuplicateIDDisabled.Count, "One duplicate should be tracked as disabled");
+            Assert.AreEqual(1, context.IdToDescriptor.Count, "One descriptor with unique InterfaceID should remain");
+
+            IEnumerable<TestPluginDescriptor> result = this.pluginResolver.ResolveDescriptors(descriptors);
+            Assert.AreEqual(1, result.Count(), "Duplicate descriptors should be filtered out from final resolution");
+        }
+
         #endregion
 
         #region PluginResolverTests: Dependency Resolution
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_MissingDependency_FiltersOutInvalidDescriptor()
+        public void ResolveDescriptors_MissingDependencyFiltersOutInvalidDescriptor()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -157,7 +186,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_VersionMismatch_FiltersOutIncompatibleDescriptor()
+        public void ResolveDescriptors_VersionMismatchFiltersOutIncompatibleDescriptor()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -185,7 +214,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_ConflictingDescriptors_FiltersOutConflicted()
+        public void ResolveDescriptors_ConflictingDescriptorsFiltersOutConflicted()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -213,7 +242,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_LoadBeforeConstraint_RespectsOrdering()
+        public void ResolveDescriptors_LoadBeforeConstraintRespectsOrdering()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -238,7 +267,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_LoadAfterConstraint_RespectsOrdering()
+        public void ResolveDescriptors_LoadAfterConstraintRespectsOrdering()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -267,7 +296,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_ValidDependency_IncludesBothPlugins()
+        public void ResolveDescriptors_ValidDependencyIncludesBothPlugins()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -295,7 +324,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_MissingDependency_FiltersOutDependentPlugin()
+        public void ResolveDescriptors_MissingDependencyFiltersOutDependentPlugin()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -321,7 +350,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_DependencyWithoutLoadOrder_DoesNotAffectSequence()
+        public void ResolveDescriptors_DependencyWithoutLoadOrderDoesNotAffectSequence()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -348,7 +377,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ResolveDescriptors")]
-        public void ResolveDescriptors_DependencyAndLoadOrder_BothConstraintsApplied()
+        public void ResolveDescriptors_DependencyAndLoadOrderBothConstraintsApplied()
         {
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
@@ -385,7 +414,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("ErrorHandling")]
-        public void ResolveDescriptors_DeterministicOrdering_ReturnsSameOrderForSameInput()
+        public void ResolveDescriptors_DeterministicOrderingReturnsSameOrderForSameInput()
         {
             // Arrange
             List<TestPluginDescriptor> descriptors =
@@ -431,7 +460,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         private static TestPluginDescriptor CreateTestDescriptor(
             Guid pluginId,
-            Guid interfaceId,
+            Guid descriptorId,
             string version,
             IEnumerable<PluginInterfaceReference>? dependsOn = null,
             IEnumerable<PluginInterfaceReference>? conflictsWith = null,
@@ -440,7 +469,7 @@ namespace PlugHub.UnitTests.Services.Plugins
         {
             return new TestPluginDescriptor(
                 PluginID: pluginId,
-                InterfaceID: interfaceId,
+                InterfaceID: descriptorId,
                 Version: version,
                 LoadBefore: loadBefore,
                 LoadAfter: loadAfter,
