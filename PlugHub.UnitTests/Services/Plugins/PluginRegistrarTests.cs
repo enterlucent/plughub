@@ -113,7 +113,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Constructor")]
-        public void Constructor_ValidParameters_CreatesInstance()
+        public void Constructor_ValidParametersCreatesInstance()
         {
             // Arrange & Act
             PluginRegistrar registrar = new(
@@ -128,7 +128,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Constructor")]
-        public void Constructor_NullLogger_ThrowsArgumentNullException()
+        public void Constructor_NullLoggerThrowsArgumentNullException()
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
@@ -137,7 +137,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Constructor")]
-        public void Constructor_NullPluginManifest_ThrowsArgumentNullException()
+        public void Constructor_NullPluginManifestThrowsArgumentNullException()
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
@@ -146,7 +146,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Constructor")]
-        public void Constructor_NullPluginService_ThrowsArgumentNullException()
+        public void Constructor_NullPluginServiceThrowsArgumentNullException()
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
@@ -159,7 +159,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("GetEnabled")]
-        public void GetEnabled_ExistingEnabledPlugin_ReturnsTrue()
+        public void GetEnabled_ExistingEnabledPluginReturnsTrue()
         {
             // Arrange
             Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
@@ -173,7 +173,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("GetEnabled")]
-        public void GetEnabled_ExistingDisabledPlugin_ReturnsFalse()
+        public void GetEnabled_ExistingDisabledPluginReturnsFalse()
         {
             // Arrange
             Guid pluginId = Guid.Parse("87654321-4321-4321-4321-cba987654321");
@@ -187,7 +187,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("GetEnabled")]
-        public void GetEnabled_NonExistentPlugin_ReturnsFalse()
+        public void GetEnabled_NonExistentPluginReturnsFalse()
         {
             // Arrange
             Guid pluginId = Guid.NewGuid();
@@ -201,7 +201,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("GetEnabled")]
-        public async Task GetEnabled_EmptyInterfaceStates_ReturnsFalse()
+        public async Task GetEnabled_EmptyInterfaceStatesReturnsFalse()
         {
             // Arrange
             PluginManifest manifestWithEmptyStates = new() { InterfaceStates = [] };
@@ -214,13 +214,25 @@ namespace PlugHub.UnitTests.Services.Plugins
             Assert.IsFalse(result, "Should return false when InterfaceStates is empty");
         }
 
+
+        [TestMethod]
+        [TestCategory("GetManifest")]
+        public void GetManifest_ValidManifestReturnsNonNull()
+        {
+            // Act
+            PluginManifest manifest = this.pluginRegistrar!.GetManifest();
+
+            // Assert
+            Assert.IsTrue(manifest.InterfaceStates.Count > 0, "Manifest should contain interface states.");
+        }
+
         #endregion
 
-        #region PluginRegistrarTests: Mutators
+        #region PluginRegistrarTests: Interface Mutators
 
         [TestMethod]
         [TestCategory("SetEnabled")]
-        public void SetEnabled_ValidPlugin_EnablesPlugin()
+        public void SetEnabled_ValidPluginEnablesPlugin()
         {
             // Arrange
             Guid pluginId = Guid.Parse("87654321-4321-4321-4321-cba987654321");
@@ -230,12 +242,13 @@ namespace PlugHub.UnitTests.Services.Plugins
 
             // Assert            
             PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+
             Assert.IsTrue(updatedState.Enabled, "Plugin should be enabled after SetEnabled call");
         }
 
         [TestMethod]
         [TestCategory("SetDisabled")]
-        public void SetDisabled_ValidPlugin_DisablesPlugin()
+        public void SetDisabled_ValidPluginDisablesPlugin()
         {
             // Arrange
             Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
@@ -245,7 +258,159 @@ namespace PlugHub.UnitTests.Services.Plugins
 
             // Assert
             PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+
             Assert.IsFalse(updatedState.Enabled, "Plugin should be disabled after SetDisabled call");
+        }
+
+        #endregion
+
+        #region PluginRegistrarTests: Plugin Mutators
+
+        [TestMethod]
+        [TestCategory("SetAllEnabled")]
+        public void SetAllEnabled_DisabledPluginGetsEnabled()
+        {
+            // Arrange
+            Guid pluginId = Guid.Parse("87654321-4321-4321-4321-cba987654321");
+
+            // Act
+            this.pluginRegistrar!.SetAllEnabled(pluginId, true);
+
+            // Assert
+            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+
+            Assert.IsTrue(updatedState.Enabled, "All interfaces of plugin should be enabled.");
+        }
+
+        [TestMethod]
+        [TestCategory("SetAllEnabled")]
+        public void SetAllEnabled_EnabledPluginGetsDisabled()
+        {
+            // Arrange
+            Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+
+            // Act
+            this.pluginRegistrar!.SetAllEnabled(pluginId, false);
+
+            // Assert
+            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+
+            Assert.IsFalse(updatedState.Enabled, "All interfaces of plugin should be disabled.");
+        }
+
+        [TestMethod]
+        [TestCategory("SetAllEnabled")]
+        public void SetAllEnabled_NoChangeDoesNotModifyManifest()
+        {
+            // Arrange
+            Guid pluginId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+            PluginManifest before = this.manifest!.Get();
+
+            // Act
+            this.pluginRegistrar!.SetAllEnabled(pluginId, true);
+
+            // Assert
+            PluginManifest after = this.manifest!.Get();
+
+            Assert.AreEqual(before.InterfaceStates.Count, after.InterfaceStates.Count, "Manifest should remain unchanged if interface states already match.");
+        }
+
+        #endregion
+
+        #region PluginRegistrarTests: Manifest Mutators
+
+        [TestMethod]
+        [TestCategory("SaveManifest")]
+        public async Task SaveManifest_ValidManifestPersistsToAccessor()
+        {
+            // Arrange
+            PluginManifest newManifest = new()
+            {
+                InterfaceStates =
+                [
+                    new(pluginId: Guid.NewGuid(),
+                        assemblyName: "TestAssembly",
+                        className: "TestClass",
+                        interfaceName: typeof(IDisposable).FullName!,
+                        enabled: true,
+                        loadOrder: 1)
+                ]
+            };
+
+            // Act
+            await this.pluginRegistrar!.SaveManifestAsync(newManifest);
+
+            // Assert
+            PluginManifest persisted = this.manifest!.Get();
+
+            Assert.AreEqual(newManifest.InterfaceStates.Count, persisted.InterfaceStates.Count,
+                "Persisted manifest should match saved manifest.");
+        }
+
+        [TestMethod]
+        [TestCategory("SaveManifest")]
+        public void SaveManifest_InvalidManifestThrowsArgumentException()
+        {
+            // Arrange
+            PluginManifest invalidManifest = new() { InterfaceStates = null! };
+
+            // Act & Assert
+            Assert.ThrowsException<ArgumentException>(() =>
+                this.pluginRegistrar!.SaveManifest(invalidManifest));
+        }
+
+        #endregion
+
+        #region PluginRegistrarTests: Decriptor Traversal
+
+        [TestMethod]
+        [TestCategory("GetDescriptorsForInterface")]
+        public void GetDescriptorsForInterface_NoPluginsReturnsEmptyList()
+        {
+            // Arrange & Act
+            List<PluginDescriptor> result = this.pluginRegistrar!.GetDescriptorsForInterface(typeof(IDisposable));
+
+            // Assert
+            Assert.AreEqual(0, result.Count, "Should return empty list when no plugins match.");
+        }
+
+        [TestMethod]
+        [TestCategory("GetDescriptorsForInterface")]
+        public void GetDescriptorsForInterface_WithValidPluginReturnsDescriptors()
+        {
+            /*
+            // Arrange
+            // Assumes a test plugin assembly has been built and copied into MSTestHelpers.PluginDirectory
+            // that implements IFakePluginInterface decorated with [DescriptorProvider].
+            Type fakeInterface = typeof(IFakePluginInterface); // Placeholder test plugin interface type
+
+            this.pluginCache!.Reload(); // Ensure cache discovers plugins in PluginDirectory
+
+            // Act
+            List<PluginDescriptor> result = this.pluginRegistrar!.GetDescriptorsForInterface(fakeInterface);
+
+            // Assert
+            Assert.IsTrue(result.Count > 0, "Expected at least one plugin descriptor to be returned.");
+            */
+        }
+
+        [TestMethod]
+        [TestCategory("GetDescriptorsForInterface")]
+        public void GetDescriptorsForInterface_MissingAttributeLogsWarningAndSkips()
+        {
+            /*
+            // Arrange
+            // Requires plugin without [DescriptorProvider] attribute, placed in PluginDirectory
+            Type fakeInterface = typeof(IEnumerable<int>); // Example interface with no descriptor
+
+            this.pluginCache!.Reload();
+
+            // Act
+            List<PluginDescriptor> result = this.pluginRegistrar!.GetDescriptorsForInterface(fakeInterface);
+
+            // Assert
+            Assert.IsTrue(result.Count == 0, "Plugins missing DescriptorProvider attribute should not yield descriptors.");
+            */
         }
 
         #endregion

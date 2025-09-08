@@ -76,7 +76,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Discovery")]
-        public void Discovery_ShouldThrowIOException_ForMissingDirectory()
+        public void Discovery_ShouldThrowIOExceptionForMissingDirectory()
         {
             // Arrange
             string nonExistentDirectory = @"Z:\Definitely\Not\A\Real\Path";
@@ -90,7 +90,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Discovery")]
-        public void Discovery_ShouldThrow_OnNullInput()
+        public void Discovery_ShouldThrowOnNullInput()
         {
             // Arrange & Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
@@ -99,6 +99,18 @@ namespace PlugHub.UnitTests.Services.Plugins
             });
         }
 
+        [TestMethod]
+        [TestCategory("Discovery")]
+        public void Discovery_ShouldNotReturnPluginClassesWithoutInterfaces()
+        {
+            // Arrange && Act
+            IEnumerable<PluginReference> plugins = this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
+
+            bool hasNoInterfacePlugin = plugins.Any(p => p.Type.FullName == "PlugHub.Plugin.Mock.PluginMockNoInterfaces");
+
+            // Assert
+            Assert.IsFalse(hasNoInterfacePlugin, "Plugins missing interfaces should not be returned in discovery");
+        }
 
         #endregion
 
@@ -156,7 +168,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Instantiate")]
-        public void GetLoadedPlugin_ShouldReturnNull_ForUnknownInterface()
+        public void GetLoadedPlugin_ShouldReturnNullForUnknownInterface()
         {
             // Arrage
             PluginInterface fakeInterface = new(
@@ -173,7 +185,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("Instantiate")]
-        public void GetLoadedInterface_ShouldReturnNull_IfInterfaceNotPresent()
+        public void GetLoadedInterface_ShouldReturnNullIfInterfaceNotPresent()
         {
             // Arrange
             IEnumerable<PluginReference> plugins = this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
@@ -195,14 +207,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             Assert.IsNull(iface, "Should return null for interface contract not present in plugin.");
         }
 
-
         #endregion
 
         #region PluginServiceTests: Plugin Services
 
         [TestMethod]
         [TestCategory("PluginServices")]
-        public void DISetup_ShouldResolve_IEchoService()
+        public void DISetup_ShouldResolveIEchoService()
         {
             // Arrange
             string input = "Test DI Echo";
@@ -218,7 +229,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("PluginServices")]
-        public void EchoService_ShouldRaise_MessageReceived_Event_OnEcho()
+        public void EchoService_ShouldRaiseMessageReceived_Event_OnEcho()
         {
             // Arrange
             IEchoService echoService = this.GetEchoService();
@@ -240,7 +251,7 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         [TestMethod]
         [TestCategory("PluginServices")]
-        public void EchoService_ShouldRaise_MessageError_Event_OnEmptyInput()
+        public void EchoService_ShouldRaiseMessageErrorEventOnEmptyInput()
         {
             // Arrange
             IEchoService echoService = this.GetEchoService();
