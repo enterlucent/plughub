@@ -668,11 +668,14 @@ namespace PlugHub.Bootstrap
 
             foreach (PluginPageDescriptor descriptor in sortedDescriptors)
             {
-                mainViewModel.AddMainPageItem(new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
+                ContentItemViewModel page = new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
                 {
                     Control = descriptor.ViewFactory.Invoke(provider),
                     ViewModel = descriptor.ViewModelFactory.Invoke(provider)
-                });
+                };
+                page.Control.DataContext = page.ViewModel;
+
+                mainViewModel.AddMainPageItem(page);
             }
 
             Log.Information("[Bootstrapper] PluginsPages completed: added {PageCount} plugin-provided UI pages into main navigation.", allDescriptors.Count);
@@ -699,12 +702,14 @@ namespace PlugHub.Bootstrap
 
             foreach (SettingsPageDescriptor descriptor in sortedDescriptors)
             {
-                ContentItemViewModel contentItem = new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
+                ContentItemViewModel page = new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
                 {
                     Control = descriptor.ViewFactory.Invoke(provider),
                     ViewModel = descriptor.ViewModelFactory.Invoke(provider)
                 };
-                settingsViewModel.AddSettingsPage(descriptor.Group, contentItem);
+                page.Control.DataContext = page.ViewModel;
+
+                settingsViewModel.AddSettingsPage(descriptor.Group, page);
             }
 
             Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", allDescriptors.Count);
