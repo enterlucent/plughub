@@ -26,7 +26,6 @@ namespace PlugHub.ViewModels.Pages
         [ObservableProperty]
         private ObservableCollection<string> searchSuggestions = [];
 
-
         [ObservableProperty]
         private string searchText = string.Empty;
 
@@ -37,23 +36,11 @@ namespace PlugHub.ViewModels.Pages
         private Control? selectedSettingsPageContent;
 
 
-        public SettingsViewModel(ILogger<SettingsViewModel> logger, SettingsPluginsView settingsPluginsView, SettingsPluginsViewModel settingPluginsViewModel)
+        public SettingsViewModel(ILogger<SettingsViewModel> logger, SettingsPluginsView? settingsPluginsView, SettingsPluginsViewModel? settingPluginsViewModel)
         {
             this.logger = logger;
 
-            ContentItemViewModel item = new(typeof(SettingsPluginsView), typeof(SettingsPluginsViewModel), "Plugin Editor", "plug_disconnected_regular")
-            {
-                Control = settingsPluginsView,
-                ViewModel = settingPluginsViewModel
-            };
-
-            this.SettingsPageItems.Add(new ContentItemGroupViewModel()
-            {
-                GroupName = "General Settings",
-                Items = [item]
-            });
-
-            this.OnSelectedSettingsItemChanged(item);
+            this.AddPluginSettingsPage(settingsPluginsView, settingPluginsViewModel);
 
             this.UpdateSetting();
         }
@@ -82,6 +69,36 @@ namespace PlugHub.ViewModels.Pages
             group.Items.Add(item);
 
             this.UpdateSetting();
+        }
+        private void AddPluginSettingsPage(SettingsPluginsView? settingsPluginsView, SettingsPluginsViewModel? settingPluginsViewModel)
+        {
+            if (settingsPluginsView == null)
+            {
+                this.logger.LogWarning("[SettingsViewModel] SettingsPluginsView is null. Plugin UI may not function correctly.");
+
+                return;
+            }
+
+            if (settingPluginsViewModel == null)
+            {
+                this.logger.LogWarning("[SettingsViewModel] SettingsPluginsViewModel is null. Plugin UI may not function correctly.");
+
+                return;
+            }
+
+            ContentItemViewModel item = new(typeof(SettingsPluginsView), typeof(SettingsPluginsViewModel), "Plugin Editor", "plug_disconnected_regular")
+            {
+                Control = settingsPluginsView,
+                ViewModel = settingPluginsViewModel
+            };
+
+            this.SettingsPageItems.Add(new ContentItemGroupViewModel()
+            {
+                GroupName = "General Settings",
+                Items = [item]
+            });
+
+            this.OnSelectedSettingsItemChanged(item);
         }
 
 
