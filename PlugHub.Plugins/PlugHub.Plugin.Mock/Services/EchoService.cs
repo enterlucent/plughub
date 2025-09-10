@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
-using PlugHub.Shared.Mock.Interfaces;
+using PlugHub.Shared.Mock.Interfaces.Plugins;
+using PlugHub.Shared.Mock.Interfaces.Services;
 
 namespace PlugHub.Plugin.Mock.Services
 {

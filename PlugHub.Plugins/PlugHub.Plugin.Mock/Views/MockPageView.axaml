@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:i="using:Avalonia.Xaml.Interactivity"
+             xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
+             xmlns:vm="using:PlugHub.Plugin.Mock.ViewModels"
+             mc:Ignorable="d"
+             d:DesignWidth="600" d:DesignHeight="400"
+             x:Class="PlugHub.Plugin.Mock.Views.MockPageView"
+             x:DataType="vm:MockPageViewModel"
+             Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}">
+
+  <UserControl.Styles>
+    <Style Selector="HeaderedContentControl.GroupBox">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border
+                ZIndex="1"
+                Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                Padding="8,0,8,0"
+                Margin="8,0,0,0"
+                Height="32"
+                VerticalAlignment="Top">
+              <TextBlock
+                  Text="{TemplateBinding Header}"
+                  FontWeight="Bold"
+                  FontSize="24"
+                  VerticalAlignment="Center" />
+            </Border>
+
+            <Border
+                Grid.RowSpan="2"
+                Padding="0,8,0,0"
+                Grid.ColumnSpan="2"
+                CornerRadius="4"
+                Margin="0,16,0,0"
+                BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}"
+                BorderThickness="1">
+              <ContentPresenter
+                  Name="PART_ContentPresenter"
+                  Padding="8"
+                  Content="{TemplateBinding Content}"/>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="*,Auto" Margin="16">
+    <HeaderedContentControl Header="Echo Service"
+                            Classes="GroupBox"
+                            Grid.Row="0"
+                            Margin="0,0,0,8"
+                            Padding="8">
+      <Grid>
+        <ScrollViewer x:Name="MessagesScrollViewer" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False">
+          <ItemsControl ItemsSource="{Binding Messages}" >
+            <!--
+            <ItemsControl.Items>
+              <vm:ChatMessageViewModel Sender="echo" MessageText="Hello from Alice!" />
+              <vm:ChatMessageViewModel Sender="echo" MessageText="Bob, is your uncle?" />
+            </ItemsControl.Items>
+            -->
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="0,4,0,0">
+                  <Grid>
+                    <Border BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,8,0,0"/>
+
+                    <Border Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                            Height="16"
+                            Padding="4,0,4,0"
+                            Margin="8,0,0,0"
+                            HorizontalAlignment="Left">
+
+                      <TextBlock Text="{Binding Sender}"
+                                 FontWeight="Bold"
+                                 FontSize="12"
+                                 HorizontalAlignment="Left"
+                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Border>
+                  </Grid>
+
+                  <Border Background="{DynamicResource CardBackgroundFillColorDefault}"
+                          Padding="4,12,4,8"
+                          Margin="0,-8,0,0"
+                          CornerRadius="{DynamicResource ControlCornerRadius}"
+                          BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}">
+                    <TextBlock Text="{Binding MessageText}"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <Border IsVisible="{Binding IsEchoServiceUnavailable}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+
+          <TextBlock Text="Echo Service is Unavailable"
+                     FontSize="18"
+                     FontWeight="Bold"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+        </Border>
+      </Grid>
+    </HeaderedContentControl>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <TextBox Name="InputTextBox"
+               Grid.Column="0"
+               Watermark="Type your message..."
+               Text="{Binding InputMessage, Mode=TwoWay}"
+               IsEnabled="{Binding IsEchoServiceAvailable}">
+      </TextBox>
+      <Button Grid.Column="1"
+              Content="Send"
+              IsEnabled="{Binding CanSend}"
+              Command="{Binding SendCommand}" />
+    </Grid>
+  </Grid>
+</UserControl>

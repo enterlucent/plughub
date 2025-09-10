@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Services.Plugins;
 using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services.Plugins;
-using PlugHub.Shared.Mock.Interfaces;
+using PlugHub.Shared.Mock.Interfaces.Services;
 using PlugHub.Shared.Models.Plugins;
 
 
@@ -110,6 +110,21 @@ namespace PlugHub.UnitTests.Services.Plugins
 
             // Assert
             Assert.IsFalse(hasNoInterfacePlugin, "Plugins missing interfaces should not be returned in discovery");
+        }
+
+        [TestMethod]
+        [TestCategory("Discovery")]
+        public void Discovery_ShouldRejectPluginsWithDuplicatePluginIDs()
+        {
+            // Arrange && Act
+            IEnumerable<PluginReference> plugins = this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
+
+            Guid duplicatePluginID = Guid.Parse("45bc53be-bff0-4f46-ad13-d483004cd8c8");
+
+            List<PluginReference> groupedPlugins = [.. plugins.Where(p => p.Metadata.PluginID == duplicatePluginID)];
+
+            // Assert
+            Assert.AreEqual(1, groupedPlugins.Count, "Duplicate plugins with same metadata should be filtered out");
         }
 
         #endregion

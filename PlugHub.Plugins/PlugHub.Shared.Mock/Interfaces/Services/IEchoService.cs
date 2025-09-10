@@ -1,4 +1,4 @@
-﻿namespace PlugHub.Shared.Mock.Interfaces
+﻿namespace PlugHub.Shared.Mock.Interfaces.Services
 {
     /// <summary>
     /// Event arguments for the <see cref="IEchoService.MessageReceived"/> event.
@@ -41,7 +41,7 @@
     /// Defines an echo service interface for plugins.
     /// Provides an Echo method and an event triggered when a message is echoed.
     /// </summary>
-    public interface IEchoService : ISharedMock
+    public interface IEchoService
     {
         /// <summary>
         /// Event raised each time a message is echoed via the <see cref="Echo"/> method.

@@ -1,7 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using PlugHub.Plugin.Mock.Services;
+using PlugHub.Plugin.Mock.ViewModels;
+using PlugHub.Plugin.Mock.Views;
+using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Plugins;
-using PlugHub.Shared.Mock.Interfaces;
+using PlugHub.Shared.Interfaces.Services.Configuration;
+using PlugHub.Shared.Mock.Interfaces.Services;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Models.Plugins;
@@ -18,11 +22,18 @@ namespace PlugHub.Plugin.Mock
 
     /// <summary>
     /// Demonstration plugin showcasing PlugHub's multi-interface architecture.
-    /// Implements branding (application identity override), configuration (token-secured configuration), 
-    /// and dependency injection (service provision to other plugins) simultaneously.
+    /// Implements branding (application identity override), configuration (token-secured configuration), and dependency injection (service provision to other plugins) simultaneously.
     /// </summary>
-    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginConfiguration
+    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginConfiguration, IPluginStyleInclusion, IPluginPages, IPluginSettingsPages
     {
+        private static Token owner;
+
+        public PluginMock()
+        {
+            if (owner == Guid.Empty)
+                owner = Token.New();
+        }
+
         #region PluginMock: Key Fields
 
         public new static Guid PluginID { get; } = Guid.Parse("8e4c7077-e57a-46fc-b4fa-15ebba04ee65");
@@ -33,9 +44,11 @@ namespace PlugHub.Plugin.Mock
         public new static string Author { get; } = "Enterlucent";
         public new static List<string> Categories { get; } =
         [
-            "TestHarness",
             "Diagnostics",
+            "Branding",
+            "Services",
             "Pages",
+            "Settings",
         ];
 
         #endregion
@@ -83,9 +96,12 @@ namespace PlugHub.Plugin.Mock
         #region PluginMock: IPluginAppConfig
 
         /// <summary>
-        /// Demonstrates complete application rebranding - transforms PlugHub into "MockHub" 
-        /// with custom paths and identity.
+        /// Demonstrates full application rebranding — renames PlugHub to "MockHub" and overrides default paths.
         /// </summary>
+        /// <remarks>
+        /// Only applies during the **system-level load phase** (global <c>PluginManifest</c>).
+        /// User-level plugins cannot modify <see cref="AppConfig"/>.
+        /// </remarks>
         public IEnumerable<PluginAppConfigDescriptor> GetAppConfigDescriptors()
         {
             return [
@@ -114,12 +130,13 @@ namespace PlugHub.Plugin.Mock
         #region PluginMock: IPluginConfiguration
 
         /// <summary>
-        /// Demonstrates token-secured configuration management with Owner/Read/Write permissions.
+        /// Demonstrates token-secured configuration where only the Owner token has write access, while others have read or no permissions.
         /// </summary>
+        /// <remarks>
+        /// The Owner token is created and cached in the plugin constructor for use in configuration access.
+        /// </remarks>
         public IEnumerable<PluginConfigurationDescriptor> GetConfigurationDescriptors()
         {
-            Token owner = Token.New();
-
             return [
                 new PluginConfigurationDescriptor(
                     PluginID: PluginID,
@@ -134,6 +151,101 @@ namespace PlugHub.Plugin.Mock
                     LoadAfter: [],
                     ConflictsWith: [],
                     DependsOn: [])
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginStyleInclusion
+
+        /// <summary>
+        /// Demonstrates how a plugin can contribute XAML style resources (icons, themes, control templates) that are merged into the host application.
+        /// This allows plugins to visually extend or customize the UI consistently.
+        /// </summary>
+        public IEnumerable<PluginStyleIncludeDescriptor> GetStyleIncludeDescriptors()
+        {
+            return [
+                new PluginStyleIncludeDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("f9e88050-b8c3-43b3-b76e-79f16595acff"),
+                    Version: Version,
+                    "avares://PlugHub.Plugin.Mock/Styles/Icons.axaml",
+                    null,
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []
+                )
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginPages
+
+        /// <summary>
+        /// Adds navigable pages to the application's primary interface. 
+        /// In this case the plugin provides a "Mock Page" which can be opened like any other feature page, showing data or controls driven by the plugin’s services.
+        /// </summary>
+        public IEnumerable<PluginPageDescriptor> GetPageDescriptors()
+        {
+            return [
+                new PluginPageDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("f9e88050-b8c3-43b3-b76e-79f16595acff"),
+                    Version: Version,
+                    ViewType: typeof(MockPageView),
+                    ViewModelType: typeof(MockPageViewModel),
+                    Name: "Mock Page",
+                    IconSource: "tab_desktop_new_page_regular",
+                    ViewFactory: (IServiceProvider provider) => new MockPageView(),
+                    ViewModelFactory: (IServiceProvider provider) =>
+                    {
+                        IEchoService? echoService = provider.GetService<IEchoService>();
+
+                        return new MockPageViewModel(echoService);
+                    },
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []
+                )
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginSettingsPages
+
+        /// <summary>
+        /// Integrates plugin‑specific configuration views into the global settings experience of the host application. 
+        /// This enables end users to edit and persist plugin configuration (e.g., <see cref="PluginMockConfig"/>) through a familiar settings UI rather than editing files manually.
+        /// </summary>
+        public List<SettingsPageDescriptor> GetSettingsPageDescriptors()
+        {
+            return [
+                new SettingsPageDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("d9d8b10c-3bb2-42ca-9fd3-853f2d631e0d"),
+                    Version: Version,
+                    ViewType: typeof(MockSettingsView),
+                    ViewModelType: typeof(MockSettingsViewModel),
+                    Group: "Mock Settings",
+                    Name: "General",
+                    IconSource: "book_question_mark_regular",
+                    ViewFactory: (IServiceProvider provider) => new MockSettingsView(),
+                    ViewModelFactory: (IServiceProvider provider) => {
+
+                        IConfigService configService = provider.GetRequiredService<IConfigService>();
+                        IConfigAccessorFor<PluginMockConfig> accessor = configService.GetAccessor<PluginMockConfig>(owner: owner);
+
+                        return new MockSettingsViewModel(accessor);
+                    },
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []
+                )
             ];
         }
 

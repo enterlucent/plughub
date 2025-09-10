@@ -33,12 +33,15 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
-  </ItemGroup>
+  </ItemGroup>  
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\ic_fluent_chat_24_regular.png" />
+    <AvaloniaResource Include="Assets\ic_fluent_link_24_filled.png" />
+    <AvaloniaResource Include="Assets\ic_fluent_link_dismiss_24_filled.png" />
+    <AvaloniaResource Include="Styles\Icons.axaml" />
   </ItemGroup>
- 
+  
   <ItemGroup>
     <ProjectReference Include="..\..\PlugHub.Shared\PlugHub.Shared.csproj" />
     <ProjectReference Include="..\PlugHub.Shared.Mock\PlugHub.Shared.Mock.csproj" />
