@@ -62,7 +62,7 @@
     </ItemGroup>
     <ItemGroup>
       <PluginArtifacts Include="@(PluginArtifactsRaw)">
-        <PluginName>$([System.Text.RegularExpressions.Regex]::Match('%(PluginArtifactsRaw.Identity)', 'PlugHub\.Plugins\\(.+?)\\bin').Groups[1].Value)</PluginName>
+        <PluginName>$([System.Text.RegularExpressions.Regex]::Match('%(PluginArtifactsRaw.Identity)', 'PlugHub\.Plugins[\\/](.+?)[\\/]bin').Groups[1].Value)</PluginName>
       </PluginArtifacts>
     </ItemGroup>
     <Copy SourceFiles="@(PluginArtifacts)" DestinationFiles="@(PluginArtifacts->'$(PublishDir)Plugins\%(PluginName)\%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
@@ -87,7 +87,7 @@
     </ItemGroup>
     <ItemGroup>
       <PluginArtifacts Include="@(PluginArtifactsRaw)">
-        <PluginName>$([System.Text.RegularExpressions.Regex]::Match('%(PluginArtifactsRaw.Identity)', 'PlugHub\.Plugins\\(.+?)\\bin').Groups[1].Value)</PluginName>
+        <PluginName>$([System.Text.RegularExpressions.Regex]::Match('%(PluginArtifactsRaw.Identity)', 'PlugHub\.Plugins[\\/](.+?)[\\/]bin').Groups[1].Value)</PluginName>
       </PluginArtifacts>
     </ItemGroup>
     <Copy SourceFiles="@(PluginArtifacts)" DestinationFiles="@(PluginArtifacts->'$(OutputPath)Plugins\%(PluginName)\%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
