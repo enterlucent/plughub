@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\PlugHub.Shared\PlugHub.Shared.csproj" />
+    <ProjectReference Include="..\..\..\PlugHub.Shared\PlugHub.Shared.csproj" />
   </ItemGroup>
 
 </Project>
