@@ -133,7 +133,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             Guid sharedInterfaceId = Guid.NewGuid();
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            var version = "1.0.0";
+            string version = "1.0.0";
 
             // Create two descriptors with the same InterfaceID (duplicate)
             List<TestPluginDescriptor> descriptors =

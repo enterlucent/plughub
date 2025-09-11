@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Models.Plugins;
+﻿using PlugHub.Shared.Attributes;
+using PlugHub.Shared.Models.Plugins;
 
 namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
@@ -14,6 +15,14 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
         /// <param name="pluginDirectory">The file system directory to scan for plugin assemblies.</param>
         /// <returns>A collection of <see cref="PluginReference"/> objects representing each discovered plugin and its interfaces.</returns>
         IEnumerable<PluginReference> Discover(string pluginDirectory);
+
+        /// <summary>
+        /// Retrieves the <see cref="DescriptorProviderAttribute"/> applied to the specified interface by its full name.
+        /// Searches all loaded assemblies for the interface type and returns the attribute instance if found; otherwise, returns null.
+        /// </summary>
+        /// <param name="interfaceFullName">The full name (namespace + interface name) of the interface to inspect.</param>
+        /// <returns>The <see cref="DescriptorProviderAttribute"/> instance if found on the interface; otherwise, null.</returns>
+        DescriptorProviderAttribute? GetDescriptorProviderAttribute(string interfaceFullName);
 
         /// <summary>
         /// Loads and returns an implementation instance for a given plugin interface, cast to the specified type.

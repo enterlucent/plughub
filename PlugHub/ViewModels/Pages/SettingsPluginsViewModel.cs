@@ -247,13 +247,13 @@ namespace PlugHub.ViewModels.Pages
             this.isUpdating = true;
             this.isPluginCheckboxUpdating = true;
 
-            bool hasDefault = plugin.ProvidedDescriptors.Any(i => i.IsSystem);
             bool isIndeterminate = plugin.IsEnabled == null;
 
             if (isIndeterminate == false)
             {
                 foreach (PluginDescriptorViewModel ifaceVm in plugin.ProvidedDescriptors)
-                    ifaceVm.IsEnabled = true;
+                    if (!ifaceVm.IsSystem)
+                        ifaceVm.IsEnabled = true;
 
                 this.pluginRegistrar.SetAllEnabled(plugin.PluginID, enabled: true);
 
@@ -262,9 +262,8 @@ namespace PlugHub.ViewModels.Pages
             else
             {
                 foreach (PluginDescriptorViewModel ifaceVm in plugin.ProvidedDescriptors)
-                {
-                    ifaceVm.IsEnabled = ifaceVm.IsSystem;
-                }
+                    if (!ifaceVm.IsSystem)
+                        ifaceVm.IsEnabled = false;
 
                 this.pluginRegistrar.SetAllEnabled(plugin.PluginID, enabled: false);
 
@@ -276,7 +275,9 @@ namespace PlugHub.ViewModels.Pages
                     this.pluginRegistrar.SetEnabled(plugin.PluginID, interfaceType, enabled: true);
                 }
 
-                plugin.IsEnabled = hasDefault ? null : false;
+                bool anyEnabled = plugin.ProvidedDescriptors.Any(i => i.IsEnabled);
+
+                plugin.IsEnabled = anyEnabled ? null : false;
             }
 
             this.UpdateShowRestartBanner();

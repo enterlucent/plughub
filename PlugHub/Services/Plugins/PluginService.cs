@@ -24,7 +24,7 @@ namespace PlugHub.Services.Plugins
             this.logger = logger;
         }
 
-        #region PlugHub.Services.PluginService Plugin Instances
+        #region PluginService: Plugin Instances
 
         public TPlugin? GetLoadedPlugin<TPlugin>(PluginInterface pluginInterface) where TPlugin : PluginBase
         {
@@ -98,7 +98,38 @@ namespace PlugHub.Services.Plugins
 
         #endregion
 
-        #region PlugHub.Services.PluginService: Discovery
+        #region PluginService: Plugin Interface Data
+
+        public DescriptorProviderAttribute? GetDescriptorProviderAttribute(string interfaceFullName)
+        {
+            if (string.IsNullOrWhiteSpace(interfaceFullName))
+                throw new ArgumentNullException(nameof(interfaceFullName));
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type? interfaceType = null;
+
+                try
+                {
+                    interfaceType = assembly.GetType(interfaceFullName, throwOnError: false, ignoreCase: false);
+                }
+                catch { /* nothing to see here */ }
+
+                if (interfaceType != null && interfaceType.IsInterface)
+                {
+                    DescriptorProviderAttribute? attr = 
+                        interfaceType.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
+
+                    if (attr != null) return attr;
+                }
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region PluginService: Discovery
 
         public IEnumerable<PluginReference> Discover(string pluginDirectory)
         {

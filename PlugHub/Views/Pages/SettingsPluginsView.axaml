@@ -563,7 +563,7 @@
 
         </StackPanel>
 
-        <!-- List Section fills remaining space -->
+        <!-- Interface DataGrid -->
         <DataGrid Grid.Row="1"
                   Margin="0,8,0,0"
                   Name="TargetDataGrid"
@@ -575,6 +575,7 @@
                   BorderThickness="1"
                   BorderBrush="Gray"
                   CornerRadius="4">
+
           <DataGrid.Columns>
             <DataGridTemplateColumn Header="Plugin" Width="4*">
               <DataGridTemplateColumn.CellTemplate>
@@ -591,9 +592,10 @@
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
           </DataGrid.Columns>
+
         </DataGrid>
 
-        <!-- Metadata panel below DataGrid in same Grid (Grid.Row=2 or below) -->
+        <!-- Interface Details Panel -->
         <HeaderedContentControl Grid.Row="2"
                                 Classes="GroupBox"
                                 Header="Descriptor Details"

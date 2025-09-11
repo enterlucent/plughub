@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using PlugHub.Models;
 using PlugHub.Services.Configuration;
 using PlugHub.Services.Plugins;
+using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services;
@@ -23,6 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -30,16 +32,19 @@ namespace PlugHub.Bootstrap
 {
     internal class Bootstrapper
     {
-        public static IServiceProvider BuildEnv(IServiceCollection services, IConfigService baseConfigService, TokenSet tokenSet, AppConfig baseConfig)
+        public static IServiceProvider BuildEnv(IServiceCollection services, IConfigService baseConfigService, TokenSet tokenSet, AppConfig baseConfig, AppEnv baseEnv)
         {
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(baseConfigService);
             ArgumentNullException.ThrowIfNull(tokenSet);
             ArgumentNullException.ThrowIfNull(baseConfig);
+            ArgumentNullException.ThrowIfNull(baseEnv);
 
             PluginManifest baseManifest;
-            AppConfig sysConfig;
+            AppConfig sysAppConfig;
+            AppEnv sysAppEnv;
             PluginManifest pluginManifest;
+            AppEnv userAppEnv;
 
             CollectServices(services, tokenSet);
             CollectViewModels(services);
@@ -50,36 +55,41 @@ namespace PlugHub.Bootstrap
             // Build a temporary DI provider (to resolve things like logging, services, etc.)
             using (ServiceProvider tempProvider = services.BuildServiceProvider())
             {
-                // Load the *base PluginManifest* (system-level plugin config) 
-                //         from disk if it exists in AppContext.BaseDirectory
+                // Load the *base PluginManifest* (system-level plugin config) from disk if it exists in AppContext.BaseDirectory
                 baseManifest = GetPluginManifest(baseConfigService, tokenSet, AppContext.BaseDirectory);
 
                 // If the base AppConfig specifies a plugin folder, discover & register those plugins
-                if (!string.IsNullOrWhiteSpace(baseConfig.PluginFolderPath))
-                    plugins = RegisterPlugins(tempProvider, services, baseManifest, baseConfig.PluginFolderPath, plugins);
+                if (!string.IsNullOrWhiteSpace(baseConfig.PluginDirectory))
+                    plugins = RegisterPlugins(tempProvider, services, baseManifest, baseConfig.PluginDirectory, plugins);
             }
 
             // Build a temporary DI provider including system plugins
             using (ServiceProvider tempProvider = services.BuildServiceProvider())
             {
                 // Apply system-plugin-provided AppConfig mutations 
-                //         (Plugins can override or extend AppConfig here)
-                sysConfig = PluginsAppConfig(tempProvider, baseConfig);
+                sysAppConfig = PluginsAppConfig(tempProvider, baseConfig);
+
+                // Apply system-plugin-provided AppEnv mutations 
+                sysAppEnv = PluginsAppEnv(tempProvider, baseEnv);
 
                 // Merge user manifest with the base manifest and discovered plugin states
-                pluginManifest = ResolvePluginManifest(tempProvider, baseConfigService, tokenSet, sysConfig, baseManifest);
+                pluginManifest = ResolvePluginManifest(tempProvider, baseConfigService, tokenSet, sysAppConfig, baseManifest);
 
-                if (!string.IsNullOrWhiteSpace(sysConfig.PluginFolderPath))
-                    plugins = RegisterPlugins(tempProvider, services, pluginManifest, sysConfig.PluginFolderPath, plugins);
+                if (!string.IsNullOrWhiteSpace(sysAppConfig.PluginDirectory))
+                    plugins = RegisterPlugins(tempProvider, services, pluginManifest, sysAppConfig.PluginDirectory, plugins);
+
+                // Apply user-plugin-provided AppEnv mutations 
+                userAppEnv = PluginsAppEnv(tempProvider, sysAppEnv);
 
                 // Persist a cache of the loaded plugin references
                 services.AddSingleton<IPluginCache>(new PluginCache(plugins));
 
-                SaveAppConfig(baseConfigService, tokenSet, sysConfig);
-                SavePluginManifest(baseConfigService, tokenSet, sysConfig, pluginManifest);
+                SaveAppConfig(baseConfigService, tokenSet, sysAppConfig);
+                SaveAppEnv(baseConfigService, tokenSet, sysAppConfig, userAppEnv);
+                SavePluginManifest(baseConfigService, tokenSet, sysAppConfig, pluginManifest);
 
                 // Register a ConfigService instance bound to the plugin AppConfig
-                services.AddSingleton(ConfigService.GetInstance(services, sysConfig));
+                services.AddSingleton(ConfigService.GetInstance(services, sysAppConfig));
             }
 
             // Build the *final* DI provider including plugins and configs
@@ -165,24 +175,37 @@ namespace PlugHub.Bootstrap
 
             IPluginService pluginService = provider.GetRequiredService<IPluginService>();
 
-            PluginManifest userManifest = new();
-            IEnumerable<PluginReference> discoveredPlugins = [];
-            HashSet<(Guid PluginId, string InterfaceName)> mergedKeys = [];
-            List<PluginLoadState> mergedStates = [];
+            PluginManifest userManifest = !string.IsNullOrWhiteSpace(appConfig.ConfigDirectory)
+                ? GetPluginManifest(configService, tokenSet, appConfig.ConfigDirectory)
+                : new PluginManifest();
 
-            if (!string.IsNullOrWhiteSpace(appConfig.ConfigDirectory))
-                userManifest = GetPluginManifest(configService, tokenSet, appConfig.ConfigDirectory);
+            IEnumerable<PluginReference> discoveredPlugins = !string.IsNullOrWhiteSpace(appConfig.PluginDirectory)
+                ? pluginService.Discover(appConfig.PluginDirectory)
+                : [];
 
-            if (!string.IsNullOrWhiteSpace(appConfig.PluginFolderPath))
-                discoveredPlugins = pluginService.Discover(appConfig.PluginFolderPath);
+            List<PluginLoadState> mergedStates = MergePluginManifest(baseManifest, userManifest);
 
-            Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey =
-                userManifest.InterfaceStates.ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
+            userManifest.InterfaceStates = mergedStates;
+
+            PluginManifest syncedManifest = SynchronizePluginConfig(userManifest, discoveredPlugins);
+
+            NormalizePluginManifest(syncedManifest, baseManifest, pluginService);
+
+            Log.Information("[Bootstrapper] Resolved and synchronized plugin manifest with {PluginCount} interface states and {DiscoveredCount} discovered plugins.", syncedManifest.InterfaceStates?.Count ?? 0, discoveredPlugins.Count());
+
+            return syncedManifest;
+        }
+        private static List<PluginLoadState> MergePluginManifest(PluginManifest baseManifest, PluginManifest userManifest)
+        {
+            List<PluginLoadState> mergedStates = new List<PluginLoadState>();
+            Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey = userManifest.InterfaceStates
+                .ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
+
+            HashSet<(Guid, string)> mergedKeys = new HashSet<(Guid, string)>();
 
             foreach (PluginLoadState systemState in baseManifest.InterfaceStates)
             {
-                (Guid PluginId, string InterfaceName) key =
-                    (systemState.PluginId, systemState.InterfaceName);
+                (Guid PluginId, string InterfaceName) key = (systemState.PluginId, systemState.InterfaceName);
 
                 if (userStatesByKey.TryGetValue(key, out PluginLoadState? userState))
                 {
@@ -191,22 +214,18 @@ namespace PlugHub.Bootstrap
                     userState.Enabled = systemState.Enabled;
                     userState.LoadOrder = systemState.LoadOrder;
                     userState.System = true;
-
                     mergedStates.Add(userState);
                 }
                 else
                 {
-                    PluginLoadState imposedCopy = new(
+                    mergedStates.Add(new PluginLoadState(
                         systemState.PluginId,
                         systemState.AssemblyName,
                         systemState.ClassName,
                         systemState.InterfaceName,
                         true,
                         systemState.Enabled,
-                        systemState.LoadOrder);
-
-                    mergedStates.Add(imposedCopy);
-
+                        systemState.LoadOrder));
                     Log.Information("[Bootstrapper] Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
                 }
 
@@ -214,16 +233,37 @@ namespace PlugHub.Bootstrap
             }
 
             foreach (KeyValuePair<(Guid PluginId, string InterfaceName), PluginLoadState> kvp in userStatesByKey)
+            {
                 if (!mergedKeys.Contains(kvp.Key))
                     mergedStates.Add(kvp.Value);
+            }
 
-            userManifest.InterfaceStates = mergedStates;
+            return mergedStates;
+        }
+        private static void NormalizePluginManifest(PluginManifest syncedManifest, PluginManifest baseManifest, IPluginService pluginService)
+        {
+            Dictionary<string, DescriptorProviderAttribute?> attributeCache = new Dictionary<string, DescriptorProviderAttribute?>();
 
-            PluginManifest synced = SynchronizePluginConfig(userManifest, discoveredPlugins);
+            foreach (PluginLoadState state in syncedManifest.InterfaceStates)
+            {
+                if (!attributeCache.TryGetValue(state.InterfaceName, out DescriptorProviderAttribute? dpa))
+                {
+                    dpa = pluginService.GetDescriptorProviderAttribute(state.InterfaceName);
+                    attributeCache[state.InterfaceName] = dpa;
+                }
 
-            Log.Information("[Bootstrapper] Resolved and synchronized plugin manifest with {PluginCount} interface states and {DiscoveredCount} discovered plugins.", synced.InterfaceStates?.Count ?? 0, discoveredPlugins.Count());
+                if (dpa != null)
+                {
+                    bool isInBaseManifest = baseManifest.InterfaceStates.Any(
+                        m => m.PluginId == state.PluginId && m.InterfaceName == state.InterfaceName);
 
-            return synced;
+                    if (!isInBaseManifest && dpa.DescriptorIsSystemOnly)
+                    {
+                        state.Enabled = false;
+                        state.System = true;
+                    }
+                }
+            }
         }
         private static PluginManifest SynchronizePluginConfig(PluginManifest pluginManifest, IEnumerable<PluginReference> plugins)
         {
@@ -278,6 +318,35 @@ namespace PlugHub.Bootstrap
             catch (Exception ex)
             {
                 Log.Error(ex, "[Bootstrapper] Failed to save AppConfig to {ConfigPath}", configPath);
+            }
+        }
+        private static void SaveAppEnv(IConfigService configService, TokenSet tokenSet, AppConfig appConfig, AppEnv appEnv)
+        {
+            ArgumentNullException.ThrowIfNull(configService);
+            ArgumentNullException.ThrowIfNull(appEnv);
+            ArgumentNullException.ThrowIfNull(tokenSet);
+
+            JsonSerializerOptions options = new() { WriteIndented = false };
+
+            string configPath = Path.Combine(appConfig.ConfigDirectory ?? AppContext.BaseDirectory, "AppEnv.json");
+
+            configService.RegisterConfig(
+                new FileConfigServiceParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
+                out IConfigAccessorFor<AppEnv>? accessor);
+
+            AppEnv persistAppEnv = accessor.Get();
+
+            string appLocalJson = JsonSerializer.Serialize(appEnv, options);
+            string appPersistJson = JsonSerializer.Serialize(persistAppEnv, options);
+
+            try
+            {
+                if (appLocalJson != appPersistJson)
+                    Task.Run(() => accessor.SaveAsync(appEnv)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Bootstrapper] Failed to save AppEnv to {ConfigPath}", configPath);
             }
         }
         private static void SavePluginManifest(IConfigService configService, TokenSet tokenSet, AppConfig appConfig, PluginManifest pluginManifest)
@@ -543,9 +612,9 @@ namespace PlugHub.Bootstrap
 
             List<PluginAppConfigDescriptor> allDescriptors = [];
 
-            foreach (IPluginAppConfig brandingPlugin in appConfigPlugins)
+            foreach (IPluginAppConfig appConfigPlugin in appConfigPlugins)
             {
-                IEnumerable<PluginAppConfigDescriptor> descriptors = brandingPlugin.GetAppConfigDescriptors();
+                IEnumerable<PluginAppConfigDescriptor> descriptors = appConfigPlugin.GetAppConfigDescriptors();
 
                 allDescriptors.AddRange(descriptors);
             }
@@ -567,6 +636,41 @@ namespace PlugHub.Bootstrap
             Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", allDescriptors.Count);
 
             return appConfig;
+        }
+        private static AppEnv PluginsAppEnv(IServiceProvider provider, AppEnv appEnv)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            ArgumentNullException.ThrowIfNull(appEnv);
+
+            IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
+            IEnumerable<IPluginAppEnv> appConfigEnvPlugins = provider.GetServices<IPluginAppEnv>();
+
+            List<PluginAppEnvDescriptor> allDescriptors = [];
+
+            foreach (IPluginAppEnv appEnvPlugin in appConfigEnvPlugins)
+            {
+                IEnumerable<PluginAppEnvDescriptor> descriptors = appEnvPlugin.GetAppEnvDescriptors();
+
+                allDescriptors.AddRange(descriptors);
+            }
+
+            PluginAppEnvDescriptor[] reverseSortedDescriptors = [.. pluginResolver.ResolveDescriptors(allDescriptors).Reverse()];
+
+            foreach (PluginAppEnvDescriptor descriptor in reverseSortedDescriptors)
+            {
+                try
+                {
+                    descriptor.AppEnv?.Invoke(appEnv);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
+                }
+            }
+
+            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", allDescriptors.Count);
+
+            return appEnv;
         }
 
         private static void PluginsConfigs(IServiceProvider provider)

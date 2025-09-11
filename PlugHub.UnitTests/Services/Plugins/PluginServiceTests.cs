@@ -291,6 +291,51 @@ namespace PlugHub.UnitTests.Services.Plugins
 
         #endregion
 
+        #region PluginServiceTests: Descriptor Attributes
+
+        [TestMethod]
+        [TestCategory("DescriptorAttributes")]
+        public void GetDescriptorAttribute_ShouldReturnAttribute_ForValidInterface()
+        {
+            // Arrange
+            string interfaceName = "PlugHub.Shared.Interfaces.Plugins.IPluginAppConfig";
+
+            // Act
+            Shared.Attributes.DescriptorProviderAttribute? attribute = 
+                this.pluginService!.GetDescriptorProviderAttribute(interfaceName);
+
+            // Assert
+            Assert.IsNotNull(attribute, "Expected to find DescriptorAttribute on the interface.");
+            Assert.AreEqual("GetAppConfigDescriptors", attribute.DescriptorAccessorName);
+        }
+
+        [TestMethod]
+        [TestCategory("DescriptorAttributes")]
+        public void GetDescriptorAttribute_ShouldReturnNull_ForNonExistentInterface()
+        {
+            // Arrange
+            string interfaceName = "Non.Existent.Namespace.INonExistentInterface";
+
+            // Act
+            Shared.Attributes.DescriptorProviderAttribute? attribute = this.pluginService!.GetDescriptorProviderAttribute(interfaceName);
+
+            // Assert
+            Assert.IsNull(attribute, "Expected null for a non-existent interface.");
+        }
+
+        [TestMethod]
+        [TestCategory("DescriptorAttributes")]
+        public void GetDescriptorAttribute_ShouldThrow_OnNullOrEmptyInput()
+        {
+            // Arrange & Act & Assert
+            Assert.ThrowsException<ArgumentNullException>(() =>
+            {
+                this.pluginService!.GetDescriptorProviderAttribute(string.Empty);
+            });
+        }
+
+        #endregion
+
 
         private IEchoService GetEchoService(bool forceRebuild = false)
         {

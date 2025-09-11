@@ -46,12 +46,6 @@ namespace PlugHub.Shared.Models
     public sealed class AppConfig
     {
         /// <summary>
-        /// Gets or sets the display name of the application.
-        /// Used in logging, UI elements, and configuration file naming.
-        /// </summary>
-        public string? AppName { get; set; } = "PlugHub";
-
-        /// <summary>
         /// Gets or sets the root directory for all PlugHub application data.
         /// Defaults to %APPDATA%\PlugHub on Windows or equivalent on other platforms.
         /// </summary>
@@ -106,7 +100,7 @@ namespace PlugHub.Shared.Models
         /// Used by plugins and the core application for persistent data storage.
         /// Defaults to a "Storage" subdirectory within the base directory.
         /// </summary>
-        public string? StorageFolderPath { get; set; }
+        public string? StorageDirectory { get; set; }
             = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlugHub", "Storage");
 
         #endregion
@@ -118,7 +112,7 @@ namespace PlugHub.Shared.Models
         /// Defaults to a "Plugins" subdirectory within the application's base directory,
         /// making it suitable for portable deployments and easy plugin management.
         /// </summary>
-        public string? PluginFolderPath { get; set; }
+        public string? PluginDirectory { get; set; }
             = Path.Combine(AppContext.BaseDirectory, "Plugins");
 
         #endregion

@@ -60,7 +60,7 @@ namespace PlugHub.Services.Plugins
             HashSet<TDescriptor> duplicates = [];
             HashSet<Guid> seenIDs = [];
 
-            foreach (var descriptor in descriptors)
+            foreach (TDescriptor descriptor in descriptors)
             {
                 if (seenIDs.Add(descriptor.DescriptorID))
                     cleanDescriptors.Add(descriptor);

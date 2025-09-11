@@ -34,13 +34,16 @@ namespace PlugHub
     public partial class App : Application
     {
         private static IServiceProvider? serviceProvider;
-        private static readonly ServiceCollection services = new();
-        private static readonly AppConfig appConfig = new();
-        private static readonly TokenSet tokenSet = new(Token.New(), Token.Public, Token.Blocked);
+
 
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
+
+            ServiceCollection services = new();
+            AppConfig appConfig = new();
+            AppEnv appEnv = new();
+            TokenSet tokenSet = new(Token.New(), Token.Public, Token.Blocked);
 
             services.AddLogging(builder =>
             {
@@ -48,7 +51,6 @@ namespace PlugHub
 
                 Log.Logger = new LoggerConfiguration()
                     .MinimumLevel.Information()
-                    //.WriteTo.File(Path.Combine(temp, $"plughub-{Environment.ProcessId}.log"), rollingInterval: RollingInterval.Day)
                     .WriteTo.File(Path.Combine(temp, $"plughub.log"), rollingInterval: RollingInterval.Infinite)
                     .CreateLogger();
 
@@ -62,10 +64,11 @@ namespace PlugHub
             IConfigService configService = ConfigService.GetInstance(services, appConfig);
 
             AppConfig baseConfig = GetBaseAppConfig(configService, appConfig, tokenSet);
+            AppEnv baseEnv = GetBaseAppEnv(configService, appEnv, tokenSet);
 
             ConfigService.GetEnvConfig().Bind(baseConfig);
 
-            serviceProvider = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig);
+            serviceProvider = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig, baseEnv);
 
             ConfigureSystemLogs(configService, tokenSet);
             ConfigureStorageLocation(serviceProvider, configService, tokenSet);
@@ -98,7 +101,7 @@ namespace PlugHub
         {
             (serviceProvider as IDisposable)?.Dispose();
 
-            Serilog.Log.CloseAndFlush();
+            Log.CloseAndFlush();
         }
         private static void DisableAvaloniaDataAnnotationValidation()
         {
@@ -213,7 +216,7 @@ namespace PlugHub
             IConfigAccessorFor<AppConfig> configAccessor = configService.GetAccessor<AppConfig>(tokenSet);
             ISecureStorage secureStorage = provider.GetRequiredService<ISecureStorage>();
 
-            string? storageFolder = configAccessor.Get().StorageFolderPath;
+            string? storageFolder = configAccessor.Get().StorageDirectory;
 
             if (storageFolder != null)
                 secureStorage.Initialize(storageFolder);
@@ -235,7 +238,7 @@ namespace PlugHub
 
                 AppConfig? loadedConfig = accessor?.Get() ?? new AppConfig();
 
-                foreach (PropertyInfo prop in typeof(AppConfig).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                foreach (PropertyInfo prop in typeof(AppConfig).GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
                     if (prop.CanRead && prop.CanWrite)
                     {
@@ -249,6 +252,34 @@ namespace PlugHub
                 configService.UnregisterConfig(typeof(AppConfig), tokenSet);
             }
             return config;
+        }
+        private static AppEnv GetBaseAppEnv(IConfigService configService, AppEnv env, TokenSet tokenSet)
+        {
+            string configFilePath = Path.Combine(AppContext.BaseDirectory, "AppEnv.json");
+
+            if (PlatformPath.Exists(configFilePath))
+            {
+                configService.RegisterConfig(
+                    new FileConfigServiceParams(configFilePath, Owner: tokenSet.Owner),
+                    out IConfigAccessorFor<AppEnv>? accessor);
+
+                AppEnv? loadedEnv = accessor?.Get() ?? new AppEnv();
+
+                foreach (PropertyInfo prop in typeof(AppEnv).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (prop.CanRead && prop.CanWrite)
+                    {
+                        object? loadedValue = prop.GetValue(loadedEnv);
+
+                        if (loadedValue != null)
+                            prop.SetValue(env, loadedValue);
+                    }
+                }
+
+                configService.UnregisterConfig(typeof(AppEnv), tokenSet);
+            }
+
+            return env;
         }
 
         #endregion

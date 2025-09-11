@@ -24,7 +24,7 @@ namespace PlugHub.Plugin.Mock
     /// Demonstration plugin showcasing PlugHub's multi-interface architecture.
     /// Implements branding (application identity override), configuration (token-secured configuration), and dependency injection (service provision to other plugins) simultaneously.
     /// </summary>
-    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginConfiguration, IPluginStyleInclusion, IPluginPages, IPluginSettingsPages
+    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginAppEnv, IPluginConfiguration, IPluginStyleInclusion, IPluginPages, IPluginSettingsPages
     {
         private static Token owner;
 
@@ -99,7 +99,7 @@ namespace PlugHub.Plugin.Mock
         /// Demonstrates full application rebranding — renames PlugHub to "MockHub" and overrides default paths.
         /// </summary>
         /// <remarks>
-        /// Only applies during the **system-level load phase** (global <c>PluginManifest</c>).
+        /// Only applies during the **system-level load phase**
         /// User-level plugins cannot modify <see cref="AppConfig"/>.
         /// </remarks>
         public IEnumerable<PluginAppConfigDescriptor> GetAppConfigDescriptors()
@@ -110,13 +110,36 @@ namespace PlugHub.Plugin.Mock
                     DescriptorID: Guid.Parse("f26d3290-c059-4641-8280-d229ee2c2c32"),
                     Version: Version,
                     AppConfig: (AppConfig liveAppConfig) => {
-                        liveAppConfig.AppName = "👽 MockHub 👽";
                         liveAppConfig.LoggingDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Logging");
                         liveAppConfig.ConfigDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Config");
-                        liveAppConfig.StorageFolderPath =
+                        liveAppConfig.StorageDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Storage");
+                    },
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: [])
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginAppConfig
+
+        /// <summary>
+        /// Demonstrates full application rebranding — renames PlugHub to "MockHub" and overrides default paths.
+        /// </summary>
+        public IEnumerable<PluginAppEnvDescriptor> GetAppEnvDescriptors()
+        {
+            return [
+                new PluginAppEnvDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("ba543295-88e8-474a-b370-74594dcc76a8"),
+                    Version: Version,
+                    AppEnv: (AppEnv liveAppEnv) => {
+                        liveAppEnv.AppName = "👽 MockHub 👽";
                     },
                     LoadBefore: [],
                     LoadAfter: [],
