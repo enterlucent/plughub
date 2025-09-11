@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Markup.Xaml.Styling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -197,11 +198,10 @@ namespace PlugHub.Bootstrap
         }
         private static List<PluginLoadState> MergePluginManifest(PluginManifest baseManifest, PluginManifest userManifest)
         {
-            List<PluginLoadState> mergedStates = new List<PluginLoadState>();
+            List<PluginLoadState> mergedStates = [];
             Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey = userManifest.InterfaceStates
                 .ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
-
-            HashSet<(Guid, string)> mergedKeys = new HashSet<(Guid, string)>();
+            HashSet<(Guid, string)> mergedKeys = [];
 
             foreach (PluginLoadState systemState in baseManifest.InterfaceStates)
             {
@@ -226,6 +226,7 @@ namespace PlugHub.Bootstrap
                         true,
                         systemState.Enabled,
                         systemState.LoadOrder));
+
                     Log.Information("[Bootstrapper] Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
                 }
 
@@ -233,16 +234,14 @@ namespace PlugHub.Bootstrap
             }
 
             foreach (KeyValuePair<(Guid PluginId, string InterfaceName), PluginLoadState> kvp in userStatesByKey)
-            {
                 if (!mergedKeys.Contains(kvp.Key))
                     mergedStates.Add(kvp.Value);
-            }
 
             return mergedStates;
         }
         private static void NormalizePluginManifest(PluginManifest syncedManifest, PluginManifest baseManifest, IPluginService pluginService)
         {
-            Dictionary<string, DescriptorProviderAttribute?> attributeCache = new Dictionary<string, DescriptorProviderAttribute?>();
+            Dictionary<string, DescriptorProviderAttribute?> attributeCache = [];
 
             foreach (PluginLoadState state in syncedManifest.InterfaceStates)
             {
@@ -757,27 +756,76 @@ namespace PlugHub.Bootstrap
             MainViewModel mainViewModel = provider.GetRequiredService<MainViewModel>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginPages> pageProviders = provider.GetServices<IPluginPages>();
-
             List<PluginPageDescriptor> allDescriptors = [];
 
             foreach (IPluginPages providerInstance in pageProviders)
-            {
-                foreach (PluginPageDescriptor descriptor in providerInstance.GetPageDescriptors())
-                {
-                    allDescriptors.Add(descriptor);
-                }
-            }
+                allDescriptors.AddRange(providerInstance.GetPageDescriptors());
 
             IEnumerable<PluginPageDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
 
             foreach (PluginPageDescriptor descriptor in sortedDescriptors)
             {
-                ContentItemViewModel page = new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
+                UserControl? view;
+                BaseViewModel? viewModel;
+
+                #region PluginsPages: Resolve View
+
+                if (descriptor.ViewFactory != null)
                 {
-                    Control = descriptor.ViewFactory.Invoke(provider),
-                    ViewModel = descriptor.ViewModelFactory.Invoke(provider)
+                    view = descriptor.ViewFactory(provider);
+                }
+                else if (descriptor.ViewType != null)
+                {
+                    view = provider.GetService(descriptor.ViewType) as UserControl;
+
+                    if (view is null)
+                    {
+                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for plugin page {PageName}, skipping.", descriptor.ViewType.FullName, descriptor.Name);
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    Log.Error("[Bootstrapper] No view factory or view type provided for plugin page {PageName}, skipping.", descriptor.Name);
+
+                    continue;
+                }
+
+                #endregion
+
+                #region PluginPages: Resolve viewmodel
+
+                if (descriptor.ViewModelFactory != null)
+                {
+                    viewModel = descriptor.ViewModelFactory(provider);
+                }
+                else if (descriptor.ViewModelType != null)
+                {
+                    viewModel = provider.GetService(descriptor.ViewModelType) as BaseViewModel;
+
+                    if (viewModel is null)
+                    {
+                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for plugin page {PageName}, skipping.", descriptor.ViewModelType.FullName, descriptor.Name);
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for plugin page {PageName}, skipping.", descriptor.Name);
+
+                    continue;
+                }
+
+                #endregion
+
+                ContentItemViewModel page = new(descriptor.ViewType!, descriptor.ViewModelType!, descriptor.Name, descriptor.IconSource)
+                {
+                    Control = view,
+                    ViewModel = viewModel
                 };
-                page.Control.DataContext = page.ViewModel;
+                view.DataContext = viewModel;
 
                 mainViewModel.AddMainPageItem(page);
             }
@@ -791,27 +839,76 @@ namespace PlugHub.Bootstrap
             SettingsViewModel settingsViewModel = provider.GetRequiredService<SettingsViewModel>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginSettingsPages> settingsProviders = provider.GetServices<IPluginSettingsPages>();
-
             List<SettingsPageDescriptor> allDescriptors = [];
 
             foreach (IPluginSettingsPages providerInstance in settingsProviders)
-            {
-                foreach (SettingsPageDescriptor descriptor in providerInstance.GetSettingsPageDescriptors())
-                {
-                    allDescriptors.Add(descriptor);
-                }
-            }
+                allDescriptors.AddRange(providerInstance.GetSettingsPageDescriptors());
 
             IEnumerable<SettingsPageDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
 
             foreach (SettingsPageDescriptor descriptor in sortedDescriptors)
             {
-                ContentItemViewModel page = new(descriptor.ViewType, descriptor.ViewModelType, descriptor.Name, descriptor.IconSource)
+                UserControl? view;
+                BaseViewModel? viewModel;
+
+                #region PluginsSettingPages: Resolve View
+
+                if (descriptor.ViewFactory != null)
                 {
-                    Control = descriptor.ViewFactory.Invoke(provider),
-                    ViewModel = descriptor.ViewModelFactory.Invoke(provider)
+                    view = descriptor.ViewFactory(provider);
+                }
+                else if (descriptor.ViewType != null)
+                {
+                    view = provider.GetService(descriptor.ViewType) as UserControl;
+
+                    if (view == null)
+                    {
+                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for settings page {PageName}, skipping.", descriptor.ViewType.FullName, descriptor.Name);
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    Log.Error("[Bootstrapper] No view factory or view type provided for settings page {PageName}, skipping.", descriptor.Name);
+
+                    continue;
+                }
+
+                #endregion
+
+                #region PluginsSettingPages: Resolve ViewModel
+
+                if (descriptor.ViewModelFactory != null)
+                {
+                    viewModel = descriptor.ViewModelFactory(provider);
+                }
+                else if (descriptor.ViewModelType != null)
+                {
+                    viewModel = provider.GetService(descriptor.ViewModelType) as BaseViewModel;
+
+                    if (viewModel == null)
+                    {
+                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for settings page {PageName}, skipping.", descriptor.ViewModelType.FullName, descriptor.Name);
+
+                        continue;
+                    }
+                }
+                else
+                {
+                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for settings page {PageName}, skipping.", descriptor.Name);
+
+                    continue;
+                }
+
+                #endregion
+
+                ContentItemViewModel page = new(descriptor.ViewType!, descriptor.ViewModelType!, descriptor.Name, descriptor.IconSource)
+                {
+                    Control = view,
+                    ViewModel = viewModel
                 };
-                page.Control.DataContext = page.ViewModel;
+                view.DataContext = viewModel;
 
                 settingsViewModel.AddSettingsPage(descriptor.Group, page);
             }

@@ -87,7 +87,40 @@ namespace PlugHub.Plugin.Mock
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [],
-                    DependsOn: [])
+                    DependsOn: []),
+                new PluginInjectorDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("f3be5c56-1d3e-45a7-a104-487f8484d115"),
+                    Version: Version,
+                    InterfaceType: typeof(MockPageView),
+                    ImplementationType: typeof(MockPageView),
+                    Lifetime: ServiceLifetime.Singleton,
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []),
+                new PluginInjectorDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("8ad501c2-8171-47cb-b861-535307cf6754"),
+                    Version: Version,
+                    InterfaceType: typeof(MockPageViewModel),
+                    ImplementationType: typeof(MockPageViewModel),
+                    Lifetime: ServiceLifetime.Singleton,
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []),
+                new PluginInjectorDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("b89aa1d6-9415-4194-98ee-4dcb8f608757"),
+                    Version: Version,
+                    InterfaceType: typeof(MockSettingsView),
+                    ImplementationType: typeof(MockSettingsView),
+                    Lifetime: ServiceLifetime.Singleton,
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []),
             ];
         }
 
@@ -96,11 +129,10 @@ namespace PlugHub.Plugin.Mock
         #region PluginMock: IPluginAppConfig
 
         /// <summary>
-        /// Demonstrates full application rebranding — renames PlugHub to "MockHub" and overrides default paths.
+        /// Demonstrates application configuration changes see: <see cref="AppConfig"/>.
         /// </summary>
         /// <remarks>
         /// Only applies during the **system-level load phase**
-        /// User-level plugins cannot modify <see cref="AppConfig"/>.
         /// </remarks>
         public IEnumerable<PluginAppConfigDescriptor> GetAppConfigDescriptors()
         {
@@ -126,10 +158,10 @@ namespace PlugHub.Plugin.Mock
 
         #endregion
 
-        #region PluginMock: IPluginAppConfig
+        #region PluginMock: IPluginAppEnv
 
         /// <summary>
-        /// Demonstrates full application rebranding — renames PlugHub to "MockHub" and overrides default paths.
+        /// Demonstrates application environment changes see: <see cref="AppEnv"/>.
         /// </summary>
         public IEnumerable<PluginAppEnvDescriptor> GetAppEnvDescriptors()
         {
@@ -207,9 +239,16 @@ namespace PlugHub.Plugin.Mock
         #region PluginMock: IPluginPages
 
         /// <summary>
-        /// Adds navigable pages to the application's primary interface. 
-        /// In this case the plugin provides a "Mock Page" which can be opened like any other feature page, showing data or controls driven by the plugin’s services.
+        /// Describes a plugin-provided page.
         /// </summary>
+        /// <remarks>
+        /// - Plugin authors may provide explicit <see cref="ViewFactory"/> and <see cref="ViewModelFactory"/> delegates.  <br/>
+        /// - If a factory is <c>null</c>, the Bootstrapper will attempt to resolve <see cref="ViewType"/> or <see cref="ViewModelType"/> from
+        ///   the DI container.  <br/>
+        /// - To support DI resolution, types must be registered via <see cref="PluginInjectorDescriptor"/>.  <br/>
+        /// - If neither a factory nor a DI registration exists, the page will be skipped and an error logged.<br/>
+        /// This dual-path model preserves backward compatibility while supporting DI-based resolution.<br/>
+        /// </remarks>
         public IEnumerable<PluginPageDescriptor> GetPageDescriptors()
         {
             return [
@@ -221,13 +260,8 @@ namespace PlugHub.Plugin.Mock
                     ViewModelType: typeof(MockPageViewModel),
                     Name: "Mock Page",
                     IconSource: "tab_desktop_new_page_regular",
-                    ViewFactory: (IServiceProvider provider) => new MockPageView(),
-                    ViewModelFactory: (IServiceProvider provider) =>
-                    {
-                        IEchoService? echoService = provider.GetService<IEchoService>();
-
-                        return new MockPageViewModel(echoService);
-                    },
+                    ViewFactory: null,
+                    ViewModelFactory: null!,
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [],
@@ -256,7 +290,7 @@ namespace PlugHub.Plugin.Mock
                     Group: "Mock Settings",
                     Name: "General",
                     IconSource: "book_question_mark_regular",
-                    ViewFactory: (IServiceProvider provider) => new MockSettingsView(),
+                    ViewFactory: null,
                     ViewModelFactory: (IServiceProvider provider) => {
 
                         IConfigService configService = provider.GetRequiredService<IConfigService>();

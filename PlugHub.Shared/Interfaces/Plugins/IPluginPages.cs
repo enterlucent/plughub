@@ -33,8 +33,8 @@ namespace PlugHub.Shared.Interfaces.Plugins
             Type ViewModelType,
             string Name,
             string IconSource,
-            Func<IServiceProvider, UserControl> ViewFactory,
-            Func<IServiceProvider, BaseViewModel> ViewModelFactory,
+            Func<IServiceProvider, UserControl>? ViewFactory = null,
+            Func<IServiceProvider, BaseViewModel>? ViewModelFactory = null,
 
             IEnumerable<PluginInterfaceReference>? LoadBefore = null,
             IEnumerable<PluginInterfaceReference>? LoadAfter = null,
