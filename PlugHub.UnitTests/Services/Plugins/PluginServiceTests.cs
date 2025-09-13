@@ -301,7 +301,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             string interfaceName = "PlugHub.Shared.Interfaces.Plugins.IPluginAppConfig";
 
             // Act
-            Shared.Attributes.DescriptorProviderAttribute? attribute = 
+            Shared.Attributes.DescriptorProviderAttribute? attribute =
                 this.pluginService!.GetDescriptorProviderAttribute(interfaceName);
 
             // Assert

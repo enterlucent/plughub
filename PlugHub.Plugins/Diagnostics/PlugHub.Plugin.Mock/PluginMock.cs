@@ -7,7 +7,7 @@ using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Mock.Interfaces.Services;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Models.Plugins;
 
 namespace PlugHub.Plugin.Mock
@@ -198,7 +198,7 @@ namespace PlugHub.Plugin.Mock
                     DescriptorID: Guid.Parse("ddf7eb3a-6223-4016-bfb8-b4e0bba5a1c9"),
                     Version: Version,
                     ConfigType: typeof(PluginMockConfig),
-                    ConfigServiceParams: ts => new FileConfigServiceParams(
+                    ConfigServiceParams: ts => new ConfigFileParams(
                         Owner: owner,
                         Read: Token.Public,
                         Write: Token.Blocked),

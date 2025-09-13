@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace PlugHub.Accessors.Configuration
 {
-    public abstract class ConfigAccessorBase(ILogger<IConfigAccessor> logger, ITokenService tokenService) : IConfigAccessor
+    public abstract class BaseConfigAccessor(ILogger<IConfigAccessor> logger, ITokenService tokenService) : IConfigAccessor
     {
         public Type AccessorInterface { get; init; } = typeof(object);
 
@@ -34,6 +34,7 @@ namespace PlugHub.Accessors.Configuration
             ArgumentNullException.ThrowIfNull(configTypes);
 
             this.ConfigTypes = [.. configTypes];
+
             return this;
         }
         public virtual IConfigAccessor SetConfigService(IConfigService configService)
@@ -41,6 +42,7 @@ namespace PlugHub.Accessors.Configuration
             ArgumentNullException.ThrowIfNull(configService);
 
             this.ConfigService = configService;
+
             return this;
         }
         public virtual IConfigAccessor SetAccess(Token ownerToken, Token readToken, Token writeToken)
@@ -67,14 +69,10 @@ namespace PlugHub.Accessors.Configuration
         public virtual IConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class
         {
             if (this.ConfigService == null)
-            {
                 throw new InvalidOperationException("ConfigService must be set before creating typed accessors");
-            }
 
             if (this.ConfigTypes == null)
-            {
                 throw new InvalidOperationException("ConfigTypes must be set before creating typed accessors");
-            }
 
             bool isRegisteredType = this.ConfigTypes.Contains(typeof(TConfig));
 
@@ -104,7 +102,7 @@ namespace PlugHub.Accessors.Configuration
         #endregion
     }
 
-    public abstract class ConfigAccessorForBase<TConfig>(ITokenService tokenService, IConfigService configService, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
+    public abstract class BaseConfigAccessorFor<TConfig>(ITokenService tokenService, IConfigService configService, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
         : IConfigAccessorFor<TConfig>, IFileConfigAccessorFor<TConfig> where TConfig : class
     {
         public readonly IConfigService ConfigService = configService;
@@ -114,7 +112,7 @@ namespace PlugHub.Accessors.Configuration
         public Token? ReadToken = readToken;
         public Token? WriteToken = writeToken;
 
-        public ConfigAccessorForBase(ITokenService tokenService, IConfigService service, ITokenSet tokenSet)
+        public BaseConfigAccessorFor(ITokenService tokenService, IConfigService service, ITokenSet tokenSet)
             : this(tokenService, service, tokenSet?.Owner, tokenSet?.Read, tokenSet?.Write)
         {
             ArgumentNullException.ThrowIfNull(service);
@@ -145,28 +143,22 @@ namespace PlugHub.Accessors.Configuration
 
         #region ConfigAccessorForBase: Property Access
 
-        public virtual T Default<T>(string key)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-
-            return this.ConfigService.GetDefault<T>(typeof(TConfig), key, this.OwnerToken, this.ReadToken)!;
-        }
         public virtual T Get<T>(string key)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-            return this.ConfigService.GetSetting<T>(typeof(TConfig), key, this.OwnerToken, this.ReadToken)!;
+            return this.ConfigService.GetValue<T>(typeof(TConfig), key, this.OwnerToken, this.ReadToken)!;
         }
         public virtual void Set<T>(string key, T value)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-            this.ConfigService.SetSetting(typeof(TConfig), key, value, this.OwnerToken, this.WriteToken);
+            this.ConfigService.SetValue(typeof(TConfig), key, value, this.OwnerToken, this.WriteToken);
         }
         public virtual void Save()
-            => this.ConfigService.SaveSettings(typeof(TConfig), this.OwnerToken, this.WriteToken);
+            => this.ConfigService.SaveValues(typeof(TConfig), this.OwnerToken, this.WriteToken);
         public virtual async Task SaveAsync(CancellationToken cancellationToken = default)
-            => await this.ConfigService.SaveSettingsAsync(typeof(TConfig), this.OwnerToken, this.WriteToken, cancellationToken);
+            => await this.ConfigService.SaveValuesAsync(typeof(TConfig), this.OwnerToken, this.WriteToken, cancellationToken);
 
         #endregion
 

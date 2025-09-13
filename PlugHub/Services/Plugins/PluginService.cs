@@ -117,7 +117,7 @@ namespace PlugHub.Services.Plugins
 
                 if (interfaceType != null && interfaceType.IsInterface)
                 {
-                    DescriptorProviderAttribute? attr = 
+                    DescriptorProviderAttribute? attr =
                         interfaceType.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
 
                     if (attr != null) return attr;

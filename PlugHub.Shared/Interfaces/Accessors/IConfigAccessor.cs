@@ -80,16 +80,6 @@ namespace PlugHub.Shared.Interfaces.Accessors
         public IConfigAccessorFor<TConfig> SetAccess(ITokenSet tokenSet);
 
 
-        /// <summary>
-        /// <summary>Gets the default <paramref name="key"/> as <typeparamref name="T"/>.</summary>
-        /// </summary>
-        /// <typeparam name="T">Return type.</typeparam>
-        /// <param name="key">Public property name.</param>
-        /// <returns>Current default value.</returns>
-        /// <exception cref="KeyNotFoundException"/>
-        /// <exception cref="InvalidCastException"/>
-        public T Default<T>(string key);
-
         /// <summary>Gets the effective <paramref name="key"/> as <typeparamref name="T"/>.</summary>
         /// <typeparam name="T">Return type.</typeparam>
         /// <param name="key">Public property name.</param>

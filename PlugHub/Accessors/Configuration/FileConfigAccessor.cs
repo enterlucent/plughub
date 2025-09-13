@@ -11,7 +11,7 @@ using System.Linq;
 
 namespace PlugHub.Accessors.Configuration
 {
-    public class FileConfigAccessor : ConfigAccessorBase, IConfigAccessor, IFileConfigAccessor
+    public class FileConfigAccessor : BaseConfigAccessor, IConfigAccessor, IFileConfigAccessor
     {
         public FileConfigAccessor(ILogger<IConfigAccessor> logger, ITokenService tokenService)
             : base(logger, tokenService)
@@ -24,22 +24,26 @@ namespace PlugHub.Accessors.Configuration
         public override IFileConfigAccessor SetConfigTypes(IList<Type> configTypes)
         {
             base.SetConfigTypes(configTypes);
+
             return this;
         }
         public override IFileConfigAccessor SetConfigService(IConfigService configService)
         {
             base.SetConfigService(configService);
+
             return this;
         }
 
         public override IFileConfigAccessor SetAccess(Token ownerToken, Token readToken, Token writeToken)
         {
             base.SetAccess(ownerToken, readToken, writeToken);
+
             return this;
         }
         public override IFileConfigAccessor SetAccess(ITokenSet tokenSet)
         {
             base.SetAccess(tokenSet);
+
             return this;
         }
 
@@ -50,19 +54,13 @@ namespace PlugHub.Accessors.Configuration
         public override IFileConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class
         {
             if (this.ConfigService == null)
-            {
                 throw new InvalidOperationException("ConfigService must be set before creating typed accessors");
-            }
 
             if (this.ConfigTypes == null)
-            {
                 throw new InvalidOperationException("ConfigTypes must be set before creating typed accessors");
-            }
 
             if (this.ConfigTypes.Contains(typeof(TConfig)))
-            {
                 return new FileConfigAccessorFor<TConfig>(this.TokenService, this.ConfigService, this.OwnerToken, this.ReadToken, this.WriteToken);
-            }
 
             string availableTypes = this.ConfigTypes.Count > 0
                 ? string.Join(", ", this.ConfigTypes.Select(t => t.Name))
@@ -80,7 +78,7 @@ namespace PlugHub.Accessors.Configuration
     }
 
     public class FileConfigAccessorFor<TConfig>(ITokenService tokenService, IConfigService configService, Token? ownerToken = null, Token? readToken = null, Token? writeToken = null)
-        : ConfigAccessorForBase<TConfig>(tokenService, configService, ownerToken, readToken, writeToken), IConfigAccessorFor<TConfig>, IFileConfigAccessorFor<TConfig> where TConfig : class
+        : BaseConfigAccessorFor<TConfig>(tokenService, configService, ownerToken, readToken, writeToken), IConfigAccessorFor<TConfig>, IFileConfigAccessorFor<TConfig> where TConfig : class
     {
         public FileConfigAccessorFor(ITokenService tokenService, IConfigService configService, ITokenSet tokenSet)
             : this(tokenService, configService, tokenSet.Owner, tokenSet.Read, tokenSet.Write) { }

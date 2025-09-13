@@ -1,12 +1,12 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using PlugHub.Services.Configuration.Providers;
 using PlugHub.Shared.Extensions;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
+using PlugHub.Shared.Models.Configuration;
 using PlugHub.Shared.Utility;
 using System;
 using System.Collections.Concurrent;
@@ -19,31 +19,31 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace PlugHub.Services.Configuration
+namespace PlugHub.Services.Configuration.Providers
 {
-    public abstract class ConfigProviderBase : IConfigServiceProvider, IDisposable
+    public abstract class BaseConfigProvider : IConfigProvider, IDisposable
     {
-        private class ConfigChangeContext(Type configType, ReaderWriterLockSlim configLock, UserConfigServiceConfig? config, bool configFound)
+        private class ConfigChangeContext(Type sourceType, ReaderWriterLockSlim typeLock, ConfigSource? source, bool sourceFound)
         {
-            public Type ConfigType { get; } = configType;
-            public ReaderWriterLockSlim ConfigLock { get; } = configLock;
-            public UserConfigServiceConfig? Config { get; } = config;
-            public bool ConfigFound { get; } = configFound;
+            public Type SourceType { get; } = sourceType;
+            public ReaderWriterLockSlim TypeLock { get; } = typeLock;
+            public ConfigSource? Source { get; } = source;
+            public bool ConfigFound { get; } = sourceFound;
         }
 
         public IEnumerable<Type> SupportedParamsTypes { get; init; } = [];
-        public Type RequiredAccessorInterface { get; init; } = typeof(IFileConfigAccessor);
+        public Type RequiredAccessorInterface { get; init; } = typeof(IConfigAccessor);
 
-        protected readonly ILogger<IConfigServiceProvider> Logger;
+        protected readonly ILogger<IConfigProvider> Logger;
         protected readonly ITokenService TokenService;
         protected readonly ConcurrentDictionary<Type, Timer> ReloadTimers = new();
-        protected readonly ConcurrentDictionary<Type, object?> Configs = [];
+        protected readonly ConcurrentDictionary<Type, object?> Sources = [];
         protected readonly ConcurrentDictionary<Type, ReaderWriterLockSlim> ConfigLock = new();
 
         protected JsonSerializerOptions JsonOptions { get; init; } = new JsonSerializerOptions();
         protected bool IsDisposed = false;
 
-        public ConfigProviderBase(ILogger<IConfigServiceProvider> logger, ITokenService tokenService)
+        public BaseConfigProvider(ILogger<IConfigProvider> logger, ITokenService tokenService)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(tokenService);
@@ -52,7 +52,7 @@ namespace PlugHub.Services.Configuration
             this.TokenService = tokenService;
         }
 
-        #region ConfigServiceBase: Registration
+        #region BaseConfigProvider: Registration
 
         public virtual void RegisterConfig(Type configType, IConfigServiceParams configParams, IConfigService service)
             => throw new NotImplementedException();
@@ -63,9 +63,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(service);
 
             foreach (Type configType in configTypes)
-            {
                 this.RegisterConfig(configType, configParams, service);
-            }
         }
 
         public virtual void UnregisterConfig(Type configType, Token? token = null)
@@ -81,9 +79,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(configTypes);
 
             foreach (Type configType in configTypes)
-            {
                 this.UnregisterConfig(configType, token);
-            }
         }
         public virtual void UnregisterConfigs(IEnumerable<Type> configTypes, ITokenSet tokenSet)
         {
@@ -95,69 +91,50 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region ConfigServiceBase: Value Operations
+        #region BaseConfigProvider: Value Operations
 
-        public virtual T GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
+        public virtual T GetValue<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
             => throw new NotImplementedException();
-        public virtual T GetDefault<T>(Type configType, string key, ITokenSet tokenSet)
+        public virtual T GetValue<T>(Type configType, string key, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            return this.GetDefault<T>(configType, key, tokenSet.Owner, tokenSet.Read);
+            return this.GetValue<T>(configType, key, tokenSet.Owner, tokenSet.Read);
         }
 
-        public virtual T GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
+        public virtual void SetValue<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
             => throw new NotImplementedException();
-        public virtual T GetSetting<T>(Type configType, string key, ITokenSet tokenSet)
+        public virtual void SetValue<T>(Type configType, string key, T value, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            return this.GetSetting<T>(configType, key, tokenSet.Owner, tokenSet.Read);
+            this.SetValue(configType, key, value, tokenSet.Owner, tokenSet.Write);
         }
 
-        public virtual void SetDefault<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
+        public virtual void SaveValues(Type configType, Token? ownerToken = null, Token? writeToken = null)
             => throw new NotImplementedException();
-        public virtual void SetDefault<T>(Type configType, string key, T newValue, ITokenSet tokenSet)
+        public virtual void SaveValues(Type configType, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            this.SetDefault(configType, key, newValue, tokenSet.Owner, tokenSet.Write);
+            this.SaveValues(configType, tokenSet.Owner, tokenSet.Write);
         }
 
-        public virtual void SetSetting<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
-            => throw new NotImplementedException();
-        public virtual void SetSetting<T>(Type configType, string key, T value, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SetSetting(configType, key, value, tokenSet.Owner, tokenSet.Write);
-        }
-
-        public virtual void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null)
-            => throw new NotImplementedException();
-        public virtual void SaveSettings(Type configType, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SaveSettings(configType, tokenSet.Owner, tokenSet.Write);
-        }
-
-        public virtual async Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
+        public virtual async Task SaveValuesAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
             => await Task.FromException(new NotImplementedException()).ConfigureAwait(false);
-        public virtual async Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default)
+        public virtual async Task SaveValuesAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            await this.SaveSettingsAsync(configType, tokenSet.Owner, tokenSet.Write, cancellationToken).ConfigureAwait(false);
+            await this.SaveValuesAsync(configType, tokenSet.Owner, tokenSet.Write, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
 
-        #region ConfigServiceBase: Instance Operations
+        #region BaseConfigProvider: Instance Operations
 
         public virtual object GetConfigInstance(Type configType, Token? ownerToken = null, Token? readToken = null)
             => throw new NotImplementedException();
-
         public virtual object GetConfigInstance(Type configType, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
@@ -167,7 +144,6 @@ namespace PlugHub.Services.Configuration
 
         public virtual void SaveConfigInstance(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null)
             => throw new NotImplementedException();
-
         public virtual void SaveConfigInstance(Type configType, object updatedConfig, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
@@ -177,7 +153,6 @@ namespace PlugHub.Services.Configuration
 
         public virtual async Task SaveConfigInstanceAsync(Type configType, object updatedConfig, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
             => await Task.FromException(new NotImplementedException()).ConfigureAwait(false);
-
         public virtual async Task SaveConfigInstanceAsync(Type configType, object updatedConfig, ITokenSet tokenSet, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
@@ -187,38 +162,7 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region ConfigServiceBase: Default Configuration Operations
-
-        public virtual string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null)
-            => throw new NotImplementedException();
-        public virtual string GetDefaultConfigFileContents(Type configType, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            return this.GetDefaultConfigFileContents(configType, tokenSet.Owner);
-        }
-
-        public virtual void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null)
-            => throw new NotImplementedException();
-        public virtual void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SaveDefaultConfigFileContents(configType, contents, tokenSet.Owner);
-        }
-
-        public virtual async Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default)
-            => await Task.FromException(new NotImplementedException()).ConfigureAwait(false);
-        public virtual async Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, ITokenSet tokenSet, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            await this.SaveDefaultConfigFileContentsAsync(configType, contents, tokenSet.Owner, cancellationToken).ConfigureAwait(false);
-        }
-
-        #endregion
-
-        #region ConfigServiceBase: Configuration Change Handling
+        #region BaseConfigProvider: Configuration Change Handling
 
         protected virtual void HandleConfigHasChanged(Type configType)
         {
@@ -228,7 +172,7 @@ namespace PlugHub.Services.Configuration
 
             if (!context.ConfigFound)
             {
-                this.Logger.LogWarning("Unregistered config type – Type {Type}", configType.Name);
+                this.Logger.LogWarning("[ConfigProviderBase] Unregistered config type – Type {Type}", configType.Name);
 
                 return;
             }
@@ -237,119 +181,78 @@ namespace PlugHub.Services.Configuration
             {
                 bool reloadSucceeded = this.ProcessConfigReload(context);
 
-                if (reloadSucceeded)
-                {
-                    this.NotifyConfigReloaded(context);
-                }
+                if (reloadSucceeded && context.Source?.ConfigService != null)
+                    context.Source.ConfigService.OnConfigReloaded(this, context.SourceType);
             }
             catch (FileNotFoundException ex)
             {
-                this.Logger.LogWarning(ex, "Config directory missing – Type {Type}", configType.Name);
+                this.Logger.LogWarning(ex, "[ConfigProviderBase] Config directory missing – Type {Type}", configType.Name);
             }
             catch (Exception ex)
             {
-                this.Logger.LogError(ex, "Config reload failed – Type {Type}", configType.Name);
+                this.Logger.LogError(ex, "[ConfigProviderBase] Config reload failed – Type {Type}", configType.Name);
             }
             finally
             {
-                ReleaseConfigChangeContext(context);
+                if (context.TypeLock.IsWriteLockHeld)
+                    context.TypeLock.ExitWriteLock();
             }
         }
-        protected virtual void OnConfigHasChanged(object? state)
-        {
-            if (state is not Type configType)
-            {
-                return;
-            }
-
-            Timer debounceTimer = this.GetOrCreateDebounceTimer(configType);
-
-            debounceTimer.Change(TimeSpan.FromMilliseconds(300), Timeout.InfiniteTimeSpan);
-        }
-
         private ConfigChangeContext AcquireConfigChangeContext(Type configType)
         {
             ReaderWriterLockSlim configLock = this.GetConfigTypeLock(configType);
             configLock.EnterWriteLock();
 
-            bool configFound = this.Configs.TryGetValue(configType, out object? rawConfig);
-            bool isCorrectType = configFound && rawConfig is UserConfigServiceConfig;
+            bool configFound = this.Sources.TryGetValue(configType, out object? rawSource);
+            bool isCorrectType = configFound && rawSource is ConfigSource;
 
             if (isCorrectType)
             {
-                UserConfigServiceConfig config = (UserConfigServiceConfig)rawConfig!;
-                return new ConfigChangeContext(configType, configLock, config, true);
+                ConfigSource source = (ConfigSource)rawSource!;
+
+                return new ConfigChangeContext(configType, configLock, source, true);
             }
             else
             {
                 return new ConfigChangeContext(configType, configLock, null, false);
             }
         }
-
         private bool ProcessConfigReload(ConfigChangeContext context)
         {
-            if (!context.ConfigFound || context.Config == null)
-            {
+            if (!context.ConfigFound || context.Source == null || context.Source.Configuration == null)
                 return false;
-            }
 
-            Dictionary<string, object?> newSettings = this.BuildSettings(
-                context.ConfigType,
-                context.Config.Config,
-                context.Config.UserConfig);
+            Dictionary<string, object?> newSettings = this.BuildSettings(context.SourceType, [context.Source.Configuration]);
 
-            context.Config.Values = newSettings;
+            context.Source.Values = newSettings;
 
-            bool shouldRebindChangeEvents = context.Config.ReloadOnChanged;
+            bool shouldRebindChangeEvents = context.Source.ReloadOnChanged;
 
             if (shouldRebindChangeEvents)
             {
-                this.RebindConfigChangeEvents(context.Config);
+                context.Source.OnChanged?.Dispose();
+
+                if (context.Source.Configuration != null)
+                {
+                    context.Source.OnChanged =
+                        context.Source.Configuration
+                            .GetReloadToken()
+                            .RegisterChangeCallback(this.OnConfigHasChanged, context.Source.Configuration.GetType());
+                }
             }
 
             return true;
         }
 
-        private void RebindConfigChangeEvents(UserConfigServiceConfig config)
+        protected virtual void OnConfigHasChanged(object? state)
         {
-            DisposeExistingChangeTokens(config);
+            if (state is not Type configType)
+                return;
 
-            config.OnChanged = config.Config
-                .GetReloadToken()
-                .RegisterChangeCallback(this.OnConfigHasChanged, config.GetType());
+            Timer debounceTimer = this.ReloadTimers.GetOrAdd(configType, this.CreateDebounceTimer);
 
-            config.UserOnChanged = config.UserConfig
-                .GetReloadToken()
-                .RegisterChangeCallback(this.OnConfigHasChanged, config.GetType());
+            debounceTimer.Change(TimeSpan.FromMilliseconds(300), Timeout.InfiniteTimeSpan);
         }
-
-        private static void DisposeExistingChangeTokens(UserConfigServiceConfig config)
-        {
-            config.OnChanged?.Dispose();
-            config.UserOnChanged?.Dispose();
-        }
-
-        private void NotifyConfigReloaded(ConfigChangeContext context)
-        {
-            if (context.Config?.ConfigService != null)
-            {
-                context.Config.ConfigService.OnConfigReloaded(this, context.ConfigType);
-            }
-        }
-
-        private static void ReleaseConfigChangeContext(ConfigChangeContext context)
-        {
-            if (context.ConfigLock.IsWriteLockHeld)
-            {
-                context.ConfigLock.ExitWriteLock();
-            }
-        }
-
-        private Timer GetOrCreateDebounceTimer(Type configType)
-        {
-            return this.ReloadTimers.GetOrAdd(configType, this.CreateDebounceTimer);
-        }
-
         private Timer CreateDebounceTimer(Type configType)
         {
             return new Timer(
@@ -361,60 +264,43 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region ConfigServiceBase: Configuration Building
+        #region BaseConfigProvider: Configuration Building
 
-        protected virtual Dictionary<string, object?> BuildSettings(Type configType, params IConfiguration[] configSources)
+        protected virtual Dictionary<string, object?> BuildSettings(Type configType, IConfiguration[] configSources)
         {
             ArgumentNullException.ThrowIfNull(configType);
             ArgumentNullException.ThrowIfNull(configSources);
 
             Dictionary<string, object?> settings = [];
-            PropertyInfo[] properties = GetConfigurationProperties(configType);
+            PropertyInfo[] properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
             foreach (PropertyInfo property in properties)
             {
-                UserConfigServiceSetting setting = this.BuildPropertySetting(property, configSources);
+                ConfigValue setting = this.BuildPropertySetting(property, configSources);
+
                 settings[property.Name] = setting;
             }
 
             return settings;
         }
-        private static PropertyInfo[] GetConfigurationProperties(Type configType)
+        protected virtual ConfigValue BuildPropertySetting(PropertyInfo property, IConfiguration[] configSources)
         {
-            return configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        }
-        private UserConfigServiceSetting BuildPropertySetting(PropertyInfo property, IConfiguration[] configSources)
-        {
-            object? defaultValue = null;
-            object? userValue = null;
+            object? lastValue = null;
 
             foreach (IConfiguration configSource in configSources)
             {
                 object? configValue = this.GetBuildSettingsValue(configSource, property);
 
-                bool hasConfigValue = configValue != null;
-
-                if (hasConfigValue)
-                {
-                    bool isFirstValue = defaultValue == null;
-
-                    if (isFirstValue)
-                    {
-                        defaultValue = configValue;
-                    }
-                    else
-                    {
-                        userValue = configValue;
-                    }
-                }
+                if (configValue != null)
+                    lastValue = configValue;
             }
-
-            return new UserConfigServiceSetting(
-                valueType: property.PropertyType,
-                value: defaultValue,
-                userValue: userValue,
-                readAccess: property.CanRead,
-                writeAccess: property.CanWrite);
+            return new ConfigValue
+            {
+                ValueType = property.PropertyType,
+                Value = lastValue,
+                CanRead = property.CanRead,
+                CanWrite = property.CanWrite
+            };
         }
 
         protected virtual object? GetBuildSettingsValue(IConfiguration config, PropertyInfo property)
@@ -424,13 +310,11 @@ namespace PlugHub.Services.Configuration
             bool sectionExists = section.Exists();
 
             if (!sectionExists)
-            {
                 return null;
-            }
 
             return this.ConvertConfigurationValue(section, property.PropertyType);
         }
-        private object? ConvertConfigurationValue(IConfigurationSection section, Type propertyType)
+        protected virtual object? ConvertConfigurationValue(IConfigurationSection section, Type propertyType)
         {
             try
             {
@@ -444,7 +328,7 @@ namespace PlugHub.Services.Configuration
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Failed to convert configuration value {Value} to type {Type}", section.Value, propertyType.Name);
+                    this.Logger.LogWarning(ex, "[ConfigProviderBase] Failed to convert configuration value {Value} to type {Type}", section.Value, propertyType.Name);
 
                     return null;
                 }
@@ -468,7 +352,7 @@ namespace PlugHub.Services.Configuration
 
         #endregion
 
-        #region ConfigServiceBase: File Operations
+        #region BaseConfigProvider: File Operations
 
         protected virtual void EnsureDirectoryExists(string filePath)
         {
@@ -478,7 +362,8 @@ namespace PlugHub.Services.Configuration
 
             if (string.IsNullOrEmpty(directoryPath))
             {
-                this.Logger.LogDebug("No directory component found in file path: {FilePath}", filePath);
+                this.Logger.LogDebug("[ConfigProviderBase] No directory component found in file path: {FilePath}", filePath);
+
                 return;
             }
 
@@ -490,11 +375,11 @@ namespace PlugHub.Services.Configuration
                 {
                     Directory.CreateDirectory(directoryPath);
 
-                    this.Logger.LogDebug("Created directory: {Directory}", directoryPath);
+                    this.Logger.LogDebug("[ConfigProviderBase] Created directory: {Directory}", directoryPath);
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogError(ex, "Failed to create directory: {Directory}", directoryPath);
+                    this.Logger.LogError(ex, "[ConfigProviderBase] Failed to create directory: {Directory}", directoryPath);
 
                     throw;
                 }
@@ -513,34 +398,29 @@ namespace PlugHub.Services.Configuration
             {
                 try
                 {
-                    string fileContent = this.CreateDefaultFileContent(configType, options);
+                    string fileContent = "{}";
+
+                    if (configType != null)
+                    {
+                        try
+                        {
+                            fileContent = configType.SerializeToJson(options);
+                        }
+                        catch (Exception ex)
+                        {
+                            this.Logger.LogWarning(ex, "[ConfigProviderBase] Failed to serialize default configuration for type {ConfigType}", configType.Name);
+                        }
+                    }
 
                     Atomic.Write(filePath, fileContent);
 
-                    this.Logger.LogDebug("Created configuration file: {FilePath}", filePath);
+                    this.Logger.LogDebug("[ConfigProviderBase] Created configuration file: {FilePath}", filePath);
                 }
                 catch (Exception ex)
                 {
-                    throw new IOException($"Failed to create the required configuration file at '{filePath}'.", ex);
+                    throw new IOException($"[ConfigProviderBase] Failed to create the required configuration file at '{filePath}'.", ex);
                 }
             }
-        }
-
-        private string CreateDefaultFileContent(Type? configType, JsonSerializerOptions options)
-        {
-            if (configType != null)
-            {
-                try
-                {
-                    return configType.SerializeToJson(options);
-                }
-                catch (Exception ex)
-                {
-                    this.Logger.LogWarning(ex, "Failed to serialize default configuration for type {ConfigType}", configType.Name);
-                }
-            }
-
-            return "{}";
         }
 
         protected virtual string ResolveLocalFilePath(string? overridePath, string root, Type configType, string suffix)
@@ -550,20 +430,14 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(suffix);
 
             if (string.IsNullOrWhiteSpace(overridePath))
-            {
                 return Path.Combine(root, $"{configType.Name}.{suffix}");
-            }
 
             bool isRootedPath = Path.IsPathRooted(overridePath);
 
             if (isRootedPath)
-            {
                 return overridePath;
-            }
             else
-            {
                 return Path.Combine(root, overridePath);
-            }
         }
 
         protected virtual async Task SaveSettingsToFileAsync(string filePath, Dictionary<string, object?> settings, JsonSerializerOptions options, CancellationToken cancellationToken = default)
@@ -572,72 +446,68 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(settings);
             ArgumentNullException.ThrowIfNull(options);
 
-            string serializedContent = await SerializeSettingsAsync(settings, options).ConfigureAwait(false);
+            string serializedContent;
+
+            try
+            {
+                serializedContent = await Task.Run(() => JsonSerializer.Serialize(settings, options)).ConfigureAwait(false);
+            }
+            catch (NotSupportedException ex)
+            {
+                throw new InvalidOperationException("[ConfigProviderBase] Failed to serialize the provided settings object.", ex);
+            }
 
             try
             {
                 await Atomic.WriteAsync(filePath, serializedContent, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                this.Logger.LogDebug("Saved configuration to file: {FilePath}", filePath);
+                this.Logger.LogDebug("[ConfigProviderBase] Saved configuration to file: {FilePath}", filePath);
             }
             catch (Exception ex)
             {
-                this.Logger.LogError(ex, "Failed to save settings to file: {FilePath}", filePath);
-                throw;
-            }
-        }
+                this.Logger.LogError(ex, "[ConfigProviderBase] Failed to save settings to file: {FilePath}", filePath);
 
-        private static async Task<string> SerializeSettingsAsync(Dictionary<string, object?> settings, JsonSerializerOptions options)
-        {
-            try
-            {
-                return await Task.Run(() => JsonSerializer.Serialize(settings, options)).ConfigureAwait(false);
-            }
-            catch (NotSupportedException ex)
-            {
-                throw new InvalidOperationException("Failed to serialize the provided settings object.", ex);
+                throw;
             }
         }
 
         #endregion
 
-        #region ConfigServiceBase: Resource Management
+        #region BaseConfigProvider: Resource Management
 
         public virtual void Dispose()
         {
             if (this.IsDisposed)
-            {
                 return;
-            }
 
             try
             {
-                this.PerformDisposal();
+                List<ReaderWriterLockSlim> locks = this.AcquireAllConfigLocks();
+
+                try
+                {
+                    this.DisposeReloadTimers();
+                    this.DisposeConfigurationObjects();
+
+                    this.ReloadTimers.Clear();
+                    this.Sources.Clear();
+
+                    this.IsDisposed = true;
+                }
+                finally
+                {
+                    this.ReleaseAllConfigLocks(locks);
+                    this.DisposeConfigLocks();
+                }
             }
             catch (Exception ex)
             {
-                this.Logger.LogError(ex, "Error during ConfigServiceBase disposal");
+                this.Logger.LogError(ex, "[ConfigProviderBase] Error during BaseConfigProvider disposal");
             }
 
             GC.SuppressFinalize(this);
-            this.Logger.LogDebug("ConfigServiceBase disposed");
-        }
-        private void PerformDisposal()
-        {
-            List<ReaderWriterLockSlim> locks = this.AcquireAllConfigLocks();
 
-            try
-            {
-                this.DisposeReloadTimers();
-                this.DisposeConfigurationObjects();
-                this.ClearCollections();
-                this.IsDisposed = true;
-            }
-            finally
-            {
-                this.ReleaseAllConfigLocks(locks);
-                this.DisposeConfigLocks();
-            }
+            this.Logger.LogDebug("[ConfigProviderBase] BaseConfigProvider disposed");
         }
 
         private List<ReaderWriterLockSlim> AcquireAllConfigLocks()
@@ -652,13 +522,12 @@ namespace PlugHub.Services.Configuration
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Failed to acquire write lock during disposal");
+                    this.Logger.LogWarning(ex, "[ConfigProviderBase] Failed to acquire write lock during disposal");
                 }
             }
 
             return locks;
         }
-
         private void DisposeReloadTimers()
         {
             foreach (Timer timer in this.ReloadTimers.Values)
@@ -669,32 +538,26 @@ namespace PlugHub.Services.Configuration
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Error disposing reload timer");
+                    this.Logger.LogWarning(ex, "[ConfigProviderBase] Error disposing reload timer");
                 }
             }
         }
         private void DisposeConfigurationObjects()
         {
-            foreach (object? configObject in this.Configs.Values)
+            foreach (object? configObject in this.Sources.Values)
             {
-                if (configObject is UserConfigServiceConfig config)
+                if (configObject is ConfigSource source)
                 {
                     try
                     {
-                        DisposeExistingChangeTokens(config);
+                        source.OnChanged?.Dispose();
                     }
                     catch (Exception ex)
                     {
-                        this.Logger.LogWarning(ex, "Error disposing configuration change tokens");
+                        this.Logger.LogWarning(ex, "[ConfigProviderBase] Error disposing configuration change tokens");
                     }
                 }
             }
-        }
-
-        private void ClearCollections()
-        {
-            this.ReloadTimers.Clear();
-            this.Configs.Clear();
         }
         private void ReleaseAllConfigLocks(List<ReaderWriterLockSlim> locks)
         {
@@ -709,7 +572,7 @@ namespace PlugHub.Services.Configuration
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Failed to release write lock during disposal");
+                    this.Logger.LogWarning(ex, "[ConfigProviderBase] Failed to release write lock during disposal");
                 }
             }
         }
@@ -723,50 +586,44 @@ namespace PlugHub.Services.Configuration
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Error disposing configuration lock");
+                    this.Logger.LogWarning(ex, "[ConfigProviderBase] Error disposing configuration lock");
                 }
             }
         }
 
         #endregion
 
-        #region ConfigServiceBase: Validation and Helpers
+        #region BaseConfigProvider: Validation and Helpers
 
         [return: MaybeNull]
         protected virtual T CastStoredValue<T>(object? raw)
         {
             if (raw is null)
-            {
                 return default;
-            }
 
             bool isCorrectType = raw is T;
 
             if (isCorrectType)
-            {
                 return (T)raw;
-            }
 
             try
             {
                 bool isConvertible = raw is IConvertible;
 
                 if (isConvertible)
-                {
                     return (T)Convert.ChangeType(raw, typeof(T));
-                }
             }
             catch (InvalidCastException ex)
             {
-                this.Logger.LogWarning(ex, "Invalid cast when converting stored value");
+                this.Logger.LogWarning(ex, "[ConfigProviderBase] Invalid cast when converting stored value");
             }
             catch (FormatException ex)
             {
-                this.Logger.LogWarning(ex, "Format error when converting stored value");
+                this.Logger.LogWarning(ex, "[ConfigProviderBase] Format error when converting stored value");
             }
             catch (OverflowException ex)
             {
-                this.Logger.LogWarning(ex, "Overflow error when converting stored value");
+                this.Logger.LogWarning(ex, "[ConfigProviderBase] Overflow error when converting stored value");
             }
 
             return default;

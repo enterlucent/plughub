@@ -11,7 +11,7 @@ using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 
 namespace PlugHub.UnitTests.Accessors.Configuration
 {
@@ -22,7 +22,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         private InsecureStorage? secureStorage;
         private TokenService? tokenService;
         private ConfigService? configService;
-        private FileConfigServiceParams fileParams = new();
+        private ConfigFileParams fileParams = new();
         private EncryptionService? encryptionService;
         private Token ownerToken;
         private Token readToken;
@@ -58,15 +58,14 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.tokenSet = this.tokenService.CreateTokenSet(this.ownerToken, this.readToken, this.writeToken);
 
             this.fileParams =
-                new FileConfigServiceParams(
+                new ConfigFileParams(
                     Owner: this.ownerToken,
                     Read: this.readToken,
                     Write: this.writeToken);
 
             this.configService = new ConfigService(
                 [
-                    new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
-                    new UserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
+                    new FileConfigProvider(new NullLogger<IConfigProvider>(), this.tokenService),
                 ],
                 [
                     new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService),
@@ -153,7 +152,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
         {
             // Arrange
             this.configService!.RegisterConfig(typeof(UnitTestAConfig), this.fileParams);
-            this.configService.SetSetting(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, this.ownerToken, this.writeToken);
+            this.configService.SetValue(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), 99, this.ownerToken, this.writeToken);
 
             IConfigAccessor accessor = new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)
                 .SetConfigTypes([typeof(UnitTestAConfig)])
@@ -239,8 +238,8 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             await aConfig.SaveAsync(editable);
 
             // Assert
-            int storedA = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
-            bool storedB = this.configService.GetSetting<bool>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldB), readToken: this.readToken);
+            int storedA = this.configService.GetValue<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
+            bool storedB = this.configService.GetValue<bool>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldB), readToken: this.readToken);
 
             Assert.AreEqual(123, storedA);
             Assert.IsTrue(storedB);
@@ -316,7 +315,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             await a.SaveAsync(CancellationToken.None);
 
             // Assert
-            int stored = this.configService.GetSetting<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
+            int stored = this.configService.GetValue<int>(typeof(UnitTestAConfig), nameof(UnitTestAConfig.FieldA), readToken: this.readToken);
 
             Assert.AreEqual(777, stored);
         }
@@ -396,11 +395,11 @@ namespace PlugHub.UnitTests.Accessors.Configuration
 
             TokenService newTokenService = new(new NullLogger<ITokenService>());
 
-            using (FileConfigService newConfigService = new(new NullLogger<IConfigServiceProvider>(), newTokenService))
+            using (FileConfigProvider newConfigService = new(new NullLogger<IConfigProvider>(), newTokenService))
             {
                 newConfigService.RegisterConfig(typeof(UnitTestAConfig), this.fileParams, this.configService);
 
-                int roundTripped = newConfigService.GetSetting<int>(
+                int roundTripped = newConfigService.GetValue<int>(
                     typeof(UnitTestAConfig),
                     nameof(UnitTestAConfig.FieldA),
                     this.tokenSet);

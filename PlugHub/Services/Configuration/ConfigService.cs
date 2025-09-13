@@ -27,8 +27,8 @@ namespace PlugHub.Services.Configuration
         public string ConfigAppDirectory { get; init; }
         public string ConfigDataDirectory { get; init; }
 
-        protected readonly ConcurrentDictionary<Type, IConfigServiceProvider> ProvidersByParamsType;
-        protected readonly ConcurrentDictionary<Type, IConfigServiceProvider> ProvidersByConfigType;
+        protected readonly ConcurrentDictionary<Type, IConfigProvider> ProvidersByParamsType;
+        protected readonly ConcurrentDictionary<Type, IConfigProvider> ProvidersByConfigType;
         protected readonly ConcurrentDictionary<Type, IConfigAccessor> AccessorByInterface;
 
         protected readonly ILogger<IConfigService> Logger;
@@ -36,7 +36,30 @@ namespace PlugHub.Services.Configuration
 
         protected bool IsDisposed = false;
 
-        public ConfigService(IEnumerable<IConfigServiceProvider> providers, IEnumerable<IConfigAccessor> accessors, ILogger<IConfigService> logger, ITokenService tokenService, string configRootDirectory, string configDataDirectory, JsonSerializerOptions? jsonOptions = null)
+        public static IConfigService GetInstance(IServiceCollection services, AppConfig appConfig)
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(appConfig);
+
+            using (ServiceProvider provider = services.BuildServiceProvider())
+            {
+                IEnumerable<IConfigProvider> providers = provider.GetRequiredService<IEnumerable<IConfigProvider>>();
+                IEnumerable<IConfigAccessor> accessors = provider.GetRequiredService<IEnumerable<IConfigAccessor>>();
+                ILogger<IConfigService> logger = provider.GetRequiredService<ILogger<IConfigService>>();
+                ITokenService tokenService = provider.GetRequiredService<ITokenService>();
+
+                return new ConfigService(
+                        providers,
+                        accessors,
+                        logger,
+                        tokenService,
+                        AppContext.BaseDirectory,
+                        appConfig.ConfigDirectory ?? AppContext.BaseDirectory,
+                        appConfig.ConfigJsonOptions);
+            }
+        }
+
+        public ConfigService(IEnumerable<IConfigProvider> providers, IEnumerable<IConfigAccessor> accessors, ILogger<IConfigService> logger, ITokenService tokenService, string configRootDirectory, string configDataDirectory, JsonSerializerOptions? jsonOptions = null)
         {
             ArgumentNullException.ThrowIfNull(providers);
             ArgumentNullException.ThrowIfNull(accessors);
@@ -62,6 +85,15 @@ namespace PlugHub.Services.Configuration
                 this.ProvidersByParamsType.Count, this.AccessorByInterface.Count);
         }
 
+        public IConfiguration GetEnvConfig()
+        {
+            return new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddEnvironmentVariables()
+                .AddCommandLine(Environment.GetCommandLineArgs())
+                .Build();
+        }
+
         #region ConfigService: Accessor Management
 
         public IConfigAccessorFor<TConfig> GetAccessor<TConfig>(Token? owner = null, Token? read = null, Token? write = null) where TConfig : class
@@ -69,7 +101,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(typeof(TConfig));
 
             Type configType = typeof(TConfig);
-            IConfigServiceProvider configProvider = this.GetProviderForConfigType(configType);
+            IConfigProvider configProvider = this.GetProviderForConfigType(configType);
             IConfigAccessor accessorProvider = this.GetAccessorProviderByInterface(configProvider.RequiredAccessorInterface);
 
             (Token nOwner, Token nRead, Token nWrite) = this.TokenService.CreateTokenSet(owner, read, write);
@@ -136,7 +168,7 @@ namespace PlugHub.Services.Configuration
 
         #region ConfigService: Predicate Operations
 
-        public bool IsConfigRegistered(Type configType)
+        public bool IsRegistered(Type configType)
         {
             return this.ProvidersByConfigType.ContainsKey(configType);
         }
@@ -151,7 +183,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(configParams);
 
             Type paramType = configParams.GetType();
-            bool hasProvider = this.ProvidersByParamsType.TryGetValue(paramType, out IConfigServiceProvider? provider);
+            bool hasProvider = this.ProvidersByParamsType.TryGetValue(paramType, out IConfigProvider? provider);
 
             if (!hasProvider || provider == null)
             {
@@ -187,9 +219,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(configParams);
 
             foreach (Type configType in configTypes)
-            {
                 this.RegisterConfig(configType, configParams);
-            }
 
             this.Logger.LogInformation("Bulk registered {Count} configuration types", this.ProvidersByConfigType.Count);
         }
@@ -199,12 +229,10 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(configParams);
 
             foreach (Type configType in configTypes)
-            {
                 this.RegisterConfig(configType, configParams);
-            }
 
             Type paramType = configParams.GetType();
-            IConfigServiceProvider provider = this.GetProviderForParamsType(paramType);
+            IConfigProvider provider = this.GetProviderForParamsType(paramType);
 
             accessor = this.GetAccessor(provider.RequiredAccessorInterface, configTypes, configParams.Owner, configParams.Read, configParams.Write);
         }
@@ -219,7 +247,7 @@ namespace PlugHub.Services.Configuration
 
                 success = true;
             }
-            catch { }
+            catch { /* nothing to see here */ }
 
             return success;
         }
@@ -245,7 +273,7 @@ namespace PlugHub.Services.Configuration
         {
             ArgumentNullException.ThrowIfNull(configType);
 
-            bool hasRegistration = this.ProvidersByConfigType.TryGetValue(configType, out IConfigServiceProvider? provider);
+            bool hasRegistration = this.ProvidersByConfigType.TryGetValue(configType, out IConfigProvider? provider);
 
             if (!hasRegistration)
             {
@@ -256,12 +284,10 @@ namespace PlugHub.Services.Configuration
 
             provider?.UnregisterConfig(configType, token);
 
-            bool removalSucceeded = this.ProvidersByConfigType.TryRemove(configType, out IConfigServiceProvider? _);
+            bool removalSucceeded = this.ProvidersByConfigType.TryRemove(configType, out IConfigProvider? _);
 
             if (removalSucceeded)
-            {
                 this.Logger.LogDebug("Unregistered configuration: {ConfigType}", configType.Name);
-            }
         }
         public void UnregisterConfig(Type configType, ITokenSet tokenSet)
         {
@@ -274,9 +300,7 @@ namespace PlugHub.Services.Configuration
             ArgumentNullException.ThrowIfNull(configTypes);
 
             foreach (Type configType in configTypes)
-            {
                 this.UnregisterConfig(configType, token);
-            }
 
             this.Logger.LogInformation("Bulk unregistered configuration types");
         }
@@ -298,7 +322,7 @@ namespace PlugHub.Services.Configuration
 
                 success = true;
             }
-            catch { }
+            catch { /* nothing to see here */ }
 
             return success;
         }
@@ -312,7 +336,7 @@ namespace PlugHub.Services.Configuration
 
                 success = true;
             }
-            catch { }
+            catch { /* nothing to see here */ }
 
             return success;
         }
@@ -321,86 +345,58 @@ namespace PlugHub.Services.Configuration
 
         #region ConfigService: Value Operations
 
-        public T GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
+        public T GetValue<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
         {
             ArgumentNullException.ThrowIfNull(configType);
             ArgumentNullException.ThrowIfNull(key);
 
-            return this.GetProviderForConfigType(configType).GetDefault<T>(configType, key, ownerToken, readToken);
+            return this.GetProviderForConfigType(configType).GetValue<T>(configType, key, ownerToken, readToken);
         }
-        public T GetDefault<T>(Type configType, string key, ITokenSet tokenSet)
+        public T GetValue<T>(Type configType, string key, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            return this.GetDefault<T>(configType, key, tokenSet.Owner, tokenSet.Read);
+            return this.GetValue<T>(configType, key, tokenSet.Owner, tokenSet.Read);
         }
 
-        public T GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null)
+        public void SetValue<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
         {
             ArgumentNullException.ThrowIfNull(configType);
             ArgumentNullException.ThrowIfNull(key);
 
-            return this.GetProviderForConfigType(configType).GetSetting<T>(configType, key, ownerToken, readToken);
+            this.GetProviderForConfigType(configType).SetValue(configType, key, newValue, ownerToken, writeToken);
         }
-        public T GetSetting<T>(Type configType, string key, ITokenSet tokenSet)
+        public void SetValue<T>(Type configType, string key, T newValue, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            return this.GetSetting<T>(configType, key, tokenSet.Owner, tokenSet.Read);
+            this.SetValue(configType, key, newValue, tokenSet.Owner, tokenSet.Write);
         }
 
-        public void SetDefault<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
-        {
-            ArgumentNullException.ThrowIfNull(configType);
-            ArgumentNullException.ThrowIfNull(key);
-
-            this.GetProviderForConfigType(configType).SetDefault(configType, key, newValue, ownerToken, writeToken);
-        }
-        public void SetDefault<T>(Type configType, string key, T newValue, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SetDefault(configType, key, newValue, tokenSet.Owner, tokenSet.Read);
-        }
-
-        public void SetSetting<T>(Type configType, string key, T newValue, Token? ownerToken = null, Token? writeToken = null)
-        {
-            ArgumentNullException.ThrowIfNull(configType);
-            ArgumentNullException.ThrowIfNull(key);
-
-            this.GetProviderForConfigType(configType).SetSetting(configType, key, newValue, ownerToken, writeToken);
-        }
-        public void SetSetting<T>(Type configType, string key, T newValue, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SetSetting(configType, key, newValue, tokenSet.Owner, tokenSet.Write);
-        }
-
-        public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null)
+        public void SaveValues(Type configType, Token? ownerToken = null, Token? writeToken = null)
         {
             ArgumentNullException.ThrowIfNull(configType);
 
-            this.GetProviderForConfigType(configType).SaveSettings(configType, ownerToken, writeToken);
+            this.GetProviderForConfigType(configType).SaveValues(configType, ownerToken, writeToken);
         }
-        public void SaveSettings(Type configType, ITokenSet tokenSet)
+        public void SaveValues(Type configType, ITokenSet tokenSet)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            this.SaveSettings(configType, tokenSet.Owner, tokenSet.Write);
+            this.SaveValues(configType, tokenSet.Owner, tokenSet.Write);
         }
 
-        public async Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
+        public async Task SaveValuesAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(configType);
 
-            await this.GetProviderForConfigType(configType).SaveSettingsAsync(configType, ownerToken, writeToken, cancellationToken).ConfigureAwait(false);
+            await this.GetProviderForConfigType(configType).SaveValuesAsync(configType, ownerToken, writeToken, cancellationToken).ConfigureAwait(false);
         }
-        public async Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default)
+        public async Task SaveValuesAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            await this.SaveSettingsAsync(configType, tokenSet.Owner, tokenSet.Write, cancellationToken).ConfigureAwait(false);
+            await this.SaveValuesAsync(configType, tokenSet.Owner, tokenSet.Write, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
@@ -449,79 +445,6 @@ namespace PlugHub.Services.Configuration
         }
 
         #endregion
-
-        #region ConfigService: Default Configuration Operations
-
-        public virtual string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null)
-        {
-            ArgumentNullException.ThrowIfNull(configType);
-
-            return this.GetProviderForConfigType(configType).GetDefaultConfigFileContents(configType, ownerToken);
-        }
-        public virtual string GetDefaultConfigFileContents(Type configType, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            return this.GetDefaultConfigFileContents(configType, tokenSet.Owner);
-        }
-
-        public virtual void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null)
-        {
-            ArgumentNullException.ThrowIfNull(configType);
-            ArgumentNullException.ThrowIfNull(contents);
-
-            this.GetProviderForConfigType(configType).SaveDefaultConfigFileContents(configType, contents, ownerToken);
-        }
-        public virtual void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            this.SaveDefaultConfigFileContents(configType, contents, tokenSet.Owner);
-        }
-
-        public virtual async Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(configType);
-            ArgumentNullException.ThrowIfNull(contents);
-
-            await this.GetProviderForConfigType(configType).SaveDefaultConfigFileContentsAsync(configType, contents, ownerToken, cancellationToken).ConfigureAwait(false);
-        }
-        public virtual async Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, ITokenSet tokenSet, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(tokenSet);
-
-            await this.SaveDefaultConfigFileContentsAsync(configType, contents, tokenSet.Owner, cancellationToken).ConfigureAwait(false);
-        }
-
-        #endregion
-
-        public static IConfiguration GetEnvConfig()
-        {
-            return new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddEnvironmentVariables()
-                .AddCommandLine(Environment.GetCommandLineArgs())
-                .Build();
-        }
-        public static IConfigService GetInstance(IServiceCollection services, AppConfig appConfig)
-        {
-            using (ServiceProvider provider = services.BuildServiceProvider())
-            {
-                IEnumerable<IConfigServiceProvider> providers = provider.GetRequiredService<IEnumerable<IConfigServiceProvider>>();
-                IEnumerable<IConfigAccessor> accessors = provider.GetRequiredService<IEnumerable<IConfigAccessor>>();
-                ILogger<IConfigService> logger = provider.GetRequiredService<ILogger<IConfigService>>();
-                ITokenService tokenService = provider.GetRequiredService<ITokenService>();
-
-                return new ConfigService(
-                        providers,
-                        accessors,
-                        logger,
-                        tokenService,
-                        AppContext.BaseDirectory,
-                        appConfig.ConfigDirectory ?? AppContext.BaseDirectory,
-                        appConfig.ConfigJsonOptions);
-            }
-        }
 
         #region ConfigService: Event Handlers
 
@@ -572,9 +495,7 @@ namespace PlugHub.Services.Configuration
         public virtual void Dispose()
         {
             if (this.IsDisposed)
-            {
                 return;
-            }
 
             this.DisposeProviders();
             this.IsDisposed = true;
@@ -585,7 +506,7 @@ namespace PlugHub.Services.Configuration
         }
         private void DisposeProviders()
         {
-            foreach (KeyValuePair<Type, IConfigServiceProvider> kvp in this.ProvidersByParamsType)
+            foreach (KeyValuePair<Type, IConfigProvider> kvp in this.ProvidersByParamsType)
             {
                 try
                 {
@@ -602,60 +523,56 @@ namespace PlugHub.Services.Configuration
 
         #region ConfigService: Provider and Accessor Management
 
-        private void RegisterConfigServiceProviders(IEnumerable<IConfigServiceProvider> providers)
+        private void RegisterConfigServiceProviders(IEnumerable<IConfigProvider> providers)
         {
-            foreach (IConfigServiceProvider provider in providers)
-            {
-                this.RegisterIndividualProvider(provider);
-            }
-        }
-        private void RegisterIndividualProvider(IConfigServiceProvider provider)
-        {
-            foreach (Type paramType in provider.SupportedParamsTypes)
-            {
-                bool hasExistingProvider = this.ProvidersByParamsType.ContainsKey(paramType);
+            ArgumentNullException.ThrowIfNull(providers);
 
-                if (hasExistingProvider)
+            foreach (IConfigProvider provider in providers)
+            {
+                foreach (Type paramType in provider.SupportedParamsTypes)
                 {
-                    this.Logger.LogError("Multiple implementations claim support for parameter type: {ParamType}", paramType.Name);
+                    bool hasExistingProvider = this.ProvidersByParamsType.ContainsKey(paramType);
 
-                    throw new InvalidOperationException($"Multiple implementations claim support for {paramType.Name}");
+                    if (hasExistingProvider)
+                    {
+                        this.Logger.LogError("Multiple implementations claim support for parameter type: {ParamType}", paramType.Name);
+
+                        throw new InvalidOperationException($"Multiple implementations claim support for {paramType.Name}");
+                    }
+
+                    this.ProvidersByParamsType[paramType] = provider;
                 }
-
-                this.ProvidersByParamsType[paramType] = provider;
             }
         }
 
         private void RegisterConfigAccessors(IEnumerable<IConfigAccessor> accessors)
         {
+            ArgumentNullException.ThrowIfNull(accessors);
+
             foreach (IConfigAccessor accessor in accessors)
             {
-                this.RegisterIndividualAccessor(accessor);
+                bool hasExistingAccessor = this.AccessorByInterface.ContainsKey(accessor.AccessorInterface);
+
+                if (hasExistingAccessor)
+                {
+                    this.Logger.LogError("Multiple implementations claim support for accessor interface: {AccessorInterface}", accessor.AccessorInterface.Name);
+
+                    throw new InvalidOperationException($"Multiple implementations claim support for {accessor.AccessorInterface}");
+                }
+
+                this.AccessorByInterface[accessor.AccessorInterface] = accessor;
             }
-        }
-        private void RegisterIndividualAccessor(IConfigAccessor accessor)
-        {
-            bool hasExistingAccessor = this.AccessorByInterface.ContainsKey(accessor.AccessorInterface);
-
-            if (hasExistingAccessor)
-            {
-                this.Logger.LogError("Multiple implementations claim support for accessor interface: {AccessorInterface}", accessor.AccessorInterface.Name);
-
-                throw new InvalidOperationException($"Multiple implementations claim support for {accessor.AccessorInterface}");
-            }
-
-            this.AccessorByInterface[accessor.AccessorInterface] = accessor;
         }
 
         #endregion
 
         #region ConfigService: Validation and Helpers
 
-        protected IConfigServiceProvider GetProviderForParamsType(Type paramType)
+        protected IConfigProvider GetProviderForParamsType(Type paramType)
         {
             ArgumentNullException.ThrowIfNull(paramType);
 
-            bool hasProvider = this.ProvidersByParamsType.TryGetValue(paramType, out IConfigServiceProvider? provider);
+            bool hasProvider = this.ProvidersByParamsType.TryGetValue(paramType, out IConfigProvider? provider);
 
             if (!hasProvider)
             {
@@ -666,11 +583,11 @@ namespace PlugHub.Services.Configuration
 
             return provider!;
         }
-        protected IConfigServiceProvider GetProviderForConfigType(Type configType)
+        protected IConfigProvider GetProviderForConfigType(Type configType)
         {
             ArgumentNullException.ThrowIfNull(configType);
 
-            bool hasProvider = this.ProvidersByConfigType.TryGetValue(configType, out IConfigServiceProvider? provider);
+            bool hasProvider = this.ProvidersByConfigType.TryGetValue(configType, out IConfigProvider? provider);
 
             if (!hasProvider)
             {

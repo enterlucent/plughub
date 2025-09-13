@@ -4,8 +4,7 @@ using PlugHub.Shared.Models;
 
 namespace PlugHub.Shared.Interfaces.Accessors
 {
-    public interface IFileConfigAccessor
-        : IConfigAccessor
+    public interface IFileConfigAccessor : IConfigAccessor
     {
         /// <summary>
         /// Sets the list of configuration types that this accessor will manage.
@@ -47,6 +46,5 @@ namespace PlugHub.Shared.Interfaces.Accessors
     /// <summary>Type-safe accessor for a single configuration class.</summary>
     /// <typeparam name="TConfig">Configuration POCO.</typeparam>
     public interface IFileConfigAccessorFor<TConfig>
-        : IConfigAccessorFor<TConfig> where TConfig : class
-    { }
+        : IConfigAccessorFor<TConfig> where TConfig : class;
 }

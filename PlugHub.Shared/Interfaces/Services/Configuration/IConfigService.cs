@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Interfaces.Accessors;
+﻿using Microsoft.Extensions.Configuration;
+using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Models;
 using System.Text.Json;
@@ -166,7 +167,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
 
         #region COnfigService: Predicates
 
-        bool IsConfigRegistered(Type configType);
+        bool IsRegistered(Type configType);
 
         #endregion
 
@@ -374,33 +375,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         #region IConfigService: Value Accessors and Mutators
 
         /// <summary>
-        /// Returns the *baseline* value that was loaded from
-        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
-        /// </summary>
-        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <param name="readToken">Optional token for read operations. Defaults to <see cref="Token.Public"/> if not specified.</param>
-        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="KeyNotFoundException"/>
-        T GetDefault<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
-
-        /// <summary>
-        /// Returns the *baseline* value that was loaded from
-        /// <paramref name="key"/> – ignoring any user-override that might currently exist.
-        /// </summary>
-        /// <typeparam name="T">Desired return type.  If the stored object implements <see cref="IConvertible"/> it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
-        /// <param name="configType">CLR type that models the configuration section whose default you want to inspect. Must have been registered with the configuration service.</param>
-        /// <param name="key">Public property name declared on <paramref name="configType"/>.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns> The default value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
-        /// <exception cref="KeyNotFoundException"/>
-        T GetDefault<T>(Type configType, string key, ITokenSet tokenSet);
-
-
-        /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>
+        /// Returns the value for the property named <paramref name="key"/>
         /// </summary>
         /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
         /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
@@ -410,10 +385,10 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
         /// <exception cref="KeyNotFoundException"/>
         /// <exception cref="UnauthorizedAccessException"/>
-        public T GetSetting<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
+        public T GetValue<T>(Type configType, string key, Token? ownerToken = null, Token? readToken = null);
 
         /// <summary>
-        /// Returns the *effective* value for the property named <paramref name="key"/>
+        /// Returns the value for the property named <paramref name="key"/>
         /// </summary>
         /// <typeparam name="T">Desired return type. If the stored object implements <see cref="IConvertible"/>, it is converted to <typeparamref name="T"/>; otherwise the method attempts a direct cast.</typeparam>
         /// <param name="configType">CLR type that models the configuration section you want to query.Must have been registered with the configuration service.</param>
@@ -422,13 +397,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <returns>The effective value converted to <typeparamref name="T"/>; <see langword="default"/> when the conversion cannot be performed.</returns>
         /// <exception cref="KeyNotFoundException"/>
         /// <exception cref="UnauthorizedAccessException"/>
-        public T GetSetting<T>(Type configType, string key, ITokenSet tokenSet);
-
-
-
-        public void SetDefault<T>(Type configType, string key, T value, Token? ownerToken = null, Token? writeToken = null);
-        public void SetDefault<T>(Type configType, string key, T value, ITokenSet tokenSet);
-
+        public T GetValue<T>(Type configType, string key, ITokenSet tokenSet);
 
 
         /// <summary>
@@ -440,7 +409,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="value">The setting value.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        public void SetSetting<T>(Type configType, string key, T value, Token? ownerToken = null, Token? writeToken = null);
+        public void SetValue<T>(Type configType, string key, T value, Token? ownerToken = null, Token? writeToken = null);
 
         /// <summary>
         /// Sets a type-specific setting by type and key.
@@ -450,7 +419,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="key">The setting key.</param>
         /// <param name="value">The setting value.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public void SetSetting<T>(Type configType, string key, T value, ITokenSet tokenSet);
+        public void SetValue<T>(Type configType, string key, T value, ITokenSet tokenSet);
 
 
         /// <summary>
@@ -460,7 +429,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>        
-        public void SaveSettings(Type configType, Token? ownerToken = null, Token? writeToken = null);
+        public void SaveValues(Type configType, Token? ownerToken = null, Token? writeToken = null);
 
         /// <summary>
         /// Saves the current user and default settings for the specified configuration type to disk asynchronously.
@@ -468,7 +437,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// </summary>
         /// <param name="configType">The configuration type whose settings should be saved.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public void SaveSettings(Type configType, ITokenSet tokenSet);
+        public void SaveValues(Type configType, ITokenSet tokenSet);
 
 
         /// <summary>
@@ -477,14 +446,14 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="configType">The configuration type.</param>
         /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
         /// <param name="writeToken">Optional token for write operations. Defaults to <see cref="Token.Blocked"/> if not specified.</param>
-        public Task SaveSettingsAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default);
+        public Task SaveValuesAsync(Type configType, Token? ownerToken = null, Token? writeToken = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Saves settings for a specific type.
         /// </summary>
         /// <param name="configType">The configuration type.</param>
         /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        public Task SaveSettingsAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default);
+        public Task SaveValuesAsync(Type configType, ITokenSet tokenSet, CancellationToken cancellationToken = default);
 
         #endregion
 
@@ -561,64 +530,6 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
 
         #endregion
 
-        #region IConfigService: Default Config Mutation/Migration
-
-        /// <summary>
-        /// Gets the raw contents of the default configuration file for the specified configuration type.
-        /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <returns>The contents of the default configuration file as a string.</returns>
-        public string GetDefaultConfigFileContents(Type configType, Token? ownerToken = null);
-
-        /// <summary>
-        /// Gets the raw contents of the default configuration file for the specified configuration type.
-        /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>The contents of the default configuration file as a string.</returns>
-        public string GetDefaultConfigFileContents(Type configType, ITokenSet tokenSet);
-
-
-        /// <summary>
-        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
-        /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        /// <returns>A task representing the asynchronous save operation.</returns>
-        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, Token? ownerToken = null, CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Asynchronously saves the provided contents to the default configuration file for the specified configuration type.
-        /// </summary>
-        /// <param name="configType">The type of the configuration section.</param>
-        /// <param name="contents">The raw string contents to write to the default configuration file.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>
-        /// <returns>A task representing the asynchronous save operation.</returns>
-        public Task SaveDefaultConfigFileContentsAsync(Type configType, string contents, ITokenSet tokenSet, CancellationToken cancellationToken = default);
-
-
-        /// <summary>
-        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
-        /// </summary>
-        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
-        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
-        /// <param name="ownerToken">Optional token for owner operations. Defaults to a new <see cref="Token"/> if not specified.</param>
-        public void SaveDefaultConfigFileContents(Type configType, string contents, Token? ownerToken = null);
-
-        /// <summary>
-        /// Overwrites the default configuration file for the specified type with the provided JSON contents asynchronously.
-        /// This method initiates the write operation and returns immediately; errors are reported via the <see cref="SyncSaveErrors"/> event.
-        /// </summary>
-        /// <param name="configType">The configuration type whose default config file should be overwritten.</param>
-        /// <param name="contents">The raw JSON contents to write to the default config file.</param>
-        /// <param name="tokenSet">Consolidated token container for owner/read/write permissions.</param>        
-        public void SaveDefaultConfigFileContents(Type configType, string contents, ITokenSet tokenSet);
-
-        #endregion
-
         #region IConfigService: Event Handlers
 
         /// <summary>
@@ -673,6 +584,7 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="oldValue">The previous value of the setting, or null if none.</param>
         /// <param name="newValue">The new value of the setting, or null if removed.</param>
         void OnSettingChanged(object sender, Type configType, string key, object? oldValue, object? newValue);
+        IConfiguration GetEnvConfig();
 
         #endregion
     }

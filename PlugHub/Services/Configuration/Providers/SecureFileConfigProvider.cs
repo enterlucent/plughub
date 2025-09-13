@@ -6,7 +6,7 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Utility;
 using System;
 using System.Collections.Generic;
@@ -19,12 +19,6 @@ using System.Text.Json.Serialization;
 
 namespace PlugHub.Services.Configuration.Providers
 {
-    public class SecureFileConfigServiceConfig(IEncryptionContext encryptionContext, IConfigService configService, string configPath, IConfiguration config, Dictionary<string, object?> values, JsonSerializerOptions? jsonOptions, Token ownerToken, Token readToken, Token writeToken, bool reloadOnChange)
-        : FileConfigServiceConfig(configService, configPath, config, values, jsonOptions, ownerToken, readToken, writeToken, reloadOnChange)
-    {
-        public IEncryptionContext? EncryptionContext { get; init; } = encryptionContext;
-    }
-
     public sealed class SecureValueJsonConverter : JsonConverter<SecureValue>
     {
         public override SecureValue? Read(ref Utf8JsonReader r, Type t, JsonSerializerOptions o)
@@ -38,33 +32,33 @@ namespace PlugHub.Services.Configuration.Providers
             {
                 using JsonDocument doc = JsonDocument.ParseValue(ref r);
                 string base64 = doc.RootElement.GetProperty("EncryptedBase64").GetString()!;
+
                 return new SecureValue(base64);
             }
 
-            throw new JsonException("Invalid SecureValue payload.");
+            throw new JsonException("[SecureValueJsonConverter] Invalid SecureValue payload.");
         }
-
         public override void Write(Utf8JsonWriter w, SecureValue v, JsonSerializerOptions o) =>
             w.WriteStringValue(v.EncryptedBase64);
     }
 
-    public class SecureFileConfigService : FileConfigService, IConfigServiceProvider, IDisposable
+    public class SecureFileConfigProvider : FileConfigProvider, IConfigProvider, IDisposable
     {
         protected IEncryptionService EncryptionService;
 
-        public SecureFileConfigService(ILogger<IConfigServiceProvider> logger, ITokenService tokenService, IEncryptionService encryptionService)
+        public SecureFileConfigProvider(ILogger<IConfigProvider> logger, ITokenService tokenService, IEncryptionService encryptionService)
             : base(logger, tokenService)
         {
             ArgumentNullException.ThrowIfNull(encryptionService);
 
             this.EncryptionService = encryptionService;
-            this.SupportedParamsTypes = [typeof(SecureFileConfigServiceParams)];
+            this.SupportedParamsTypes = [typeof(ConfigSecureFileParams)];
             this.RequiredAccessorInterface = typeof(ISecureFileConfigAccessor);
 
-            this.Logger.LogDebug("SecureFileConfigService initialized");
+            this.Logger.LogDebug("[SecureFileConfigProvider] Initialized.");
         }
 
-        #region SecureFileConfigService: Registration
+        #region SecureFileConfigProvider: Registration
 
         public override void RegisterConfig(Type configType, IConfigServiceParams configParams, IConfigService configService)
         {
@@ -72,76 +66,68 @@ namespace PlugHub.Services.Configuration.Providers
             ArgumentNullException.ThrowIfNull(configParams);
             ArgumentNullException.ThrowIfNull(configService);
 
-            if (configParams is not SecureFileConfigServiceParams)
-            {
+            if (configParams is not ConfigSecureFileParams)
                 throw new ArgumentException($"Expected SecureFileConfigServiceParams, got {configParams.GetType().Name}", nameof(configParams));
-            }
 
-            SecureFileConfigServiceParams p = (SecureFileConfigServiceParams)configParams;
+            ConfigSecureFileParams p = (ConfigSecureFileParams)configParams;
 
             this.ValidateSecureFieldConfiguration(configType);
-            JsonSerializerOptions jsonOptions = this.PrepareSecureJsonOptions(p, configService);
-            string defaultConfigFilePath = this.ResolveSecureConfigPath(p, configService, configType);
+
+            JsonSerializerOptions jsonOptions = p.JsonSerializerOptions ?? this.JsonOptions ?? configService.JsonOptions;
+            jsonOptions.Converters.Add(new SecureValueJsonConverter());
+
+            string defaultConfigFilePath = this.ResolveLocalFilePath(p.ConfigUriOverride, configService.ConfigDataDirectory, configType, "json");
+
             IEncryptionContext encryptionContext = this.GetOrCreateEncryptionContext(p, configType);
 
             this.EnsureEncryptedFileExists(defaultConfigFilePath, configType, encryptionContext, jsonOptions);
             base.RegisterConfig(configType, p, configService);
 
-            this.Logger.LogDebug("Registered secure configuration: {ConfigType}", configType.Name);
+            this.Logger.LogDebug("[SecureFileConfigProvider] Registered secure configuration: {ConfigType}", configType.Name);
         }
 
         #endregion
 
-        #region SecureFileConfigService: Secure Value Handling
+        #region SecureFileConfigProvider: Secure Value Handling
 
         [return: MaybeNull]
         protected override T CastStoredValue<T>(object? raw)
         {
             if (raw is null)
-            {
                 return default;
-            }
 
             bool isCorrectType = raw is T;
 
             if (isCorrectType)
-            {
                 return (T)raw;
-            }
 
             bool isSecureValueRequest = typeof(T) == typeof(SecureValue);
             bool rawIsSecureValue = raw is SecureValue;
 
             if (isSecureValueRequest && rawIsSecureValue)
-            {
                 return (T)raw;
-            }
 
             if (rawIsSecureValue)
-            {
                 throw new InvalidCastException($"Setting contains a SecureValue but was requested as {typeof(T).Name}. Use a SecureConfigAccessor or request SecureValue directly.");
-            }
 
             try
             {
                 bool isConvertible = raw is IConvertible;
 
                 if (isConvertible)
-                {
                     return (T)Convert.ChangeType(raw, typeof(T));
-                }
             }
             catch (InvalidCastException ex)
             {
-                this.Logger.LogWarning(ex, "Invalid cast when converting stored value");
+                this.Logger.LogWarning(ex, "[SecureFileConfigProvider] Invalid cast when converting stored value");
             }
             catch (FormatException ex)
             {
-                this.Logger.LogWarning(ex, "Format error when converting stored value");
+                this.Logger.LogWarning(ex, "[SecureFileConfigProvider] Format error when converting stored value");
             }
             catch (OverflowException ex)
             {
-                this.Logger.LogWarning(ex, "Overflow error when converting stored value");
+                this.Logger.LogWarning(ex, "[SecureFileConfigProvider] Overflow error when converting stored value");
             }
 
             return default;
@@ -155,29 +141,22 @@ namespace PlugHub.Services.Configuration.Providers
             bool isSecureProperty = IsSecureProperty(prop);
 
             if (isSecureProperty)
-            {
                 return ExtractSecureValue(config, prop);
-            }
             else
-            {
                 return base.GetBuildSettingsValue(config, prop);
-            }
         }
 
         #endregion
 
-        #region SecureFileConfigService: Configuration Validation
+        #region SecureFileConfigProvider: Configuration Validation
 
         private void ValidateSecureFieldConfiguration(Type configType)
         {
             bool hasSecureFields = HasSecureFields(configType);
 
             if (!hasSecureFields)
-            {
-                this.Logger.LogInformation("Type '{ConfigType}' contains no SecureValue properties; for faster startup consider using RegisterConfig instead.", configType.Name);
-            }
+                this.Logger.LogInformation("[SecureFileConfigProvider] Type '{ConfigType}' contains no SecureValue properties; for faster startup consider using RegisterConfig instead.", configType.Name);
         }
-
         private static bool HasSecureFields(Type configType)
         {
             PropertyInfo[] properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -187,9 +166,7 @@ namespace PlugHub.Services.Configuration.Providers
                 bool isSecureProperty = IsSecureProperty(property);
 
                 if (isSecureProperty)
-                {
                     return true;
-                }
             }
 
             return false;
@@ -205,39 +182,27 @@ namespace PlugHub.Services.Configuration.Providers
 
         #endregion
 
-        #region SecureFileConfigService: Configuration Setup
+        #region SecureFileConfigProvider: Configuration Setup
 
-        private JsonSerializerOptions PrepareSecureJsonOptions(SecureFileConfigServiceParams p, IConfigService configService)
+        private IEncryptionContext GetOrCreateEncryptionContext(ConfigSecureFileParams p, Type configType)
         {
-            JsonSerializerOptions jsonOptions = p.JsonSerializerOptions ?? this.JsonOptions ?? configService.JsonOptions;
-            jsonOptions.Converters.Add(new SecureValueJsonConverter());
-
-            return jsonOptions;
-        }
-
-        private string ResolveSecureConfigPath(SecureFileConfigServiceParams p, IConfigService configService, Type configType)
-        {
-            return this.ResolveLocalFilePath(p.ConfigUriOverride, configService.ConfigDataDirectory, configType, "json");
-        }
-
-        private IEncryptionContext GetOrCreateEncryptionContext(SecureFileConfigServiceParams p, Type configType)
-        {
-            if (p.EncryptionContext != null)
+            if (p.EncryptionContext == null)
             {
-                return p.EncryptionContext;
+                Guid deterministicId = configType.ToDeterministicGuid();
+
+                return this.EncryptionService.GetEncryptionContext(configType, deterministicId);
             }
             else
             {
-                Guid deterministicId = configType.ToDeterministicGuid();
-                return this.EncryptionService.GetEncryptionContext(configType, deterministicId);
+                return p.EncryptionContext;
             }
         }
 
         #endregion
 
-        #region SecureFileConfigService: File Operations
+        #region SecureFileConfigProvider: File Operations
 
-        private void EnsureEncryptedFileExists(string filePath, Type configType, IEncryptionContext context, JsonSerializerOptions jsonOptions)
+        protected virtual void EnsureEncryptedFileExists(string filePath, Type configType, IEncryptionContext context, JsonSerializerOptions jsonOptions)
         {
             ArgumentNullException.ThrowIfNull(filePath);
             ArgumentNullException.ThrowIfNull(configType);
@@ -247,20 +212,17 @@ namespace PlugHub.Services.Configuration.Providers
             bool fileExists = File.Exists(filePath);
 
             if (fileExists)
-            {
                 return;
-            }
 
             this.EnsureDirectoryExists(filePath);
 
             Dictionary<string, object?> settings = this.BuildDefaultSecureSettings(configType, context);
             string jsonContent = SerializeSecureSettings(settings, jsonOptions);
 
-            WriteSecureConfigFile(filePath, jsonContent);
+            this.WriteSecureConfigFile(filePath, jsonContent);
 
-            this.Logger.LogDebug("Created encrypted configuration file: {FilePath}", filePath);
+            this.Logger.LogDebug("[SecureFileConfigProvider] Created encrypted configuration file: {FilePath}", filePath);
         }
-
         private Dictionary<string, object?> BuildDefaultSecureSettings(Type configType, IEncryptionContext context)
         {
             Dictionary<string, object?> settings = [];
@@ -276,7 +238,6 @@ namespace PlugHub.Services.Configuration.Providers
 
             return settings;
         }
-
         private object? GetPropertyDefaultValue(PropertyInfo property, Type configType)
         {
             object? rawValue = property.PropertyType.IsValueType
@@ -295,13 +256,12 @@ namespace PlugHub.Services.Configuration.Providers
                 }
                 catch (Exception ex)
                 {
-                    this.Logger.LogWarning(ex, "Failed to read default value for property {PropertyName} on type {ConfigType}", property.Name, configType.Name);
+                    this.Logger.LogWarning(ex, "[SecureFileConfigProvider] Failed to read default value for property {PropertyName} on type {ConfigType}", property.Name, configType.Name);
                 }
             }
 
             return rawValue;
         }
-
         private static object? PrepareSecureSettingValue(PropertyInfo property, object? rawValue, IEncryptionContext context)
         {
             bool isSecureProperty = IsSecureProperty(property);
@@ -312,12 +272,8 @@ namespace PlugHub.Services.Configuration.Providers
 
                 return secureValue.EncryptedBase64;
             }
-            else
-            {
-                return rawValue;
-            }
+            else return rawValue;
         }
-
         private static string SerializeSecureSettings(Dictionary<string, object?> settings, JsonSerializerOptions jsonOptions)
         {
             try
@@ -330,16 +286,14 @@ namespace PlugHub.Services.Configuration.Providers
             }
         }
 
-        private static void WriteSecureConfigFile(string filePath, string jsonContent)
+        protected virtual void WriteSecureConfigFile(string filePath, string jsonContent)
         {
             try
             {
                 string? directoryPath = Path.GetDirectoryName(filePath);
 
                 if (!string.IsNullOrEmpty(directoryPath))
-                {
                     Directory.CreateDirectory(directoryPath);
-                }
 
                 Atomic.Write(filePath, jsonContent);
             }
@@ -351,7 +305,7 @@ namespace PlugHub.Services.Configuration.Providers
 
         #endregion
 
-        #region SecureFileConfigService: Secure Value Extraction
+        #region SecureFileConfigProvider: Secure Value Extraction
 
         private static SecureValue? ExtractSecureValue(IConfiguration config, PropertyInfo prop)
         {
@@ -360,9 +314,7 @@ namespace PlugHub.Services.Configuration.Providers
             bool sectionExists = section.Exists();
 
             if (!sectionExists)
-            {
                 return null;
-            }
 
             string? base64Value = GetSecureValueFromSection(section);
 
@@ -374,9 +326,7 @@ namespace PlugHub.Services.Configuration.Providers
             string? directValue = section.Value;
 
             if (!string.IsNullOrEmpty(directValue))
-            {
                 return directValue;
-            }
 
             string? base64Property = section["EncryptedBase64"];
 

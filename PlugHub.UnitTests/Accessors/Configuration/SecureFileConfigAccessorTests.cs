@@ -11,7 +11,7 @@ using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 
 namespace PlugHub.UnitTests.Accessors.Configuration
 {
@@ -61,10 +61,8 @@ namespace PlugHub.UnitTests.Accessors.Configuration
             this.encryptionContext = this.encryptionService.GetEncryptionContext(typeof(SecureFileConfigAccessorTests), new("EFFFFFFF-FFFF-EEEE-FFFF-FFFFFFFFFFFE"));
             this.configService = new ConfigService(
                 [
-                    new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
-                    new SecureFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService, this.encryptionService),
-                    new UserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService),
-                    new SecureUserFileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService, this.encryptionService),
+                    new FileConfigProvider(new NullLogger<IConfigProvider>(), this.tokenService),
+                    new SecureFileConfigProvider(new NullLogger<IConfigProvider>(), this.tokenService, this.encryptionService),
                 ],
                 [
                     new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService !),
@@ -81,7 +79,7 @@ namespace PlugHub.UnitTests.Accessors.Configuration
                 this.tokenService.CreateToken());
 
             this.secureParams =
-                new SecureFileConfigServiceParams(
+                new ConfigSecureFileParams(
                     EncryptionContext: this.encryptionContext!,
                     Owner: this.tokenSet.Owner,
                     Read: this.tokenSet.Read,

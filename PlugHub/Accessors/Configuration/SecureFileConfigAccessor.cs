@@ -33,36 +33,42 @@ namespace PlugHub.Accessors.Configuration
         public virtual ISecureFileConfigAccessor SetEncryptionService(IEncryptionService encryptionService)
         {
             this.EncryptionService = encryptionService;
+
             return this;
         }
 
         public virtual ISecureFileConfigAccessor SetEncryptionContext(IEncryptionContext encryptionContext)
         {
             this.EncryptionContext = encryptionContext;
+
             return this;
         }
 
         public override ISecureFileConfigAccessor SetConfigTypes(IList<Type> configTypes)
         {
             base.SetConfigTypes(configTypes);
+
             return this;
         }
 
         public override ISecureFileConfigAccessor SetConfigService(IConfigService configService)
         {
             base.SetConfigService(configService);
+
             return this;
         }
 
         public override ISecureFileConfigAccessor SetAccess(Token ownerToken, Token readToken, Token writeToken)
         {
             base.SetAccess(ownerToken, readToken, writeToken);
+
             return this;
         }
 
         public override ISecureFileConfigAccessor SetAccess(ITokenSet tokenSet)
         {
             base.SetAccess(tokenSet);
+
             return this;
         }
 
@@ -73,14 +79,10 @@ namespace PlugHub.Accessors.Configuration
         public override ISecureFileConfigAccessorFor<TConfig> For<TConfig>() where TConfig : class
         {
             if (this.ConfigService == null)
-            {
                 throw new InvalidOperationException("ConfigService must be set before creating typed accessors");
-            }
 
             if (this.ConfigTypes == null)
-            {
                 throw new InvalidOperationException("ConfigTypes must be set before creating typed accessors");
-            }
 
             if (!this.ConfigTypes.Contains(typeof(TConfig)))
             {
@@ -92,9 +94,7 @@ namespace PlugHub.Accessors.Configuration
             }
 
             if (this.EncryptionContext == null)
-            {
                 throw new InvalidOperationException("EncryptionContext must be set before accessing secure configuration. Call SetEncryptionContext() with a valid IEncryptionContext.");
-            }
 
             return new SecureFileConfigAccessorFor<TConfig>(this.TokenService, this.ConfigService, this.EncryptionContext, this.OwnerToken, this.ReadToken, this.WriteToken);
         }
@@ -124,6 +124,7 @@ namespace PlugHub.Accessors.Configuration
             public ISecureFileConfigAccessorFor<TConfig> SetEncryptionContext(IEncryptionContext encryptionContext)
             {
                 this.EncryptionContext = encryptionContext;
+
                 return this;
             }
 
@@ -135,12 +136,10 @@ namespace PlugHub.Accessors.Configuration
             {
                 ValidateEncryptionContext(this.EncryptionContext);
 
-                SecureValue? secureValue = this.ConfigService.GetSetting<SecureValue>(typeof(TConfig), key, this.OwnerToken, this.ReadToken);
+                SecureValue? secureValue = this.ConfigService.GetValue<SecureValue>(typeof(TConfig), key, this.OwnerToken, this.ReadToken);
 
                 if (secureValue != null)
-                {
                     return secureValue.As<T>(this.EncryptionContext);
-                }
 
                 return base.Get<T>(key);
             }
@@ -149,33 +148,25 @@ namespace PlugHub.Accessors.Configuration
             {
                 ValidateEncryptionContext(this.EncryptionContext);
 
-                PropertyInfo property = GetCachedProperty(key)
-                    ?? throw new KeyNotFoundException($"Property {key} not found on type {typeof(TConfig).Name}");
+                PropertyInfo[] properties = GetCachedProperties();
+                PropertyInfo? property = Array.Find(properties, p => p.Name == key);
 
                 bool isSecureProperty = IsSecureProperty(property);
 
                 if (!isSecureProperty)
                 {
                     base.Set(key, value);
+
                     return;
                 }
 
                 bool shouldUpdateValue = this.ShouldUpdateSecureValue(key, value);
 
                 if (!shouldUpdateValue)
-                {
                     return;
-                }
-
-                bool shouldClearValue = this.ShouldClearToDefault(key, value);
-
-                if (shouldClearValue)
-                {
-                    base.Set<SecureValue>(key, null!);
-                    return;
-                }
 
                 SecureValue wrappedValue = SecureValue.From(value!, this.EncryptionContext);
+
                 base.Set(key, wrappedValue);
             }
 
@@ -192,9 +183,7 @@ namespace PlugHub.Accessors.Configuration
                 PropertyInfo[] secureProperties = SecureFileConfigAccessorFor<TConfig>.GetSecureProperties();
 
                 foreach (PropertyInfo property in secureProperties)
-                {
                     this.SetSecurePropertyValue(instance, property);
-                }
 
                 return instance;
             }
@@ -206,7 +195,7 @@ namespace PlugHub.Accessors.Configuration
 
                 this.SaveSecurePropertiesToConfig(instance);
 
-                this.ConfigService.SaveSettings(typeof(TConfig), this.OwnerToken, this.WriteToken);
+                this.ConfigService.SaveValues(typeof(TConfig), this.OwnerToken, this.WriteToken);
                 this.ConfigService.OnSaveOperationComplete(this, instance.GetType());
             }
 
@@ -221,7 +210,7 @@ namespace PlugHub.Accessors.Configuration
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                await this.ConfigService.SaveSettingsAsync(typeof(TConfig), this.OwnerToken, this.WriteToken, cancellationToken);
+                await this.ConfigService.SaveValuesAsync(typeof(TConfig), this.OwnerToken, this.WriteToken, cancellationToken);
             }
 
             #endregion
@@ -230,34 +219,16 @@ namespace PlugHub.Accessors.Configuration
 
             private bool ShouldUpdateSecureValue<T>(string key, T value)
             {
-                SecureValue? currentValue = this.ConfigService.GetSetting<SecureValue>(
+                SecureValue? currentValue = this.ConfigService.GetValue<SecureValue>(
                     typeof(TConfig), key, this.OwnerToken, this.ReadToken);
 
                 if (currentValue == null)
-                {
                     return true;
-                }
 
                 T decryptedCurrent = currentValue.As<T>(this.EncryptionContext);
 
                 return !EqualityComparer<T>.Default.Equals(decryptedCurrent, value);
             }
-
-            private bool ShouldClearToDefault<T>(string key, T value)
-            {
-                SecureValue? defaultValue = this.ConfigService.GetDefault<SecureValue>(
-                    typeof(TConfig), key, this.OwnerToken, this.ReadToken);
-
-                if (defaultValue == null)
-                {
-                    return false;
-                }
-
-                T decryptedDefault = defaultValue.As<T>(this.EncryptionContext);
-
-                return EqualityComparer<T>.Default.Equals(decryptedDefault, value);
-            }
-
 
             private static PropertyInfo[] GetSecureProperties()
             {
@@ -268,17 +239,34 @@ namespace PlugHub.Accessors.Configuration
 
             private void SetSecurePropertyValue(TConfig instance, PropertyInfo property)
             {
-                MethodInfo genericGet = GetGenericGetMethod();
+                MethodInfo genericGet = typeof(SecureFileConfigAccessorFor<TConfig>)
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Single(m =>
+                        m.Name == nameof(Get) &&
+                        m.IsGenericMethodDefinition &&
+                        m.GetParameters().Length == 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(string));
+
                 MethodInfo typedGet = genericGet.MakeGenericMethod(property.PropertyType);
 
                 object? decryptedValue = typedGet.Invoke(this, [property.Name]);
 
                 if (decryptedValue == null)
-                {
                     return;
-                }
 
-                SetPropertyValueSafely(instance, property, decryptedValue);
+                bool isCorrectType = property.PropertyType.IsInstanceOfType(decryptedValue);
+                bool isConvertible = decryptedValue is IConvertible;
+
+                if (isCorrectType)
+                {
+                    property.SetValue(instance, decryptedValue);
+                }
+                else if (isConvertible)
+                {
+                    object convertedValue = Convert.ChangeType(decryptedValue, property.PropertyType);
+
+                    property.SetValue(instance, convertedValue);
+                }
             }
             private void SaveSecurePropertiesToConfig(TConfig instance)
             {
@@ -288,7 +276,9 @@ namespace PlugHub.Accessors.Configuration
                 {
                     object? rawValue = property.GetValue(instance);
 
-                    MethodInfo setGeneric = GetGenericSetMethod().MakeGenericMethod(property.PropertyType);
+                    MethodInfo setMethod = typeof(SecureFileConfigAccessorFor<TConfig>).GetMethod(nameof(Set))!;
+                    MethodInfo setGeneric = setMethod.MakeGenericMethod(property.PropertyType);
+
                     setGeneric.Invoke(this, [property.Name, rawValue]);
                 }
             }
@@ -300,59 +290,19 @@ namespace PlugHub.Accessors.Configuration
             protected static void ValidateEncryptionContext(IEncryptionContext? encryptionContext)
             {
                 if (encryptionContext == null)
-                {
                     throw new InvalidOperationException("EncryptionContext is null. Call SetEncryptionContext() with a valid IEncryptionContext before accessing secure configuration.");
-                }
             }
-
             protected static PropertyInfo[] GetCachedProperties()
-                => PropertyCache.GetOrAdd(
-                    typeof(TConfig),
-                    t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
-            protected static PropertyInfo? GetCachedProperty(string propertyName)
+                => PropertyCache.GetOrAdd(typeof(TConfig), t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
+            protected static bool IsSecureProperty(PropertyInfo? property)
             {
-                PropertyInfo[] properties = GetCachedProperties();
-                return Array.Find(properties, p => p.Name == propertyName);
-            }
+                if (property == null)
+                    return false;
 
-            protected static bool IsSecureProperty(PropertyInfo property)
-            {
                 bool isSecureValueType = property.PropertyType == typeof(SecureValue);
                 bool hasSecureAttribute = Attribute.IsDefined(property, typeof(SecureAttribute));
 
                 return isSecureValueType || hasSecureAttribute;
-            }
-
-            protected static MethodInfo GetGenericGetMethod()
-            {
-                return typeof(SecureFileConfigAccessorFor<TConfig>)
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Single(m =>
-                        m.Name == nameof(Get) &&
-                        m.IsGenericMethodDefinition &&
-                        m.GetParameters().Length == 1 &&
-                        m.GetParameters()[0].ParameterType == typeof(string));
-            }
-            protected static MethodInfo GetGenericSetMethod()
-            {
-                return typeof(SecureFileConfigAccessorFor<TConfig>)
-                    .GetMethod(nameof(Set))!;
-            }
-
-            protected static void SetPropertyValueSafely(TConfig instance, PropertyInfo property, object value)
-            {
-                bool isCorrectType = property.PropertyType.IsInstanceOfType(value);
-                bool isConvertible = value is IConvertible;
-
-                if (isCorrectType)
-                {
-                    property.SetValue(instance, value);
-                }
-                else if (isConvertible)
-                {
-                    object convertedValue = Convert.ChangeType(value, property.PropertyType);
-                    property.SetValue(instance, convertedValue);
-                }
             }
 
             #endregion

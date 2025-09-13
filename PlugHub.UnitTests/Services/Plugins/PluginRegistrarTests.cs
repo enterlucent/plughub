@@ -9,7 +9,7 @@ using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Models.Plugins;
 using System.Collections.Concurrent;
 using System.Reflection;
@@ -23,7 +23,7 @@ namespace PlugHub.UnitTests.Services.Plugins
         private readonly MSTestHelpers msTestHelpers = new();
         private TokenService? tokenService;
         private ConfigService? configService;
-        private FileConfigServiceParams fileParams = new();
+        private ConfigFileParams fileParams = new();
         private IConfigAccessorFor<PluginManifest>? manifest;
         private PluginRegistrar? pluginRegistrar;
         private PluginService? pluginService;
@@ -50,13 +50,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             this.writeToken = this.tokenService.CreateToken();
 
             this.fileParams =
-                new FileConfigServiceParams(
+                new ConfigFileParams(
                     Owner: this.ownerToken,
                     Read: this.readToken,
                     Write: this.writeToken);
 
             this.configService = new ConfigService(
-                [new FileConfigService(new NullLogger<IConfigServiceProvider>(), this.tokenService)],
+                [new FileConfigProvider(new NullLogger<IConfigProvider>(), this.tokenService)],
                 [new FileConfigAccessor(new NullLogger<IConfigAccessor>(), this.tokenService!)],
                 new NullLogger<IConfigService>(),
                 this.tokenService,

@@ -17,7 +17,7 @@ using PlugHub.Shared.Interfaces.Platform.Storage;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Utility;
 using PlugHub.ViewModels;
 using PlugHub.ViewModels.Pages;
@@ -34,7 +34,6 @@ namespace PlugHub
     public partial class App : Application
     {
         private static IServiceProvider? serviceProvider;
-
 
         public override void Initialize()
         {
@@ -66,7 +65,7 @@ namespace PlugHub
             AppConfig baseConfig = GetBaseAppConfig(configService, appConfig, tokenSet);
             AppEnv baseEnv = GetBaseAppEnv(configService, appEnv, tokenSet);
 
-            ConfigService.GetEnvConfig().Bind(baseConfig);
+            configService.GetEnvConfig().Bind(baseConfig);
 
             serviceProvider = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig, baseEnv);
 
@@ -122,7 +121,7 @@ namespace PlugHub
             services.AddSingleton<ISecureStorage, InsecureStorage>();
             services.AddSingleton<IEncryptionService, EncryptionService>();
 
-            services.AddSingleton<IConfigServiceProvider, FileConfigService>();
+            services.AddSingleton<IConfigProvider, FileConfigProvider>();
             services.AddTransient<IConfigAccessor, FileConfigAccessor>();
         }
         private static void CollectViewModels(IServiceCollection services)
@@ -233,7 +232,7 @@ namespace PlugHub
             if (PlatformPath.Exists(configFilePath))
             {
                 configService.RegisterConfig(
-                    new FileConfigServiceParams(configFilePath, Owner: tokenSet.Owner),
+                    new ConfigFileParams(configFilePath, Owner: tokenSet.Owner),
                     out IConfigAccessorFor<AppConfig>? accessor);
 
                 AppConfig? loadedConfig = accessor?.Get() ?? new AppConfig();
@@ -260,7 +259,7 @@ namespace PlugHub
             if (PlatformPath.Exists(configFilePath))
             {
                 configService.RegisterConfig(
-                    new FileConfigServiceParams(configFilePath, Owner: tokenSet.Owner),
+                    new ConfigFileParams(configFilePath, Owner: tokenSet.Owner),
                     out IConfigAccessorFor<AppEnv>? accessor);
 
                 AppEnv? loadedEnv = accessor?.Get() ?? new AppEnv();

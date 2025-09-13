@@ -13,7 +13,7 @@ using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models;
-using PlugHub.Shared.Models.Configuration;
+using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Models.Plugins;
 using PlugHub.Shared.Utility;
 using PlugHub.Shared.ViewModels;
@@ -25,7 +25,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -122,7 +121,7 @@ namespace PlugHub.Bootstrap
                 IConfigService configService = provider.GetRequiredService<IConfigService>();
 
                 configService.RegisterConfig(
-                    new FileConfigServiceParams(Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
+                    new ConfigFileParams(Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
                     out IConfigAccessorFor<PluginManifest> accessor);
 
                 return new PluginRegistrar(logger, accessor, pluginService, pluginCache);
@@ -155,7 +154,7 @@ namespace PlugHub.Bootstrap
                 Log.Information("[Bootstrapper] Plugin manifest found at {PluginManifestPath}, loading.", pluginFilePath);
 
                 configService.RegisterConfig(
-                    new FileConfigServiceParams(pluginFilePath, Owner: tokenSet.Owner),
+                    new ConfigFileParams(pluginFilePath, Owner: tokenSet.Owner),
                     out IConfigAccessorFor<PluginManifest>? accessor);
 
                 pluginManifest = accessor?.Get() ?? new PluginManifest();
@@ -201,6 +200,7 @@ namespace PlugHub.Bootstrap
             List<PluginLoadState> mergedStates = [];
             Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey = userManifest.InterfaceStates
                 .ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
+
             HashSet<(Guid, string)> mergedKeys = [];
 
             foreach (PluginLoadState systemState in baseManifest.InterfaceStates)
@@ -226,7 +226,6 @@ namespace PlugHub.Bootstrap
                         true,
                         systemState.Enabled,
                         systemState.LoadOrder));
-
                     Log.Information("[Bootstrapper] Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
                 }
 
@@ -234,8 +233,10 @@ namespace PlugHub.Bootstrap
             }
 
             foreach (KeyValuePair<(Guid PluginId, string InterfaceName), PluginLoadState> kvp in userStatesByKey)
+            {
                 if (!mergedKeys.Contains(kvp.Key))
                     mergedStates.Add(kvp.Value);
+            }
 
             return mergedStates;
         }
@@ -301,7 +302,7 @@ namespace PlugHub.Bootstrap
             string configPath = Path.Combine(appConfig.ConfigDirectory ?? AppContext.BaseDirectory, "AppConfig.json");
 
             configService.RegisterConfig(
-                new FileConfigServiceParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
+                new ConfigFileParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
                 out IConfigAccessorFor<AppConfig>? accessor);
 
             AppConfig persistAppConfig = accessor.Get();
@@ -330,7 +331,7 @@ namespace PlugHub.Bootstrap
             string configPath = Path.Combine(appConfig.ConfigDirectory ?? AppContext.BaseDirectory, "AppEnv.json");
 
             configService.RegisterConfig(
-                new FileConfigServiceParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
+                new ConfigFileParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
                 out IConfigAccessorFor<AppEnv>? accessor);
 
             AppEnv persistAppEnv = accessor.Get();
@@ -360,7 +361,7 @@ namespace PlugHub.Bootstrap
             string configPath = Path.Combine(appConfig.ConfigDirectory ?? AppContext.BaseDirectory, "PluginManifest.json");
 
             configService.RegisterConfig(
-                new FileConfigServiceParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
+                new ConfigFileParams(configPath, Owner: tokenSet.Owner, Read: tokenSet.Read, Write: tokenSet.Write),
                 out IConfigAccessorFor<PluginManifest>? accessor);
 
             PluginManifest persistManifest = accessor.Get();
@@ -693,9 +694,7 @@ namespace PlugHub.Bootstrap
             IEnumerable<PluginConfigurationDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
 
             foreach (PluginConfigurationDescriptor descriptor in sortedDescriptors)
-            {
                 configService.RegisterConfig(descriptor.ConfigType, descriptor.ConfigServiceParams(tokenService));
-            }
 
             Log.Information("[Bootstrapper] PluginsConfigs completed: Added {ConfigCount} configuration descriptors from plugins.", allDescriptors.Count);
         }
@@ -756,6 +755,7 @@ namespace PlugHub.Bootstrap
             MainViewModel mainViewModel = provider.GetRequiredService<MainViewModel>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginPages> pageProviders = provider.GetServices<IPluginPages>();
+
             List<PluginPageDescriptor> allDescriptors = [];
 
             foreach (IPluginPages providerInstance in pageProviders)
@@ -839,6 +839,7 @@ namespace PlugHub.Bootstrap
             SettingsViewModel settingsViewModel = provider.GetRequiredService<SettingsViewModel>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginSettingsPages> settingsProviders = provider.GetServices<IPluginSettingsPages>();
+
             List<SettingsPageDescriptor> allDescriptors = [];
 
             foreach (IPluginSettingsPages providerInstance in settingsProviders)
