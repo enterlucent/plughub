@@ -13,7 +13,11 @@
     <PackageReference Include="Avalonia" Version="11.3.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!--Configuration-->
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.7" />
     <!--Dependency Injection-->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.7" />
     <!--Logging-->

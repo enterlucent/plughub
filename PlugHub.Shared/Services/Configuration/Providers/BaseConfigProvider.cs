@@ -19,7 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace PlugHub.Services.Configuration.Providers
+namespace PlugHub.Shared.Services.Configuration.Providers
 {
     public abstract class BaseConfigProvider : IConfigProvider, IDisposable
     {
