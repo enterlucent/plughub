@@ -159,14 +159,28 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// </summary>
         public JsonSerializerOptions JsonOptions { get; }
 
-        /// <summary>Gets the directory path where the current application is executing. </summary>
+        /// <summary>
+        /// Gets the directory path where the current application is executing. 
+        /// </summary>
         public string ConfigAppDirectory { get; }
 
-        /// <summary>Gets the platform-specific data directory.</summary>
+        /// <summary>
+        /// Gets the platform-specific data directory.
+        /// </summary>
         public string ConfigDataDirectory { get; }
+
+        /// <summary>
+        /// Builds and returns an <see cref="IConfiguration"/> that includes environment variables and command-line arguments for the current process.
+        /// </summary>
+        IConfiguration GetEnvConfig();
 
         #region COnfigService: Predicates
 
+        /// <summary>
+        /// Determines whether the specified configuration type is registered with the configuration service.
+        /// </summary>
+        /// <param name="configType">The configuration type to check.</param>
+        /// <returns><see langword="true"/> if the configuration type is registered; otherwise, <see langword="false"/>.</returns>
         bool IsRegistered(Type configType);
 
         #endregion
@@ -584,7 +598,6 @@ namespace PlugHub.Shared.Interfaces.Services.Configuration
         /// <param name="oldValue">The previous value of the setting, or null if none.</param>
         /// <param name="newValue">The new value of the setting, or null if removed.</param>
         void OnSettingChanged(object sender, Type configType, string key, object? oldValue, object? newValue);
-        IConfiguration GetEnvConfig();
 
         #endregion
     }
