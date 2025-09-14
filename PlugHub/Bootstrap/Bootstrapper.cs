@@ -558,24 +558,26 @@ namespace PlugHub.Bootstrap
 
                 foreach (PluginInjectorDescriptor descriptor in reverseSorted)
                 {
+                    if (descriptor == null)
+                        continue;
+
                     bool hasImplementationType = descriptor.ImplementationType != null;
-                    bool hasBothTypes = hasImplementationType && descriptor.Instance != null;
-                    bool hasNeitherType = !hasImplementationType && descriptor.Instance == null;
+                    bool hasImplementationFactory = descriptor.ImplementationFactory != null;
 
-                    if (hasNeitherType)
+                    if (!hasImplementationType && !hasImplementationFactory)
                     {
-                        Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Instance; skipping malformed registration.", descriptor.InterfaceType.Name);
+                        Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Factory; skipping malformed registration.", descriptor.InterfaceType.Name);
 
                         continue;
                     }
-                    else if (hasBothTypes)
+                    else if (hasImplementationType && hasImplementationFactory)
                     {
-                        Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Instance; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
+                        Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Factory; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
 
                         continue;
                     }
-                    else if (descriptor.Instance != null)
-                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.Instance));
+                    else if (hasImplementationFactory)
+                        serviceCollection.Add(new ServiceDescriptor(interfaceType, provider => descriptor.ImplementationFactory!(provider)!, descriptor.Lifetime));
                     else
                         serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.ImplementationType!, descriptor.Lifetime));
                 }

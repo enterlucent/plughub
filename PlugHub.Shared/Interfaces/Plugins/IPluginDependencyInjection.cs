@@ -14,7 +14,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// <param name="Version">Version of the descriptor.</param>
     /// <param name="InterfaceType">The interface type to be injected.</param>
     /// <param name="ImplementationType">Optional explicit implementation type; if null, Instance is used.</param>
-    /// <param name="Instance">Optional singleton instance to provide if implementation type is not specified.</param>
+    /// <param name="ImplementationFactory">Optional factory delegate to create your service with full DI support.</param>
     /// <param name="Lifetime">Registration lifetime (singleton, scoped, transient) for this injector.</param>
     /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
     /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
@@ -26,7 +26,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
         string Version,
         Type InterfaceType,
         Type? ImplementationType = null,
-        object? Instance = null,
+        Func<IServiceProvider, object?>? ImplementationFactory = null,
         ServiceLifetime Lifetime = ServiceLifetime.Singleton,
         IEnumerable<PluginInterfaceReference>? LoadBefore = null,
         IEnumerable<PluginInterfaceReference>? LoadAfter = null,

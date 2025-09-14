@@ -368,11 +368,13 @@ namespace PlugHub.UnitTests.Services.Plugins
                                 descriptor.ImplementationType,
                                 descriptor.Lifetime));
                     }
-                    else if (descriptor.Instance != null)
+                    else if (descriptor.ImplementationFactory != null)
                     {
-                        this.serviceCollection.AddSingleton(
-                            descriptor.InterfaceType,
-                            descriptor.Instance);
+                        this.serviceCollection.Add(
+                            new ServiceDescriptor(
+                                descriptor.InterfaceType,
+                                provider => descriptor.ImplementationFactory(provider)!,
+                                descriptor.Lifetime));
                     }
                 }
 
