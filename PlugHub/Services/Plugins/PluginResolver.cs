@@ -9,9 +9,9 @@ namespace PlugHub.Services.Plugins
 {
     public class PluginResolver : IPluginResolver
     {
-        private readonly ILogger<PluginResolver> logger;
+        private readonly ILogger<IPluginResolver> logger;
 
-        public PluginResolver(ILogger<PluginResolver> logger)
+        public PluginResolver(ILogger<IPluginResolver> logger)
         {
             ArgumentNullException.ThrowIfNull(logger);
 

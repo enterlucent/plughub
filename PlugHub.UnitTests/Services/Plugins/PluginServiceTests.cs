@@ -15,6 +15,7 @@ namespace PlugHub.UnitTests.Services.Plugins
     {
         private readonly MSTestHelpers msTestHelpers = new();
         private PluginService? pluginService;
+        private PluginResolver? pluginResolver;
         private ServiceCollection? serviceCollection;
         private ServiceProvider? serviceProvider;
 
@@ -22,6 +23,7 @@ namespace PlugHub.UnitTests.Services.Plugins
         public void Setup()
         {
             this.pluginService = new PluginService(new NullLogger<IPluginService>());
+            this.pluginResolver = new PluginResolver(new NullLogger<IPluginResolver>());
         }
 
         [TestCleanup]
@@ -343,6 +345,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             {
                 (this.serviceProvider as IDisposable)?.Dispose();
                 this.serviceCollection = this.msTestHelpers.CreateTempServiceCollection();
+                this.serviceCollection.AddSingleton<IPluginResolver>(this.pluginResolver!);
 
                 IEnumerable<PluginReference> plugins =
                     this.pluginService!.Discover(this.msTestHelpers.PluginDirectory);
