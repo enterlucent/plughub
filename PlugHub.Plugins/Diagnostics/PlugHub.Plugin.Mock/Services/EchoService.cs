@@ -59,21 +59,11 @@ namespace PlugHub.Plugin.Mock.Services
             return message;
         }
 
-
         private static IEnumerable<EchoResultDescriptor> PluginsConfigs(IPluginResolver resolver, IEnumerable<IEchoResultHandler> resultHandlers)
         {
             ArgumentNullException.ThrowIfNull(resultHandlers);
 
-            List<EchoResultDescriptor> allDescriptors = [];
-
-            foreach (IEchoResultHandler resultHandler in resultHandlers)
-            {
-                IEnumerable<EchoResultDescriptor> descriptors = resultHandler.GetEchoResultDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            return resolver.ResolveDescriptors(allDescriptors);
+            return resolver.ResolveAndOrder<IEchoResultHandler, EchoResultDescriptor>(resultHandlers);
         }
     }
 }

@@ -520,9 +520,9 @@ namespace PlugHub.Bootstrap
             return enabledImplementations;
         }
 
-        private static void RegisterInjectors(IPluginService pluginService, IPluginResolver pluginSorter, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
+        private static void RegisterInjectors(IPluginService pluginService, IPluginResolver pluginResolver, IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
-            Dictionary<Type, List<PluginInjectorDescriptor>> descriptorsByInterface = [];
+            List<IPluginDependencyInjection> injectors = [];
 
             foreach (PluginReference plugin in enabledPlugins)
             {
@@ -531,7 +531,8 @@ namespace PlugHub.Bootstrap
                     if (implementation.InterfaceType != typeof(IPluginDependencyInjection))
                         continue;
 
-                    IPluginDependencyInjection? injector = pluginService.GetLoadedInterface<IPluginDependencyInjection>(implementation);
+                    IPluginDependencyInjection? injector =
+                        pluginService.GetLoadedInterface<IPluginDependencyInjection>(implementation);
 
                     if (injector == null)
                     {
@@ -540,50 +541,48 @@ namespace PlugHub.Bootstrap
                         continue;
                     }
 
-                    foreach (PluginInjectorDescriptor descriptor in injector.GetInjectionDescriptors())
-                    {
-                        if (!descriptorsByInterface.TryGetValue(descriptor.InterfaceType, out List<PluginInjectorDescriptor>? list))
-                            descriptorsByInterface[descriptor.InterfaceType] = list = [];
-
-                        list.Add(descriptor);
-                    }
+                    injectors.Add(injector);
                 }
             }
 
-            foreach (KeyValuePair<Type, List<PluginInjectorDescriptor>> kvp in descriptorsByInterface)
+            IReadOnlyList<PluginInjectorDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginDependencyInjection, PluginInjectorDescriptor>(injectors);
+
+            foreach (PluginInjectorDescriptor descriptor in orderedDescriptors)
             {
-                Type interfaceType = kvp.Key;
-                List<PluginInjectorDescriptor> descriptors = kvp.Value;
-                List<PluginInjectorDescriptor> reverseSorted = [.. pluginSorter.ResolveDescriptors(descriptors).Reverse()];
+                if (descriptor == null)
+                    continue;
 
-                foreach (PluginInjectorDescriptor descriptor in reverseSorted)
+                bool hasImplementationType = descriptor.ImplementationType != null;
+                bool hasImplementationFactory = descriptor.ImplementationFactory != null;
+
+                if (!hasImplementationType && !hasImplementationFactory)
                 {
-                    if (descriptor == null)
-                        continue;
-
-                    bool hasImplementationType = descriptor.ImplementationType != null;
-                    bool hasImplementationFactory = descriptor.ImplementationFactory != null;
-
-                    if (!hasImplementationType && !hasImplementationFactory)
-                    {
-                        Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Factory; skipping malformed registration.", descriptor.InterfaceType.Name);
-
-                        continue;
-                    }
-                    else if (hasImplementationType && hasImplementationFactory)
-                    {
-                        Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Factory; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
-
-                        continue;
-                    }
-                    else if (hasImplementationFactory)
-                        serviceCollection.Add(new ServiceDescriptor(interfaceType, provider => descriptor.ImplementationFactory!(provider)!, descriptor.Lifetime));
-                    else
-                        serviceCollection.Add(new ServiceDescriptor(interfaceType, descriptor.ImplementationType!, descriptor.Lifetime));
+                    Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Factory; skipping malformed registration.", descriptor.InterfaceType.Name);
+                    continue;
+                }
+                else if (hasImplementationType && hasImplementationFactory)
+                {
+                    Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Factory; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
+                    continue;
+                }
+                else if (hasImplementationFactory)
+                {
+                    serviceCollection.Add(new ServiceDescriptor(
+                        descriptor.InterfaceType,
+                        provider => descriptor.ImplementationFactory!(provider)!,
+                        descriptor.Lifetime));
+                }
+                else
+                {
+                    serviceCollection.Add(new ServiceDescriptor(
+                        descriptor.InterfaceType,
+                        descriptor.ImplementationType!,
+                        descriptor.Lifetime));
                 }
             }
 
-            Log.Information("[Bootstrapper] Plugin DI injection complete: processed {Count} interface contracts across enabled plugins.", descriptorsByInterface.Count);
+            Log.Information("[Bootstrapper] Plugin DI injection complete: processed {Count} injectors across enabled plugins.", injectors.Count);
         }
         private static void RegisterPlugins(IServiceCollection serviceCollection, IEnumerable<PluginReference> enabledPlugins)
         {
@@ -612,18 +611,10 @@ namespace PlugHub.Bootstrap
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginAppConfig> appConfigPlugins = provider.GetServices<IPluginAppConfig>();
 
-            List<PluginAppConfigDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginAppConfigDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginAppConfig, PluginAppConfigDescriptor>(appConfigPlugins);
 
-            foreach (IPluginAppConfig appConfigPlugin in appConfigPlugins)
-            {
-                IEnumerable<PluginAppConfigDescriptor> descriptors = appConfigPlugin.GetAppConfigDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            PluginAppConfigDescriptor[] reverseSortedDescriptors = [.. pluginResolver.ResolveDescriptors(allDescriptors).Reverse()];
-
-            foreach (PluginAppConfigDescriptor descriptor in reverseSortedDescriptors)
+            foreach (PluginAppConfigDescriptor descriptor in orderedDescriptors)
             {
                 try
                 {
@@ -631,11 +622,14 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
+                    Log.Error(ex,
+                        "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}",
+                        descriptor.PluginID);
                 }
             }
 
-            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.",
+                orderedDescriptors.Count);
 
             return appConfig;
         }
@@ -645,20 +639,12 @@ namespace PlugHub.Bootstrap
             ArgumentNullException.ThrowIfNull(appEnv);
 
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-            IEnumerable<IPluginAppEnv> appConfigEnvPlugins = provider.GetServices<IPluginAppEnv>();
+            IEnumerable<IPluginAppEnv> appEnvPlugins = provider.GetServices<IPluginAppEnv>();
 
-            List<PluginAppEnvDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginAppEnvDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginAppEnv, PluginAppEnvDescriptor>(appEnvPlugins);
 
-            foreach (IPluginAppEnv appEnvPlugin in appConfigEnvPlugins)
-            {
-                IEnumerable<PluginAppEnvDescriptor> descriptors = appEnvPlugin.GetAppEnvDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            PluginAppEnvDescriptor[] reverseSortedDescriptors = [.. pluginResolver.ResolveDescriptors(allDescriptors).Reverse()];
-
-            foreach (PluginAppEnvDescriptor descriptor in reverseSortedDescriptors)
+            foreach (PluginAppEnvDescriptor descriptor in orderedDescriptors)
             {
                 try
                 {
@@ -666,11 +652,14 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
+                    Log.Error(ex,
+                        "[Bootstrapper] Failed to apply environment mutation for plugin {PluginID}",
+                        descriptor.PluginID);
                 }
             }
 
-            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsAppEnv completed: applied {PluginCount} environment mutation descriptors.",
+                orderedDescriptors.Count);
 
             return appEnv;
         }
@@ -684,21 +673,18 @@ namespace PlugHub.Bootstrap
             ITokenService tokenService = provider.GetRequiredService<ITokenService>();
             IEnumerable<IPluginConfiguration> configurationPlugins = provider.GetServices<IPluginConfiguration>();
 
-            List<PluginConfigurationDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginConfigurationDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginConfiguration, PluginConfigurationDescriptor>(configurationPlugins);
 
-            foreach (IPluginConfiguration configurationPlugin in configurationPlugins)
+            foreach (PluginConfigurationDescriptor descriptor in orderedDescriptors)
             {
-                IEnumerable<PluginConfigurationDescriptor> descriptors = configurationPlugin.GetConfigurationDescriptors();
-
-                allDescriptors.AddRange(descriptors);
+                configService.RegisterConfig(
+                    descriptor.ConfigType,
+                    descriptor.ConfigServiceParams(tokenService));
             }
 
-            IEnumerable<PluginConfigurationDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
-
-            foreach (PluginConfigurationDescriptor descriptor in sortedDescriptors)
-                configService.RegisterConfig(descriptor.ConfigType, descriptor.ConfigServiceParams(tokenService));
-
-            Log.Information("[Bootstrapper] PluginsConfigs completed: Added {ConfigCount} configuration descriptors from plugins.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsConfigs completed: Added {ConfigCount} configuration descriptors from plugins.",
+                orderedDescriptors.Count);
         }
         private static void PluginsStyleInclude(IServiceProvider provider)
         {
@@ -708,19 +694,12 @@ namespace PlugHub.Bootstrap
             ILogger<Bootstrapper> logger = provider.GetRequiredService<ILogger<Bootstrapper>>();
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
 
-            List<PluginStyleIncludeDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginStyleIncludeDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(styleIncludeProviders);
+
             HashSet<string> loadedResourceDictionaries = [];
 
-            foreach (IPluginStyleInclusion providerInstance in styleIncludeProviders)
-            {
-                IEnumerable<PluginStyleIncludeDescriptor> descriptors = providerInstance.GetStyleIncludeDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            IEnumerable<PluginStyleIncludeDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
-
-            foreach (PluginStyleIncludeDescriptor descriptor in sortedDescriptors)
+            foreach (PluginStyleIncludeDescriptor descriptor in orderedDescriptors)
             {
                 string resource = descriptor.ResourceUri;
                 if (Application.Current != null && Application.Current.Styles != null)
@@ -742,13 +721,17 @@ namespace PlugHub.Bootstrap
                         }
                         catch (Exception ex)
                         {
-                            logger.LogError(ex, "[Bootstrapper] Failed to load resource dictionary at {Resource}", resource);
+                            logger.LogError(ex,
+                                "[Bootstrapper] Failed to load resource dictionary at {Resource}",
+                                resource);
                         }
                     }
                 }
             }
 
-            logger.LogInformation("[Bootstrapper] PluginsStyleIncludes completed: Added {StyleCount} unique plugin style resource dictionaries.", loadedResourceDictionaries.Count);
+            logger.LogInformation(
+                "[Bootstrapper] PluginsStyleIncludes completed: Added {StyleCount} unique plugin style resource dictionaries.",
+                loadedResourceDictionaries.Count);
         }
         private static void PluginsPages(IServiceProvider provider)
         {
@@ -758,14 +741,10 @@ namespace PlugHub.Bootstrap
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginPages> pageProviders = provider.GetServices<IPluginPages>();
 
-            List<PluginPageDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginPageDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginPages, PluginPageDescriptor>(pageProviders);
 
-            foreach (IPluginPages providerInstance in pageProviders)
-                allDescriptors.AddRange(providerInstance.GetPageDescriptors());
-
-            IEnumerable<PluginPageDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
-
-            foreach (PluginPageDescriptor descriptor in sortedDescriptors)
+            foreach (PluginPageDescriptor descriptor in orderedDescriptors)
             {
                 UserControl? view;
                 BaseViewModel? viewModel;
@@ -782,21 +761,21 @@ namespace PlugHub.Bootstrap
 
                     if (view is null)
                     {
-                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for plugin page {PageName}, skipping.", descriptor.ViewType.FullName, descriptor.Name);
-
+                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for plugin page {PageName}, skipping.",
+                            descriptor.ViewType.FullName, descriptor.Name);
                         continue;
                     }
                 }
                 else
                 {
-                    Log.Error("[Bootstrapper] No view factory or view type provided for plugin page {PageName}, skipping.", descriptor.Name);
-
+                    Log.Error("[Bootstrapper] No view factory or view type provided for plugin page {PageName}, skipping.",
+                        descriptor.Name);
                     continue;
                 }
 
                 #endregion
 
-                #region PluginPages: Resolve viewmodel
+                #region PluginPages: Resolve ViewModel
 
                 if (descriptor.ViewModelFactory != null)
                 {
@@ -808,15 +787,15 @@ namespace PlugHub.Bootstrap
 
                     if (viewModel is null)
                     {
-                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for plugin page {PageName}, skipping.", descriptor.ViewModelType.FullName, descriptor.Name);
-
+                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for plugin page {PageName}, skipping.",
+                            descriptor.ViewModelType.FullName, descriptor.Name);
                         continue;
                     }
                 }
                 else
                 {
-                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for plugin page {PageName}, skipping.", descriptor.Name);
-
+                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for plugin page {PageName}, skipping.",
+                        descriptor.Name);
                     continue;
                 }
 
@@ -832,7 +811,8 @@ namespace PlugHub.Bootstrap
                 mainViewModel.AddMainPageItem(page);
             }
 
-            Log.Information("[Bootstrapper] PluginsPages completed: added {PageCount} plugin-provided UI pages into main navigation.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsPages completed: added {PageCount} plugin-provided UI pages into main navigation.",
+                orderedDescriptors.Count);
         }
         private static void PluginsSettingPages(IServiceProvider provider)
         {
@@ -842,14 +822,10 @@ namespace PlugHub.Bootstrap
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginSettingsPages> settingsProviders = provider.GetServices<IPluginSettingsPages>();
 
-            List<SettingsPageDescriptor> allDescriptors = [];
+            IReadOnlyList<SettingsPageDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginSettingsPages, SettingsPageDescriptor>(settingsProviders);
 
-            foreach (IPluginSettingsPages providerInstance in settingsProviders)
-                allDescriptors.AddRange(providerInstance.GetSettingsPageDescriptors());
-
-            IEnumerable<SettingsPageDescriptor> sortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors);
-
-            foreach (SettingsPageDescriptor descriptor in sortedDescriptors)
+            foreach (SettingsPageDescriptor descriptor in orderedDescriptors)
             {
                 UserControl? view;
                 BaseViewModel? viewModel;
@@ -866,15 +842,15 @@ namespace PlugHub.Bootstrap
 
                     if (view == null)
                     {
-                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for settings page {PageName}, skipping.", descriptor.ViewType.FullName, descriptor.Name);
-
+                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for settings page {PageName}, skipping.",
+                            descriptor.ViewType.FullName, descriptor.Name);
                         continue;
                     }
                 }
                 else
                 {
-                    Log.Error("[Bootstrapper] No view factory or view type provided for settings page {PageName}, skipping.", descriptor.Name);
-
+                    Log.Error("[Bootstrapper] No view factory or view type provided for settings page {PageName}, skipping.",
+                        descriptor.Name);
                     continue;
                 }
 
@@ -892,15 +868,15 @@ namespace PlugHub.Bootstrap
 
                     if (viewModel == null)
                     {
-                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for settings page {PageName}, skipping.", descriptor.ViewModelType.FullName, descriptor.Name);
-
+                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for settings page {PageName}, skipping.",
+                            descriptor.ViewModelType.FullName, descriptor.Name);
                         continue;
                     }
                 }
                 else
                 {
-                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for settings page {PageName}, skipping.", descriptor.Name);
-
+                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for settings page {PageName}, skipping.",
+                        descriptor.Name);
                     continue;
                 }
 
@@ -916,7 +892,8 @@ namespace PlugHub.Bootstrap
                 settingsViewModel.AddSettingsPage(descriptor.Group, page);
             }
 
-            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.",
+                orderedDescriptors.Count);
         }
 
         private static void PluginAppServices(IServiceProvider provider)
@@ -926,18 +903,10 @@ namespace PlugHub.Bootstrap
             IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginAppSetup> appSetupPlugins = provider.GetServices<IPluginAppSetup>();
 
-            List<PluginAppSetupDescriptor> allDescriptors = [];
+            IReadOnlyList<PluginAppSetupDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginAppSetup, PluginAppSetupDescriptor>(appSetupPlugins);
 
-            foreach (IPluginAppSetup appConfigPlugin in appSetupPlugins)
-            {
-                IEnumerable<PluginAppSetupDescriptor> descriptors = appConfigPlugin.GetAppSetupDescriptors();
-
-                allDescriptors.AddRange(descriptors);
-            }
-
-            IEnumerable<PluginAppSetupDescriptor> reverseSortedDescriptors = pluginResolver.ResolveDescriptors(allDescriptors).Reverse();
-
-            foreach (PluginAppSetupDescriptor descriptor in reverseSortedDescriptors)
+            foreach (PluginAppSetupDescriptor descriptor in orderedDescriptors)
             {
                 try
                 {
@@ -945,11 +914,14 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "[Bootstrapper] Failed to apply service setup for plugin {PluginID}", descriptor.PluginID);
+                    Log.Error(ex,
+                        "[Bootstrapper] Failed to apply service setup for plugin {PluginID}",
+                        descriptor.PluginID);
                 }
             }
 
-            Log.Information("[Bootstrapper] PluginAppServices completed: applied {SetupCount} service mutation descriptors.", allDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginAppServices completed: applied {SetupCount} service mutation descriptors.",
+                orderedDescriptors.Count);
         }
 
         #endregion

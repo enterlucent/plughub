@@ -1,9 +1,11 @@
 ﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace PlugHub.Services.Plugins
 {
@@ -52,6 +54,35 @@ namespace PlugHub.Services.Plugins
             PluginResolutionContext<TDescriptor> context = this.ResolveContext(descriptors);
 
             return context.GetSorted();
+        }
+        public IReadOnlyList<TDescriptor> ResolveAndOrder<TInterface, TDescriptor>(IEnumerable<TInterface> plugins) where TInterface : class where TDescriptor : PluginDescriptor
+        {
+            ArgumentNullException.ThrowIfNull(plugins);
+
+            Type ifaceType = typeof(TInterface);
+            DescriptorProviderAttribute attr =
+                ifaceType.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false)
+                    ?? throw new InvalidOperationException($"Interface {ifaceType.Name} is missing DescriptorProviderAttribute");
+
+            MethodInfo accessor =
+                ifaceType.GetMethod(attr.DescriptorAccessorName)
+                    ?? throw new InvalidOperationException($"Descriptor accessor {attr.DescriptorAccessorName} not found on {ifaceType.Name}");
+
+            List<TDescriptor> allDescriptors = [];
+
+            foreach (TInterface plugin in plugins)
+                if (accessor.Invoke(plugin, null) is IEnumerable<TDescriptor> descriptors)
+                    allDescriptors.AddRange(descriptors);
+
+            PluginResolutionContext<TDescriptor> context = this.ResolveContext(allDescriptors);
+            IReadOnlyList<TDescriptor> sorted = context.GetSorted();
+
+            return attr.SortContext switch
+            {
+                DescriptorSortContext.Forward => sorted,
+                DescriptorSortContext.Reverse => [.. sorted.Reverse()],
+                _ => sorted
+            };
         }
 
         private static HashSet<TDescriptor> FilterDuplicates<TDescriptor>(IEnumerable<TDescriptor> descriptors, out List<TDescriptor> cleanDescriptors) where TDescriptor : PluginDescriptor

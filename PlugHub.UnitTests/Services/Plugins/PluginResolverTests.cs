@@ -1,10 +1,35 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using PlugHub.Services.Plugins;
+using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Models.Plugins;
 
 
 namespace PlugHub.UnitTests.Services.Plugins
 {
+    [DescriptorProvider("GetTestForwardDescriptors", sortContext: DescriptorSortContext.Forward)]
+    internal interface ITestForwardInterface
+    {
+        public IEnumerable<TestPluginDescriptor> GetTestForwardDescriptors();
+    }
+    internal class TestForwardPlugin(IEnumerable<TestPluginDescriptor> descriptors) : ITestForwardInterface
+    {
+        private readonly IEnumerable<TestPluginDescriptor> descriptors = descriptors;
+
+        public IEnumerable<TestPluginDescriptor> GetTestForwardDescriptors() => this.descriptors;
+    }
+
+    [DescriptorProvider("GetTestReverseDescriptors")]
+    internal interface ITestReverseInterface
+    {
+        public IEnumerable<TestPluginDescriptor> GetTestReverseDescriptors();
+    }
+    internal class TestReversePlugin(IEnumerable<TestPluginDescriptor> descriptors) : ITestReverseInterface
+    {
+        private readonly IEnumerable<TestPluginDescriptor> descriptors = descriptors;
+
+        public IEnumerable<TestPluginDescriptor> GetTestReverseDescriptors() => this.descriptors;
+    }
+
     internal record TestPluginDescriptor(
         Guid PluginID,
         Guid InterfaceID,
@@ -288,6 +313,49 @@ namespace PlugHub.UnitTests.Services.Plugins
             Assert.AreEqual(2, result.Count, "Should return both descriptors");
             Assert.AreEqual(plugin1Id, result[0].PluginID, "Plugin1 should load first");
             Assert.AreEqual(plugin2Id, result[1].PluginID, "Plugin2 should load second (LoadAfter)");
+        }
+
+        #endregion
+
+        #region PluginResolverTests: SortContext
+
+        [TestMethod]
+        [TestCategory("ResolveAndOrder")]
+        public void ResolveAndOrder_ForwardContext_ReturnsInForwardOrder()
+        {
+            // Arrange
+            IReadOnlyList<TestPluginDescriptor> descriptors =
+            [
+                CreateTestDescriptor(Guid.NewGuid(), Guid.NewGuid(), "1.0.0"),
+                CreateTestDescriptor(Guid.NewGuid(), Guid.NewGuid(), "1.0.0")
+            ];
+
+            TestForwardPlugin plugin = new(descriptors);
+
+            // Act
+            IReadOnlyList<TestPluginDescriptor> result =
+                this.pluginResolver!.ResolveAndOrder<ITestForwardInterface, TestPluginDescriptor>([plugin]);
+
+            // Assert
+            CollectionAssert.AreEqual(descriptors.ToList(), result.ToList(), "Forward context should preserve order");
+        }
+
+        [TestMethod]
+        [TestCategory("ResolveAndOrder")]
+        public void ResolveAndOrder_ReverseContext_ReturnsInReverseOrder()
+        {
+            TestPluginDescriptor[] descriptors =
+            [
+                CreateTestDescriptor(Guid.NewGuid(), Guid.NewGuid(), "1.0.0"),
+                CreateTestDescriptor(Guid.NewGuid(), Guid.NewGuid(), "1.0.0")
+            ];
+
+            TestReversePlugin plugin = new(descriptors);
+
+            IReadOnlyList<TestPluginDescriptor> result = this.pluginResolver!
+                .ResolveAndOrder<ITestReverseInterface, TestPluginDescriptor>([plugin]);
+
+            CollectionAssert.AreEqual(descriptors.Reverse().ToList(), result.ToList(), "Reverse context should invert order");
         }
 
         #endregion

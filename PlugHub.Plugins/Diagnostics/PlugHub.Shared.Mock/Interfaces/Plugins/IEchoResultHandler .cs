@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Interfaces.Plugins;
+﻿using PlugHub.Shared.Attributes;
+using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Mock.Interfaces.Services;
 using PlugHub.Shared.Models.Plugins;
 
@@ -24,6 +25,7 @@ namespace PlugHub.Shared.Mock.Interfaces.Plugins
     /// Plugin-level handler invoked on both successful echo and echo error.
     /// Supports extensibility of EchoService behavior by contributing a combined success/error processing pipeline.
     /// </summary>
+    [DescriptorProvider("GetEchoResultDescriptors")]
     public interface IEchoResultHandler : IPlugin
     {
         /// <summary>
