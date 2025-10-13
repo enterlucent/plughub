@@ -24,10 +24,10 @@ namespace PlugHub.Shared.Interfaces.Plugins
         string Version,
         string ResourceUri,
         string? BaseUri = null,
-        IEnumerable<PluginInterfaceReference>? LoadBefore = null,
-        IEnumerable<PluginInterfaceReference>? LoadAfter = null,
-        IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
+        IEnumerable<PluginDescriptorReference>? LoadBefore = null,
+        IEnumerable<PluginDescriptorReference>? LoadAfter = null,
+        IEnumerable<PluginDescriptorReference>? DependsOn = null,
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) :
             PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>

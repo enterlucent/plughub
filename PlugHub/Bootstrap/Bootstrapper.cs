@@ -185,25 +185,25 @@ namespace PlugHub.Bootstrap
 
             List<PluginLoadState> mergedStates = MergePluginManifest(baseManifest, userManifest);
 
-            userManifest.InterfaceStates = mergedStates;
+            userManifest.DescriptorStates = mergedStates;
 
             PluginManifest syncedManifest = SynchronizePluginConfig(userManifest, discoveredPlugins);
 
             NormalizePluginManifest(syncedManifest, baseManifest, pluginService);
 
-            Log.Information("[Bootstrapper] Resolved and synchronized plugin manifest with {PluginCount} interface states and {DiscoveredCount} discovered plugins.", syncedManifest.InterfaceStates?.Count ?? 0, discoveredPlugins.Count());
+            Log.Information("[Bootstrapper] Resolved and synchronized plugin manifest with {PluginCount} descriptor states and {DiscoveredCount} discovered plugins.", syncedManifest.DescriptorStates?.Count ?? 0, discoveredPlugins.Count());
 
             return syncedManifest;
         }
         private static List<PluginLoadState> MergePluginManifest(PluginManifest baseManifest, PluginManifest userManifest)
         {
             List<PluginLoadState> mergedStates = [];
-            Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey = userManifest.InterfaceStates
-                .ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
+
+            Dictionary<(Guid PluginId, string InterfaceName), PluginLoadState> userStatesByKey = userManifest.DescriptorStates.ToDictionary(s => (s.PluginId, s.InterfaceName), s => s);
 
             HashSet<(Guid, string)> mergedKeys = [];
 
-            foreach (PluginLoadState systemState in baseManifest.InterfaceStates)
+            foreach (PluginLoadState systemState in baseManifest.DescriptorStates)
             {
                 (Guid PluginId, string InterfaceName) key = (systemState.PluginId, systemState.InterfaceName);
 
@@ -221,11 +221,12 @@ namespace PlugHub.Bootstrap
                     mergedStates.Add(new PluginLoadState(
                         systemState.PluginId,
                         systemState.AssemblyName,
-                        systemState.ClassName,
                         systemState.InterfaceName,
+                        systemState.ClassName,
                         true,
                         systemState.Enabled,
                         systemState.LoadOrder));
+
                     Log.Information("[Bootstrapper] Added missing default plugin state for {InterfaceName}", systemState.InterfaceName);
                 }
 
@@ -233,10 +234,8 @@ namespace PlugHub.Bootstrap
             }
 
             foreach (KeyValuePair<(Guid PluginId, string InterfaceName), PluginLoadState> kvp in userStatesByKey)
-            {
                 if (!mergedKeys.Contains(kvp.Key))
                     mergedStates.Add(kvp.Value);
-            }
 
             return mergedStates;
         }
@@ -244,7 +243,7 @@ namespace PlugHub.Bootstrap
         {
             Dictionary<string, DescriptorProviderAttribute?> attributeCache = [];
 
-            foreach (PluginLoadState state in syncedManifest.InterfaceStates)
+            foreach (PluginLoadState state in syncedManifest.DescriptorStates)
             {
                 if (!attributeCache.TryGetValue(state.InterfaceName, out DescriptorProviderAttribute? dpa))
                 {
@@ -254,7 +253,7 @@ namespace PlugHub.Bootstrap
 
                 if (dpa != null)
                 {
-                    bool isInBaseManifest = baseManifest.InterfaceStates.Any(
+                    bool isInBaseManifest = baseManifest.DescriptorStates.Any(
                         m => m.PluginId == state.PluginId && m.InterfaceName == state.InterfaceName);
 
                     if (!isInBaseManifest && dpa.DescriptorIsSystemOnly)
@@ -270,9 +269,9 @@ namespace PlugHub.Bootstrap
             ArgumentNullException.ThrowIfNull(pluginManifest);
 
             plugins ??= [];
-            pluginManifest.InterfaceStates ??= [];
+            pluginManifest.DescriptorStates ??= [];
 
-            Log.Information("[Bootstrapper] Synchronizing plugin config. Current entries: {EntryCount}", pluginManifest.InterfaceStates.Count);
+            Log.Information("[Bootstrapper] Synchronizing plugin config. Current entries: {EntryCount}", pluginManifest.DescriptorStates.Count);
 
             HashSet<(string AssemblyName, string ImplementationName, string InterfaceName)> discoveredSet =
                 new(plugins.SelectMany(plugin =>
@@ -388,7 +387,7 @@ namespace PlugHub.Bootstrap
             {
                 foreach (PluginInterface pluginInterface in plugin.Interfaces)
                 {
-                    bool entryExists = pluginData.InterfaceStates.Any(
+                    bool entryExists = pluginData.DescriptorStates.Any(
                         loadState =>
                             loadState.PluginId == plugin.Metadata.PluginID &&
                             loadState.AssemblyName == pluginInterface.AssemblyName &&
@@ -401,13 +400,13 @@ namespace PlugHub.Bootstrap
                         PluginLoadState newEntry = new(
                             plugin.Metadata.PluginID,
                             pluginInterface.AssemblyName,
-                            pluginInterface.ImplementationName,
                             pluginInterface.InterfaceName,
+                            pluginInterface.ImplementationName,
                             false,
                             false,
                             int.MaxValue);
 
-                        pluginData.InterfaceStates.Add(newEntry);
+                        pluginData.DescriptorStates.Add(newEntry);
 
                         configChanged = true;
 
@@ -422,9 +421,9 @@ namespace PlugHub.Bootstrap
         {
             bool removedAny = false;
 
-            for (int i = pluginManifest.InterfaceStates.Count - 1; i >= 0; i--)
+            for (int i = pluginManifest.DescriptorStates.Count - 1; i >= 0; i--)
             {
-                PluginLoadState state = pluginManifest.InterfaceStates[i];
+                PluginLoadState state = pluginManifest.DescriptorStates[i];
 
                 if (ignoreDefault && state.System)
                     continue;
@@ -436,7 +435,7 @@ namespace PlugHub.Bootstrap
                 {
                     Log.Information("[Bootstrapper] Removing stale plugin entry {InterfaceName}", state.InterfaceName);
 
-                    pluginManifest.InterfaceStates.RemoveAt(i);
+                    pluginManifest.DescriptorStates.RemoveAt(i);
 
                     removedAny = true;
                 }
@@ -500,7 +499,7 @@ namespace PlugHub.Bootstrap
 
             foreach (PluginInterface iface in plugin.Interfaces)
             {
-                foreach (PluginLoadState configEntry in pluginData.InterfaceStates)
+                foreach (PluginLoadState configEntry in pluginData.DescriptorStates)
                 {
                     bool assemblyMatch = string.Equals(configEntry.AssemblyName, iface.AssemblyName, StringComparison.OrdinalIgnoreCase);
                     bool implementationMatch = string.Equals(configEntry.ClassName, iface.ImplementationName, StringComparison.OrdinalIgnoreCase);
@@ -559,11 +558,13 @@ namespace PlugHub.Bootstrap
                 if (!hasImplementationType && !hasImplementationFactory)
                 {
                     Log.Warning("[Bootstrapper] Descriptor for {InterfaceType} must specify either ImplementationType or Factory; skipping malformed registration.", descriptor.InterfaceType.Name);
+
                     continue;
                 }
                 else if (hasImplementationType && hasImplementationFactory)
                 {
                     Log.Information("[Bootstrapper] Descriptor for {InterfaceType} specifies both ImplementationType and Factory; must specify only one; skipping ambiguous registration.", descriptor.InterfaceType.Name);
+
                     continue;
                 }
                 else if (hasImplementationFactory)

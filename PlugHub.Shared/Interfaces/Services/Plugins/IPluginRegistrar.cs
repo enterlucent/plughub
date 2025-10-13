@@ -3,7 +3,7 @@
 namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
     /// <summary>
-    /// Manages the enabled/disabled state of plugins and their interfaces within the PlugHub system.
+    /// Manages the enabled/disabled state of plugins and their descriptors within the PlugHub system.
     /// Responsible for persisting state changes to the plugin manifest, and providing metadata about plugin extension points.
     /// </summary>
     public interface IPluginRegistrar
@@ -22,10 +22,10 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
         public List<PluginDescriptor> GetDescriptorsForInterface(Type pluginInterfaceType);
 
         /// <summary>
-        /// Retrieves the current plugin manifest representing the global interface enable state.
+        /// Retrieves the current plugin manifest representing the global descriptors enable state.
         /// </summary>
         /// <returns>
-        /// The <see cref="PluginManifest"/> instance that records interface enable status.
+        /// The <see cref="PluginManifest"/> instance that records descriptors enable status.
         /// </returns>
         public PluginManifest GetManifest();
 
@@ -33,7 +33,7 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
         /// Persists the given <see cref="PluginManifest"/> to the underlying storage.
         /// </summary>
         /// <param name="manifest">
-        /// The <see cref="PluginManifest"/> instance containing updated interface states to write.
+        /// The <see cref="PluginManifest"/> instance containing updated descriptors states to write.
         /// </param>
         /// <remarks>
         /// This is the synchronous entry point.  
@@ -49,7 +49,7 @@ namespace PlugHub.Shared.Interfaces.Services.Plugins
         /// Asynchronously persists the given <see cref="PluginManifest"/> to the underlying storage.
         /// </summary>
         /// <param name="manifest">
-        /// The <see cref="PluginManifest"/> instance containing updated interface states to write.
+        /// The <see cref="PluginManifest"/> instance containing updated descriptors states to write.
         /// </param>
         /// <remarks>
         /// This is the async-first implementation.  

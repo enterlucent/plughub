@@ -32,19 +32,13 @@ namespace PlugHub.UnitTests.Services.Plugins
 
     internal record TestPluginDescriptor(
         Guid PluginID,
-        Guid InterfaceID,
+        Guid DescriptorID,
         string Version,
-        IEnumerable<PluginInterfaceReference>? LoadBefore = null,
-        IEnumerable<PluginInterfaceReference>? LoadAfter = null,
-        IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null) : PluginDescriptor(
-            PluginID,
-            InterfaceID,
-            Version,
-            LoadBefore,
-            LoadAfter,
-            DependsOn,
-            ConflictsWith);
+        IEnumerable<PluginDescriptorReference>? LoadBefore = null,
+        IEnumerable<PluginDescriptorReference>? LoadAfter = null,
+        IEnumerable<PluginDescriptorReference>? DependsOn = null,
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null)
+            : PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     [TestClass]
     public sealed class PluginResolverTests
@@ -155,16 +149,15 @@ namespace PlugHub.UnitTests.Services.Plugins
         public void ResolveDescriptors_DuplicateDescriptorIDFiltersOutDuplicates()
         {
             // Arrange
-            Guid sharedInterfaceId = Guid.NewGuid();
+            Guid sharedDescriptorId = Guid.NewGuid();
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
             string version = "1.0.0";
 
-            // Create two descriptors with the same InterfaceID (duplicate)
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, sharedInterfaceId, version),
-                CreateTestDescriptor(plugin2Id, sharedInterfaceId, version) // duplicate
+                CreateTestDescriptor(plugin1Id, sharedDescriptorId, version),
+                CreateTestDescriptor(plugin2Id, sharedDescriptorId, version)
             ];
 
             // Act
@@ -173,7 +166,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Assert
             Assert.AreEqual(2, descriptors.Count, "Original input contains two descriptors");
             Assert.AreEqual(1, context.DuplicateIDDisabled.Count, "One duplicate should be tracked as disabled");
-            Assert.AreEqual(1, context.IdToDescriptor.Count, "One descriptor with unique InterfaceID should remain");
+            Assert.AreEqual(1, context.IdToDescriptor.Count, "One descriptor with unique DescriptorID should remain");
 
             IEnumerable<TestPluginDescriptor> result = this.pluginResolver.ResolveDescriptors(descriptors);
             Assert.AreEqual(1, result.Count(), "Duplicate descriptors should be filtered out from final resolution");
@@ -191,14 +184,14 @@ namespace PlugHub.UnitTests.Services.Plugins
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
             Guid missingId = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
-            Guid missingInterfaceId = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
+            Guid missingDescriptorId = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(missingId, missingInterfaceId, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(missingId, missingDescriptorId, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -216,13 +209,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "3.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "3.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -244,13 +237,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", conflictsWith: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", conflictsWith: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -272,13 +265,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", loadBefore: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")]),
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0")
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", loadBefore: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")]),
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0")
             ];
 
             // Act
@@ -297,13 +290,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", loadAfter: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", loadAfter: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -369,13 +362,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -398,14 +391,14 @@ namespace PlugHub.UnitTests.Services.Plugins
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
             Guid missingId = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
-            Guid missingInterfaceId = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
+            Guid missingDescriptorId = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(missingId, missingInterfaceId, "1.0.0", "2.0.0")])
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(missingId, missingDescriptorId, "1.0.0", "2.0.0")])
             ];
 
             // Act
@@ -423,13 +416,13 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")]),
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0")
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")]),
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0")
             ];
 
             // Act
@@ -451,16 +444,16 @@ namespace PlugHub.UnitTests.Services.Plugins
             Guid plugin1Id = Guid.NewGuid();
             Guid plugin2Id = Guid.NewGuid();
             Guid plugin3Id = Guid.NewGuid();
-            Guid interface1Id = Guid.NewGuid();
-            Guid interface2Id = Guid.NewGuid();
-            Guid interface3Id = Guid.NewGuid();
+            Guid descriptor1Id = Guid.NewGuid();
+            Guid descriptor2Id = Guid.NewGuid();
+            Guid descriptor3Id = Guid.NewGuid();
 
             List<TestPluginDescriptor> descriptors =
             [
-                CreateTestDescriptor(plugin1Id, interface1Id, "1.0.0"),
-                CreateTestDescriptor(plugin2Id, interface2Id, "1.0.0", dependsOn: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")],
-                    loadAfter: [new PluginInterfaceReference(plugin1Id, interface1Id, "1.0.0", "2.0.0")]),
-                CreateTestDescriptor(plugin3Id, interface3Id, "1.0.0")
+                CreateTestDescriptor(plugin1Id, descriptor1Id, "1.0.0"),
+                CreateTestDescriptor(plugin2Id, descriptor2Id, "1.0.0", dependsOn: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")],
+                    loadAfter: [new PluginDescriptorReference(plugin1Id, descriptor1Id, "1.0.0", "2.0.0")]),
+                CreateTestDescriptor(plugin3Id, descriptor3Id, "1.0.0")
             ];
 
             // Act
@@ -511,10 +504,10 @@ namespace PlugHub.UnitTests.Services.Plugins
         private static TestPluginDescriptor CreateTestDescriptor(
             string pluginName,
             string version,
-            IEnumerable<PluginInterfaceReference>? dependsOn = null,
-            IEnumerable<PluginInterfaceReference>? conflictsWith = null,
-            IEnumerable<PluginInterfaceReference>? loadBefore = null,
-            IEnumerable<PluginInterfaceReference>? loadAfter = null)
+            IEnumerable<PluginDescriptorReference>? dependsOn = null,
+            IEnumerable<PluginDescriptorReference>? conflictsWith = null,
+            IEnumerable<PluginDescriptorReference>? loadBefore = null,
+            IEnumerable<PluginDescriptorReference>? loadAfter = null)
         {
             return CreateTestDescriptor(
                 Guid.Parse(pluginName.GetHashCode().ToString("X").PadLeft(32, '0')[..8] + "-0000-0000-0000-000000000000"),
@@ -530,14 +523,14 @@ namespace PlugHub.UnitTests.Services.Plugins
             Guid pluginId,
             Guid descriptorId,
             string version,
-            IEnumerable<PluginInterfaceReference>? dependsOn = null,
-            IEnumerable<PluginInterfaceReference>? conflictsWith = null,
-            IEnumerable<PluginInterfaceReference>? loadBefore = null,
-            IEnumerable<PluginInterfaceReference>? loadAfter = null)
+            IEnumerable<PluginDescriptorReference>? dependsOn = null,
+            IEnumerable<PluginDescriptorReference>? conflictsWith = null,
+            IEnumerable<PluginDescriptorReference>? loadBefore = null,
+            IEnumerable<PluginDescriptorReference>? loadAfter = null)
         {
             return new TestPluginDescriptor(
                 PluginID: pluginId,
-                InterfaceID: descriptorId,
+                DescriptorID: descriptorId,
                 Version: version,
                 LoadBefore: loadBefore,
                 LoadAfter: loadAfter,

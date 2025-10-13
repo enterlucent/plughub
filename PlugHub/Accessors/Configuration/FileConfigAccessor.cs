@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Accesssors.Configuration;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;

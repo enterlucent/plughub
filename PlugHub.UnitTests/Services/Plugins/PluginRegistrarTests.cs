@@ -68,20 +68,20 @@ namespace PlugHub.UnitTests.Services.Plugins
 
             PluginManifest pluginManifest = new()
             {
-                InterfaceStates =
+                DescriptorStates =
                 [
                     new(
                         pluginId: Guid.Parse("12345678-1234-1234-1234-123456789abc"),
                         assemblyName: this.enabledAssembly.GetName().Name!,
-                        className: this.enabledImplementationType.FullName!,
                         interfaceName: this.enabledInterfaceType.FullName!,
+                        className: this.enabledImplementationType.FullName!,
                         enabled: true,
                         loadOrder: 1),
                     new(
                         pluginId: Guid.Parse("87654321-4321-4321-4321-cba987654321"),
                         assemblyName: this.disabledAssembly.GetName().Name!,
-                        className: this.disabledImplementationType.FullName!,
                         interfaceName: this.disabledInterfaceType.FullName!,
+                        className: this.disabledImplementationType.FullName!,
                         enabled: false,
                         loadOrder: 2)
                 ]
@@ -204,7 +204,7 @@ namespace PlugHub.UnitTests.Services.Plugins
         public async Task GetEnabled_EmptyInterfaceStatesReturnsFalse()
         {
             // Arrange
-            PluginManifest manifestWithEmptyStates = new() { InterfaceStates = [] };
+            PluginManifest manifestWithEmptyStates = new() { DescriptorStates = [] };
             await this.manifest!.SaveAsync(manifestWithEmptyStates);
 
             // Act
@@ -223,7 +223,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             PluginManifest manifest = this.pluginRegistrar!.GetManifest();
 
             // Assert
-            Assert.IsTrue(manifest.InterfaceStates.Count > 0, "Manifest should contain interface states.");
+            Assert.IsTrue(manifest.DescriptorStates.Count > 0, "Manifest should contain interface states.");
         }
 
         #endregion
@@ -241,7 +241,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             this.pluginRegistrar!.SetEnabled(pluginId, this.disabledInterfaceType);
 
             // Assert            
-            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+            PluginLoadState updatedState = this.manifest!.Get().DescriptorStates.First(x => x.PluginId == pluginId);
 
             Assert.IsTrue(updatedState.Enabled, "Plugin should be enabled after SetEnabled call");
         }
@@ -257,7 +257,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             this.pluginRegistrar!.SetEnabled(pluginId, this.enabledInterfaceType, false);
 
             // Assert
-            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+            PluginLoadState updatedState = this.manifest!.Get().DescriptorStates.First(x => x.PluginId == pluginId);
 
             Assert.IsFalse(updatedState.Enabled, "Plugin should be disabled after SetDisabled call");
         }
@@ -277,9 +277,9 @@ namespace PlugHub.UnitTests.Services.Plugins
             this.pluginRegistrar!.SetAllEnabled(pluginId, true);
 
             // Assert
-            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+            PluginLoadState updatedState = this.manifest!.Get().DescriptorStates.First(x => x.PluginId == pluginId);
 
-            Assert.IsTrue(updatedState.Enabled, "All interfaces of plugin should be enabled.");
+            Assert.IsTrue(updatedState.Enabled, "All descriptors of the plugin should be enabled.");
         }
 
         [TestMethod]
@@ -293,9 +293,9 @@ namespace PlugHub.UnitTests.Services.Plugins
             this.pluginRegistrar!.SetAllEnabled(pluginId, false);
 
             // Assert
-            PluginLoadState updatedState = this.manifest!.Get().InterfaceStates.First(x => x.PluginId == pluginId);
+            PluginLoadState updatedState = this.manifest!.Get().DescriptorStates.First(x => x.PluginId == pluginId);
 
-            Assert.IsFalse(updatedState.Enabled, "All interfaces of plugin should be disabled.");
+            Assert.IsFalse(updatedState.Enabled, "All descriptors of the plugin should be disabled.");
         }
 
         [TestMethod]
@@ -312,7 +312,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Assert
             PluginManifest after = this.manifest!.Get();
 
-            Assert.AreEqual(before.InterfaceStates.Count, after.InterfaceStates.Count, "Manifest should remain unchanged if interface states already match.");
+            Assert.AreEqual(before.DescriptorStates.Count, after.DescriptorStates.Count, "Manifest should remain unchanged if descriptor states already match.");
         }
 
         #endregion
@@ -326,12 +326,12 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Arrange
             PluginManifest newManifest = new()
             {
-                InterfaceStates =
+                DescriptorStates =
                 [
                     new(pluginId: Guid.NewGuid(),
                         assemblyName: "TestAssembly",
-                        className: "TestClass",
                         interfaceName: typeof(IDisposable).FullName!,
+                        className: "TestClass",
                         enabled: true,
                         loadOrder: 1)
                 ]
@@ -343,7 +343,7 @@ namespace PlugHub.UnitTests.Services.Plugins
             // Assert
             PluginManifest persisted = this.manifest!.Get();
 
-            Assert.AreEqual(newManifest.InterfaceStates.Count, persisted.InterfaceStates.Count,
+            Assert.AreEqual(newManifest.DescriptorStates.Count, persisted.DescriptorStates.Count,
                 "Persisted manifest should match saved manifest.");
         }
 
@@ -352,7 +352,7 @@ namespace PlugHub.UnitTests.Services.Plugins
         public void SaveManifest_InvalidManifestThrowsArgumentException()
         {
             // Arrange
-            PluginManifest invalidManifest = new() { InterfaceStates = null! };
+            PluginManifest invalidManifest = new() { DescriptorStates = null! };
 
             // Act & Assert
             Assert.ThrowsException<ArgumentException>(() =>

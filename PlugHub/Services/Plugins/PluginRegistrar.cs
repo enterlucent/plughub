@@ -26,7 +26,7 @@ namespace PlugHub.Services.Plugins
             throw new ArgumentNullException(nameof(pluginCache));
 
         public bool IsEnabled(Guid pluginId, Type interfaceType) =>
-            this.GetManifest().InterfaceStates.Any(s =>
+            this.GetManifest().DescriptorStates.Any(s =>
                 s.PluginId == pluginId &&
                 s.InterfaceName == interfaceType.FullName &&
                 s.Enabled);
@@ -34,7 +34,7 @@ namespace PlugHub.Services.Plugins
         public void SetEnabled(Guid pluginId, Type interfaceType, bool enabled = true)
         {
             PluginManifest manifest = this.GetManifest();
-            PluginLoadState? state = manifest.InterfaceStates
+            PluginLoadState? state = manifest.DescriptorStates
                 .FirstOrDefault(s => s.PluginId == pluginId && s.InterfaceName == interfaceType.FullName);
 
             if (state == null || state.System == true) return;
@@ -50,7 +50,7 @@ namespace PlugHub.Services.Plugins
             PluginManifest manifest = this.GetManifest();
             bool changed = false;
 
-            foreach (PluginLoadState? state in manifest.InterfaceStates.Where(s => s.PluginId == pluginId && s.System != true))
+            foreach (PluginLoadState? state in manifest.DescriptorStates.Where(s => s.PluginId == pluginId && s.System != true))
             {
                 if (state.Enabled != enabled)
                 {
@@ -64,7 +64,7 @@ namespace PlugHub.Services.Plugins
             {
                 this.SaveManifest(manifest);
 
-                this.logger.LogInformation("[PluginRegistrar] {Action} all interfaces of plugin {PluginId}.", enabled ? "Enabled" : "Disabled", pluginId);
+                this.logger.LogInformation("[PluginRegistrar] {Action} all descriptors of plugin {PluginId}.", enabled ? "Enabled" : "Disabled", pluginId);
             }
         }
 
@@ -72,9 +72,9 @@ namespace PlugHub.Services.Plugins
         {
             PluginManifest manifest = this.manifestAccessor.Get();
 
-            if (manifest?.InterfaceStates == null)
+            if (manifest?.DescriptorStates == null)
             {
-                this.logger.LogError("[PluginRegistrar] Plugin manifest is unavailable or invalid (null or missing interface states).");
+                this.logger.LogError("[PluginRegistrar] Plugin manifest is unavailable or invalid (null or missing descriptor states).");
 
                 throw new InvalidOperationException("Plugin manifest is unavailable or invalid.");
             }
@@ -86,9 +86,9 @@ namespace PlugHub.Services.Plugins
         }
         public async Task SaveManifestAsync(PluginManifest manifest)
         {
-            if (manifest?.InterfaceStates == null)
+            if (manifest?.DescriptorStates == null)
             {
-                this.logger.LogError("[PluginRegistrar] Attempted to save an invalid plugin manifest (null or missing interface states).");
+                this.logger.LogError("[PluginRegistrar] Attempted to save an invalid plugin manifest (null or missing descriptor states).");
 
                 throw new ArgumentException("Manifest is invalid.", nameof(manifest));
             }
@@ -97,11 +97,11 @@ namespace PlugHub.Services.Plugins
             {
                 await this.manifestAccessor.SaveAsync(manifest);
 
-                this.logger.LogInformation("[PluginRegistrar] Plugin manifest saved with {Count} interface states.", manifest.InterfaceStates.Count);
+                this.logger.LogInformation("[PluginRegistrar] Plugin manifest saved with {Count} descriptor states.", manifest.DescriptorStates.Count);
             }
             catch (Exception ex)
             {
-                this.logger.LogError(ex, "[PluginRegistrar] Failed to save plugin manifest with {Count} interface states.", manifest.InterfaceStates?.Count ?? 0);
+                this.logger.LogError(ex, "[PluginRegistrar] Failed to save plugin manifest with {Count} descriptor states.", manifest.DescriptorStates?.Count ?? 0);
 
                 throw;
             }

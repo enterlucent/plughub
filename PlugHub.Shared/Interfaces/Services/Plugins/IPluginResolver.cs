@@ -3,7 +3,7 @@
 namespace PlugHub.Shared.Interfaces.Services.Plugins
 {
     /// <summary>
-    /// Resolves plugin interface descriptors into a stable, dependency-valid, conflict-free load order.
+    /// Resolves plugin descriptors into a stable, dependency-valid, conflict-free load order.
     /// The resolver ensures that results are deterministic and safe for initialization, accounting for
     /// all declared dependencies, ordering constraints, and exclusions. Resolution is always performed
     /// at the interface level, supporting manifest-driven systems and pluggable load strategies.

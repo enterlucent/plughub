@@ -75,7 +75,7 @@ namespace PlugHub.ViewModels
 
         public Type PluginType = typeof(object);
 
-        public bool HasNoInterfaces => !this.ProvidedDescriptors.Any();
+        public bool HasNoDescriptors => !this.ProvidedDescriptors.Any();
 
         public string PluginFullName => $"{this.AssemblyName}:{this.TypeName}";
 

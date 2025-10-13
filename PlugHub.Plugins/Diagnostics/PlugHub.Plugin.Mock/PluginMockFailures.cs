@@ -57,7 +57,7 @@ namespace PlugHub.Plugin.Mock
                     LoadAfter: [],
                     ConflictsWith: [],
                     DependsOn: [
-                        new PluginInterfaceReference(
+                        new PluginDescriptorReference(
                             Guid.Parse("8557da82-b6fc-4be1-8731-e32e449285ab"),
                             Guid.Parse("d018bc99-6156-46e5-ae7c-cf1f2c0255f0"),
                             "0.0.1",
@@ -120,7 +120,7 @@ namespace PlugHub.Plugin.Mock
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [
-                        new PluginInterfaceReference(
+                        new PluginDescriptorReference(
                             Guid.Parse("ed35d473-f898-4efb-85d1-0a5d2d03fc01"),
                             Guid.Parse("f1ab6f62-74c2-4be2-af05-62e3fe54f349"),
                             "0.0.0",

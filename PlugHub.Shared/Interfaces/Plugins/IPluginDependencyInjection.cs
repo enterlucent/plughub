@@ -28,10 +28,10 @@ namespace PlugHub.Shared.Interfaces.Plugins
         Type? ImplementationType = null,
         Func<IServiceProvider, object?>? ImplementationFactory = null,
         ServiceLifetime Lifetime = ServiceLifetime.Singleton,
-        IEnumerable<PluginInterfaceReference>? LoadBefore = null,
-        IEnumerable<PluginInterfaceReference>? LoadAfter = null,
-        IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
+        IEnumerable<PluginDescriptorReference>? LoadBefore = null,
+        IEnumerable<PluginDescriptorReference>? LoadAfter = null,
+        IEnumerable<PluginDescriptorReference>? DependsOn = null,
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) :
             PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>

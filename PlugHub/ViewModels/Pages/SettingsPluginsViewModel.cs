@@ -102,7 +102,7 @@ namespace PlugHub.ViewModels.Pages
 
             this.originalManifestJson = JsonSerializer.Serialize(manifest);
 
-            List<PluginLoadState> interfaceStates = manifest.InterfaceStates;
+            List<PluginLoadState> interfaceStates = manifest.DescriptorStates;
 
             this.GatherPlugins(pluginCache.Plugins, interfaceStates);
             this.GatherSnapshot();
@@ -361,7 +361,7 @@ namespace PlugHub.ViewModels.Pages
             if (string.IsNullOrEmpty(this.originalManifestJson))
                 return;
             PluginManifest? restoredManifest = JsonSerializer.Deserialize<PluginManifest>(this.originalManifestJson);
-            if (restoredManifest == null || restoredManifest.InterfaceStates == null)
+            if (restoredManifest == null || restoredManifest.DescriptorStates == null)
                 return;
 
             this.pluginRegistrar.SaveManifest(restoredManifest);
@@ -400,7 +400,7 @@ namespace PlugHub.ViewModels.Pages
             ArgumentNullException.ThrowIfNull(ifaceVm);
             ArgumentNullException.ThrowIfNull(ifaceVm.Type);
 
-            List<PluginLoadState> manifestStates = this.pluginManifest.Get().InterfaceStates;
+            List<PluginLoadState> manifestStates = this.pluginManifest.Get().DescriptorStates;
 
             DescriptorProviderAttribute? providesDescAttr =
                 ifaceVm.Type.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
@@ -457,7 +457,7 @@ namespace PlugHub.ViewModels.Pages
                 {
                     state = "⚡";
                     sortOrder = -2;
-                    IEnumerable<PluginInterfaceReference> conflicts = descriptor.ConflictsWith ?? [];
+                    IEnumerable<PluginDescriptorReference> conflicts = descriptor.ConflictsWith ?? [];
                     IEnumerable<string> conflictingNames = conflicts.Select(conf =>
                     {
                         PluginReference? plugin = this.pluginCache.Plugins.FirstOrDefault(p => p.Metadata.PluginID == conf.PluginID);
@@ -524,7 +524,7 @@ namespace PlugHub.ViewModels.Pages
         }
         private void UpdateViewModelsFromManifest(PluginManifest restoredManifest)
         {
-            List<PluginLoadState> interfaceStates = restoredManifest.InterfaceStates;
+            List<PluginLoadState> interfaceStates = restoredManifest.DescriptorStates;
 
             foreach (PluginViewModel pluginVm in this.Plugins)
             {

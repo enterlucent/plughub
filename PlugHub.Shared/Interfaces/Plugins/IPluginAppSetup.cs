@@ -20,10 +20,10 @@ namespace PlugHub.Shared.Interfaces.Plugins
         Guid DescriptorID,
         string Version,
         Action<IServiceProvider>? AppSetup = null,
-        IEnumerable<PluginInterfaceReference>? LoadBefore = null,
-        IEnumerable<PluginInterfaceReference>? LoadAfter = null,
-        IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null) :
+        IEnumerable<PluginDescriptorReference>? LoadBefore = null,
+        IEnumerable<PluginDescriptorReference>? LoadAfter = null,
+        IEnumerable<PluginDescriptorReference>? DependsOn = null,
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) :
             PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>

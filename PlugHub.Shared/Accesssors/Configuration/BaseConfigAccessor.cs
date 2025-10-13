@@ -4,13 +4,8 @@ using PlugHub.Shared.Interfaces.Models;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
 using PlugHub.Shared.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace PlugHub.Accessors.Configuration
+namespace PlugHub.Shared.Accesssors.Configuration
 {
     public abstract class BaseConfigAccessor(ILogger<IConfigAccessor> logger, ITokenService tokenService) : IConfigAccessor
     {

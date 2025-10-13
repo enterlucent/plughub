@@ -102,13 +102,13 @@ namespace PlugHub.Services.Plugins
         }
         private void ProcessDependencies<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
-            foreach (PluginInterfaceReference dep in descriptor.DependsOn ?? [])
+            foreach (PluginDescriptorReference dep in descriptor.DependsOn ?? [])
             {
-                bool hasDep = context.IdToDescriptor.TryGetValue(dep.InterfaceID, out TDescriptor? depDesc);
+                bool hasDep = context.IdToDescriptor.TryGetValue(dep.DescriptorID, out TDescriptor? depDesc);
 
                 if (!hasDep)
                 {
-                    this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion);
+                    this.logger.LogWarning("[PluginResolver] Descriptor {DescriptorID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: missing).", descriptor.DescriptorID, dep.DescriptorID, dep.MinVersion, dep.MaxVersion);
 
                     context.DependencyDisabled.Add(descriptor);
                 }
@@ -118,16 +118,16 @@ namespace PlugHub.Services.Plugins
 
                     if (!matchesDep)
                     {
-                        this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.DescriptorID, dep.InterfaceID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
+                        this.logger.LogWarning("[PluginResolver] Descriptor {DescriptorID} depends on {DependencyID} (version in [{Min}, {Max}]), but it is missing or version mismatch (found: {FoundVersion}).", descriptor.DescriptorID, dep.DescriptorID, dep.MinVersion, dep.MaxVersion, depDesc.Version);
 
                         context.DependencyDisabled.Add(descriptor);
                     }
                 }
                 else
                 {
-                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", dep.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {DescriptorID}. This indicates a serious backend data integrity issue.", dep.DescriptorID);
 
-                    throw new InvalidOperationException($"Descriptor lookup returned null for interface {dep.InterfaceID} despite successful lookup");
+                    throw new InvalidOperationException($"Descriptor lookup returned null for descriptor {dep.DescriptorID} despite successful lookup");
                 }
             }
         }
@@ -140,13 +140,13 @@ namespace PlugHub.Services.Plugins
                 if (otherDescriptor == descriptor)
                     continue;
 
-                foreach (PluginInterfaceReference conflict in descriptor.ConflictsWith)
+                foreach (PluginDescriptorReference conflict in descriptor.ConflictsWith)
                 {
                     bool matchesConflict = conflict.Matches(otherDescriptor.PluginID, otherDescriptor.DescriptorID, otherDescriptor.Version);
 
                     if (matchesConflict)
                     {
-                        this.logger.LogWarning("[PluginResolver] Interface {InterfaceID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.DescriptorID, conflict.InterfaceID, conflict.MinVersion, conflict.MaxVersion, otherDescriptor.Version);
+                        this.logger.LogWarning("[PluginResolver] Descriptor {DescriptorID} conflicts with {ConflictID} (version in [{Min}, {Max}]), but both are enabled (found: {FoundVersion}).", descriptor.DescriptorID, conflict.DescriptorID, conflict.MinVersion, conflict.MaxVersion, otherDescriptor.Version);
 
                         context.ConflictDisabled.Add(descriptor);
 
@@ -157,9 +157,9 @@ namespace PlugHub.Services.Plugins
         }
         private void ProcessLoadBefore<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
-            foreach (PluginInterfaceReference before in descriptor.LoadBefore ?? [])
+            foreach (PluginDescriptorReference before in descriptor.LoadBefore ?? [])
             {
-                bool hasBefore = context.IdToDescriptor.TryGetValue(before.InterfaceID, out TDescriptor? beforeDesc);
+                bool hasBefore = context.IdToDescriptor.TryGetValue(before.DescriptorID, out TDescriptor? beforeDesc);
 
                 if (!hasBefore)
                 {
@@ -177,17 +177,17 @@ namespace PlugHub.Services.Plugins
                 }
                 else
                 {
-                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", before.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {DescriptorID}. This indicates a serious backend data integrity issue.", before.DescriptorID);
 
-                    throw new InvalidOperationException($"Descriptor lookup returned null for interface {before.InterfaceID} despite successful lookup");
+                    throw new InvalidOperationException($"Descriptor lookup returned null for descriptor {before.DescriptorID} despite successful lookup");
                 }
             }
         }
         private void ProcessLoadAfter<TDescriptor>(TDescriptor descriptor, PluginResolutionContext<TDescriptor> context) where TDescriptor : PluginDescriptor
         {
-            foreach (PluginInterfaceReference after in descriptor.LoadAfter ?? [])
+            foreach (PluginDescriptorReference after in descriptor.LoadAfter ?? [])
             {
-                bool hasAfter = context.IdToDescriptor.TryGetValue(after.InterfaceID, out TDescriptor? afterDesc);
+                bool hasAfter = context.IdToDescriptor.TryGetValue(after.DescriptorID, out TDescriptor? afterDesc);
 
                 if (!hasAfter)
                 {
@@ -205,9 +205,9 @@ namespace PlugHub.Services.Plugins
                 }
                 else
                 {
-                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {InterfaceID}. This indicates a serious backend data integrity issue.", after.InterfaceID);
+                    this.logger.LogCritical("[PluginResolver] Critical error: TryGetValue returned true but descriptor is null for {DescriptorID}. This indicates a serious backend data integrity issue.", after.DescriptorID);
 
-                    throw new InvalidOperationException($"Descriptor lookup returned null for interface {after.InterfaceID} despite successful lookup");
+                    throw new InvalidOperationException($"Descriptor lookup returned null for descriptor {after.DescriptorID} despite successful lookup");
                 }
             }
         }

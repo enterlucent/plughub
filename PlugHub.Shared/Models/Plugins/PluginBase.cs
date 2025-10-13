@@ -29,7 +29,7 @@
 
         /// <summary>
         /// Unique identifier for the plugin. This ID should be unique across all plugins. (e.g., GUID)
-        /// This ID is used in <see cref="Dependencies"/> and <see cref="Conflicts"/> which require a <see cref="PluginInterfaceReference"/> 
+        /// This ID is used in <see cref="Dependencies"/> and <see cref="Conflicts"/> which require a <see cref="PluginDescriptorReference"/> 
         /// including both the ID and version range, as well as in <see cref="LoadBefore"/> and <see cref="LoadAfter"/> which only use the ID.
         /// </summary>
         public static Guid PluginID { get; } = Guid.Empty;

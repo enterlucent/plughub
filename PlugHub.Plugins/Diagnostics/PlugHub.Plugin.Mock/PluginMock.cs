@@ -141,7 +141,7 @@ namespace PlugHub.Plugin.Mock
                     PluginID: PluginID,
                     DescriptorID: Guid.Parse("f26d3290-c059-4641-8280-d229ee2c2c32"),
                     Version: Version,
-                    AppConfig: (AppConfig liveAppConfig) => {
+                    AppConfig: liveAppConfig => {
                         liveAppConfig.LoggingDirectory =
                             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MockHub", "Logging");
                         liveAppConfig.ConfigDirectory =
@@ -170,7 +170,7 @@ namespace PlugHub.Plugin.Mock
                     PluginID: PluginID,
                     DescriptorID: Guid.Parse("ba543295-88e8-474a-b370-74594dcc76a8"),
                     Version: Version,
-                    AppEnv: (AppEnv liveAppEnv) => {
+                    AppEnv: liveAppEnv => {
                         liveAppEnv.AppName = "👽 MockHub 👽";
                     },
                     LoadBefore: [],
@@ -291,7 +291,7 @@ namespace PlugHub.Plugin.Mock
                     Name: "General",
                     IconSource: "book_question_mark_regular",
                     ViewFactory: null,
-                    ViewModelFactory: (IServiceProvider provider) => {
+                    ViewModelFactory: provider => {
 
                         IConfigService configService = provider.GetRequiredService<IConfigService>();
                         IConfigAccessorFor<PluginMockConfig> accessor = configService.GetAccessor<PluginMockConfig>(owner: owner);

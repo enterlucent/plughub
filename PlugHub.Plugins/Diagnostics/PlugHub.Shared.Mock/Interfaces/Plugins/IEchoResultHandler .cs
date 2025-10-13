@@ -11,15 +11,15 @@ namespace PlugHub.Shared.Mock.Interfaces.Plugins
     /// </summary>
     public record EchoResultDescriptor(
         Guid PluginID,
-        Guid InterfaceID,
+        Guid DescriptorID,
         string Version,
         Action<MessageReceivedEventArgs, IEchoService>? ProcessSuccess = null,
         Action<MessageErrorEventArgs, IEchoService>? ProcessError = null,
-        IEnumerable<PluginInterfaceReference>? LoadBefore = null,
-        IEnumerable<PluginInterfaceReference>? LoadAfter = null,
-        IEnumerable<PluginInterfaceReference>? DependsOn = null,
-        IEnumerable<PluginInterfaceReference>? ConflictsWith = null
-    ) : PluginDescriptor(PluginID, InterfaceID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+        IEnumerable<PluginDescriptorReference>? LoadBefore = null,
+        IEnumerable<PluginDescriptorReference>? LoadAfter = null,
+        IEnumerable<PluginDescriptorReference>? DependsOn = null,
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null
+    ) : PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Plugin-level handler invoked on both successful echo and echo error.
