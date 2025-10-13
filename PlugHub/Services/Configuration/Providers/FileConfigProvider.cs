@@ -258,9 +258,11 @@ namespace PlugHub.Services.Configuration.Providers
 
             rw.EnterWriteLock();
 
+            ConfigSource source;
+
             try
             {
-                ConfigSource source =
+                source =
                     this.GetSourceWithValidation(
                         configType,
                         nOwner,
@@ -288,9 +290,13 @@ namespace PlugHub.Services.Configuration.Providers
             try
             {
                 await this.SaveSettingsToFileAsync(sourceLocation, configValues, jsonOpts, cancellationToken).ConfigureAwait(false);
+
+                source.ConfigService.OnSaveOperationComplete(this, configType);
             }
             catch (Exception ex)
             {
+                source.ConfigService.OnSaveOperationError(this, ex, ConfigSaveOperation.SaveSettings, configType);
+
                 throw new IOException($"Failed to save settings for '{configType.Name}'.", ex);
             }
         }
@@ -380,9 +386,11 @@ namespace PlugHub.Services.Configuration.Providers
 
             rwLock.EnterWriteLock();
 
+            ConfigSource source;
+
             try
             {
-                ConfigSource source =
+                source =
                     this.GetSourceWithValidation(
                         configType,
                         nOwner,
@@ -395,7 +403,18 @@ namespace PlugHub.Services.Configuration.Providers
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            await this.SaveValuesAsync(configType, nOwner, nWrite, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await this.SaveValuesAsync(configType, nOwner, nWrite, cancellationToken).ConfigureAwait(false);
+
+                source?.ConfigService.OnSaveOperationComplete(this, configType);
+            }
+            catch (Exception ex)
+            {
+                source.ConfigService.OnSaveOperationError(this, ex, ConfigSaveOperation.SaveSettings, configType);
+
+                throw new IOException($"Failed to save settings for '{configType.Name}'.", ex);
+            }
         }
 
         #endregion
