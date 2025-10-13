@@ -699,40 +699,46 @@ namespace PlugHub.Bootstrap
                 pluginResolver.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(styleIncludeProviders);
 
             HashSet<string> loadedResourceDictionaries = [];
+            HashSet<Type> loadedFactoryTypes = [];
 
             foreach (PluginStyleIncludeDescriptor descriptor in orderedDescriptors)
             {
-                string resource = descriptor.ResourceUri;
-                if (Application.Current != null && Application.Current.Styles != null)
+                if (Application.Current?.Styles is null)
+                    continue;
+
+                try
                 {
-                    if (loadedResourceDictionaries.Add(resource))
+                    if (descriptor.Factory is not null)
                     {
-                        try
-                        {
-                            Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
-                                ? new Uri("avares://PlugHub/")
-                                : new Uri(descriptor.BaseUri);
+                        Avalonia.Styling.IStyle style = descriptor.Factory();
 
-                            StyleInclude styleInclude = new(baseUri)
-                            {
-                                Source = new Uri(resource)
-                            };
-
-                            Application.Current.Styles.Add(styleInclude);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex,
-                                "[Bootstrapper] Failed to load resource dictionary at {Resource}",
-                                resource);
-                        }
+                        if (loadedFactoryTypes.Add(style.GetType()))
+                            Application.Current.Styles.Add(style);
+                        else
+                            logger.LogDebug("[Bootstrapper] Skipped duplicate factory style of type {StyleType}", style.GetType().FullName);
                     }
+                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) &&
+                             loadedResourceDictionaries.Add(descriptor.ResourceUri))
+                    {
+                        Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
+                            ? new Uri("avares://PlugHub/")
+                            : new Uri(descriptor.BaseUri);
+
+                        StyleInclude styleInclude = new(baseUri)
+                        {
+                            Source = new Uri(descriptor.ResourceUri)
+                        };
+
+                        Application.Current.Styles.Add(styleInclude);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[Bootstrapper] Failed to load style from {Source}", descriptor.ResourceUri ?? descriptor.Factory?.Method?.Name ?? "unknown");
                 }
             }
 
-            logger.LogInformation(
-                "[Bootstrapper] PluginsStyleIncludes completed: Added {StyleCount} unique plugin style resource dictionaries.",
-                loadedResourceDictionaries.Count);
+            logger.LogInformation("[Bootstrapper] PluginsStyleIncludes completed: Added {ResourceCount} unique resource dictionaries and {FactoryCount} unique factory styles.", loadedResourceDictionaries.Count, loadedFactoryTypes.Count);
         }
         private static void PluginsPages(IServiceProvider provider)
         {

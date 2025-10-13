@@ -1,4 +1,5 @@
-﻿using PlugHub.Shared.Attributes;
+﻿using Avalonia.Styling;
+using PlugHub.Shared.Attributes;
 using PlugHub.Shared.Models.Plugins;
 
 
@@ -14,6 +15,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// <param name="Version">Version of the descriptor.</param>
     /// <param name="ResourceUri">URI of the AXAML resource to be loaded as a StyleInclude.</param>
     /// <param name="BaseUri">Base URI for resolving relative resource paths (defaults to plugin's base URI).</param>
+    /// <param name="Factory">Optional delegate that creates one or more <see cref="IStyle"/> instances at runtime.</param>
     /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
     /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
     /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
@@ -22,13 +24,14 @@ namespace PlugHub.Shared.Interfaces.Plugins
         Guid PluginID,
         Guid DescriptorID,
         string Version,
-        string ResourceUri,
+        string? ResourceUri = null,
         string? BaseUri = null,
+        Func<IStyle>? Factory = null,
         IEnumerable<PluginDescriptorReference>? LoadBefore = null,
         IEnumerable<PluginDescriptorReference>? LoadAfter = null,
         IEnumerable<PluginDescriptorReference>? DependsOn = null,
-        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) :
-            PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null
+    ) : PluginDescriptor(PluginID, DescriptorID, Version, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
 
     /// <summary>
     /// Interface for plugins that supply Avalonia StyleInclude resources.

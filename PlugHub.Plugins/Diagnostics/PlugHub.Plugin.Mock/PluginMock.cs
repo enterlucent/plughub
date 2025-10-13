@@ -225,12 +225,11 @@ namespace PlugHub.Plugin.Mock
                     DescriptorID: Guid.Parse("f9e88050-b8c3-43b3-b76e-79f16595acff"),
                     Version: Version,
                     "avares://PlugHub.Plugin.Mock/Styles/Icons.axaml",
-                    null,
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [],
                     DependsOn: []
-                )
+                ),
             ];
         }
 
