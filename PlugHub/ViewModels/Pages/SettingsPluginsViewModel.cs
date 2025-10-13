@@ -395,18 +395,17 @@ namespace PlugHub.ViewModels.Pages
             this.ShowRestartBanner = false;
         }
 
-
         private void PopulatePluginInterfaceDescriptorData(PluginDescriptorViewModel ifaceVm)
         {
             ArgumentNullException.ThrowIfNull(ifaceVm);
             ArgumentNullException.ThrowIfNull(ifaceVm.Type);
 
             List<PluginLoadState> manifestStates = this.pluginManifest.Get().InterfaceStates;
-            bool isOrdered = false;
 
-            DescriptorProviderAttribute? providesDescAttr = ifaceVm.Type.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
-            if (providesDescAttr != null)
-                isOrdered = providesDescAttr.DescriptorIsOrdered;
+            DescriptorProviderAttribute? providesDescAttr =
+                ifaceVm.Type.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
+
+            DescriptorSortContext sortContext = providesDescAttr?.SortContext ?? DescriptorSortContext.None;
 
             IEnumerable<PluginDescriptor> descriptors = this.pluginRegistrar.GetDescriptorsForInterface(ifaceVm.Type);
             PluginResolutionContext<PluginDescriptor> context = this.pluginResolver.ResolveContext(descriptors);
@@ -420,11 +419,9 @@ namespace PlugHub.ViewModels.Pages
 
             foreach (PluginDescriptor descriptor in descriptors)
             {
-                string pluginName = "Unknown Plugin";
-                PluginReference? pluginRef = this.pluginCache.Plugins.FirstOrDefault(p =>
-                    p.Metadata.PluginID == descriptor.PluginID);
-                if (pluginRef != null)
-                    pluginName = pluginRef.Metadata.Name ?? "Unknown Plugin";
+                string pluginName = this.pluginCache.Plugins
+                    .FirstOrDefault(p => p.Metadata.PluginID == descriptor.PluginID)?
+                    .Metadata.Name ?? "Unknown Plugin";
 
                 int sortOrder = -1;
                 string state;
@@ -464,8 +461,7 @@ namespace PlugHub.ViewModels.Pages
                     IEnumerable<string> conflictingNames = conflicts.Select(conf =>
                     {
                         PluginReference? plugin = this.pluginCache.Plugins.FirstOrDefault(p => p.Metadata.PluginID == conf.PluginID);
-                        string pluginName = plugin?.Metadata?.Name ?? conf.PluginID.ToString();
-                        return $"{pluginName}";
+                        return plugin?.Metadata?.Name ?? conf.PluginID.ToString();
                     });
                     message = "Conflicts with: \n" +
                         (conflictingNames.Any()
@@ -481,23 +477,30 @@ namespace PlugHub.ViewModels.Pages
                 else if (sortedIndexLookup.TryGetValue(descriptor, out int index))
                 {
                     sortOrder = index;
-                    if (isOrdered)
+
+                    switch (sortContext)
                     {
-                        if (index == 0)
-                        {
-                            state = "⭐";
-                            message = "Primary Descriptor.";
-                        }
-                        else
-                        {
-                            state = $"{index}";
-                            message = $"Sort order: {index}";
-                        }
-                    }
-                    else
-                    {
-                        state = "✅";
-                        message = $"Sort order: {index}";
+                        case DescriptorSortContext.Forward:
+                            state = index == 0 ? "⬇️⭐" : $"⬇️";
+                            message = index == 0
+                                ? "Primary descriptor (forward order applied)"
+                                : $"Forward order position: {index}";
+                            break;
+
+                        case DescriptorSortContext.Reverse:
+                            state = index == 0 ? "⬆️⭐" : $"⬆️";
+                            message = index == 0
+                                ? "Primary descriptor (reverse order applied)"
+                                : $"Reverse order position: {index}";
+                            break;
+
+                        case DescriptorSortContext.None:
+                        default:
+                            state = index == 0 ? "➖⭐" : $"➖";
+                            message = index == 0
+                                ? "Primary descriptor (unordered context)"
+                                : $"Unordered (index {index})";
+                            break;
                     }
                 }
                 else

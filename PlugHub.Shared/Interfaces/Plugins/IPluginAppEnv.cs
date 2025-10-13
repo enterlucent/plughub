@@ -31,7 +31,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// Interface for plugins that supply runtime environment configuration or initialization logic.
     /// Provides descriptors for customizing application environment state, runtime behavior, and environment-specific setup included with the plugin.
     /// </summary>
-    [DescriptorProvider("GetAppEnvDescriptors", false)]
+    [DescriptorProvider("GetAppEnvDescriptors")]
     public interface IPluginAppEnv : IPlugin
     {
         /// <summary>
