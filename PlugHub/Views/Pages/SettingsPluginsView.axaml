@@ -419,7 +419,7 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             IsChecked="{Binding IsEnabled}"
-                            IsEnabled="{Binding HasNoInterfaces, Converter={StaticResource BooleanNegationConverter}}"/>
+                            IsEnabled="{Binding HasNoDescriptors, Converter={StaticResource BooleanNegationConverter}}"/>
 
                 </Grid>
               </Expander.Header>
@@ -440,7 +440,7 @@
                   </Border>
 
                   <!-- Table (header + rows), visible only if interfaces exist -->
-                  <StackPanel IsVisible="{Binding HasNoInterfaces, Converter={StaticResource BooleanNegationConverter}}">
+                  <StackPanel IsVisible="{Binding HasNoDescriptors, Converter={StaticResource BooleanNegationConverter}}">
                     <Border BorderThickness="1,0,1,1"
                             Padding="8"
                             Background="{DynamicResource ControlAltFillColorSecondaryBrush}">
@@ -494,7 +494,7 @@
                   <Border Classes="interface-row"
                           BorderThickness="0,0,0,1"
                           Padding="8"
-                          IsVisible="{Binding HasNoInterfaces}">
+                          IsVisible="{Binding HasNoDescriptors}">
 
                     <TextBlock Text="No interfaces provided"
                                FontStyle="Italic"
