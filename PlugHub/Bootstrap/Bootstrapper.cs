@@ -79,7 +79,8 @@ namespace PlugHub.Bootstrap
                     plugins = RegisterPlugins(tempProvider, services, pluginManifest, sysAppConfig.PluginDirectory, plugins);
 
                 // Apply user-plugin-provided AppEnv mutations 
-                userAppEnv = PluginsAppEnv(tempProvider, sysAppEnv);
+                using (ServiceProvider pluginProvider = services.BuildServiceProvider())
+                    userAppEnv = PluginsAppEnv(pluginProvider, sysAppEnv);
 
                 // Persist a cache of the loaded plugin references
                 services.AddSingleton<IPluginCache>(new PluginCache(plugins));
@@ -95,9 +96,13 @@ namespace PlugHub.Bootstrap
             // Build the *final* DI provider including plugins and configs
             IServiceProvider provider = services.BuildServiceProvider();
 
+            // Register base configs
+            IConfigService configService = provider.GetRequiredService<IConfigService>();
+            configService.RegisterConfig(typeof(AppConfig), new ConfigFileParams(Owner: tokenSet.Owner, Read: Token.Public, Write: Token.Blocked));
+            configService.RegisterConfig(typeof(AppEnv), new ConfigFileParams(Owner: tokenSet.Owner, Read: Token.Public, Write: Token.Public));
+
             PluginsConfigs(provider);
             PluginsStyleInclude(provider);
-            PluginsPages(provider);
             PluginsSettingPages(provider);
 
             PluginAppServices(provider);
@@ -623,14 +628,11 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex,
-                        "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}",
-                        descriptor.PluginID);
+                    Log.Error(ex, "[Bootstrapper] Failed to apply configuration mutation for plugin {PluginID}", descriptor.PluginID);
                 }
             }
 
-            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.",
-                orderedDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsAppConfig completed: applied {PluginCount} config mutation descriptors.", orderedDescriptors.Count);
 
             return appConfig;
         }
@@ -653,14 +655,11 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex,
-                        "[Bootstrapper] Failed to apply environment mutation for plugin {PluginID}",
-                        descriptor.PluginID);
+                    Log.Error(ex, "[Bootstrapper] Failed to apply environment mutation for plugin {PluginID}", descriptor.PluginID);
                 }
             }
 
-            Log.Information("[Bootstrapper] PluginsAppEnv completed: applied {PluginCount} environment mutation descriptors.",
-                orderedDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsAppEnv completed: applied {PluginCount} environment mutation descriptors.", orderedDescriptors.Count);
 
             return appEnv;
         }
@@ -740,87 +739,6 @@ namespace PlugHub.Bootstrap
 
             logger.LogInformation("[Bootstrapper] PluginsStyleIncludes completed: Added {ResourceCount} unique resource dictionaries and {FactoryCount} unique factory styles.", loadedResourceDictionaries.Count, loadedFactoryTypes.Count);
         }
-        private static void PluginsPages(IServiceProvider provider)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-
-            MainViewModel mainViewModel = provider.GetRequiredService<MainViewModel>();
-            IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-            IEnumerable<IPluginPages> pageProviders = provider.GetServices<IPluginPages>();
-
-            IReadOnlyList<PluginPageDescriptor> orderedDescriptors =
-                pluginResolver.ResolveAndOrder<IPluginPages, PluginPageDescriptor>(pageProviders);
-
-            foreach (PluginPageDescriptor descriptor in orderedDescriptors)
-            {
-                UserControl? view;
-                BaseViewModel? viewModel;
-
-                #region PluginsPages: Resolve View
-
-                if (descriptor.ViewFactory != null)
-                {
-                    view = descriptor.ViewFactory(provider);
-                }
-                else if (descriptor.ViewType != null)
-                {
-                    view = provider.GetService(descriptor.ViewType) as UserControl;
-
-                    if (view is null)
-                    {
-                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for plugin page {PageName}, skipping.",
-                            descriptor.ViewType.FullName, descriptor.Name);
-                        continue;
-                    }
-                }
-                else
-                {
-                    Log.Error("[Bootstrapper] No view factory or view type provided for plugin page {PageName}, skipping.",
-                        descriptor.Name);
-                    continue;
-                }
-
-                #endregion
-
-                #region PluginPages: Resolve ViewModel
-
-                if (descriptor.ViewModelFactory != null)
-                {
-                    viewModel = descriptor.ViewModelFactory(provider);
-                }
-                else if (descriptor.ViewModelType != null)
-                {
-                    viewModel = provider.GetService(descriptor.ViewModelType) as BaseViewModel;
-
-                    if (viewModel is null)
-                    {
-                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for plugin page {PageName}, skipping.",
-                            descriptor.ViewModelType.FullName, descriptor.Name);
-                        continue;
-                    }
-                }
-                else
-                {
-                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for plugin page {PageName}, skipping.",
-                        descriptor.Name);
-                    continue;
-                }
-
-                #endregion
-
-                ContentItemViewModel page = new(descriptor.ViewType!, descriptor.ViewModelType!, descriptor.Name, descriptor.IconSource)
-                {
-                    Control = view,
-                    ViewModel = viewModel
-                };
-                view.DataContext = viewModel;
-
-                mainViewModel.AddMainPageItem(page);
-            }
-
-            Log.Information("[Bootstrapper] PluginsPages completed: added {PageCount} plugin-provided UI pages into main navigation.",
-                orderedDescriptors.Count);
-        }
         private static void PluginsSettingPages(IServiceProvider provider)
         {
             ArgumentNullException.ThrowIfNull(provider);
@@ -834,73 +752,19 @@ namespace PlugHub.Bootstrap
 
             foreach (SettingsPageDescriptor descriptor in orderedDescriptors)
             {
-                UserControl? view;
-                BaseViewModel? viewModel;
+                ContentItemViewModel? page = SettingsPageDescriptor.GetItemViewModel(provider, descriptor);
 
-                #region PluginsSettingPages: Resolve View
+                if (page == null)
+                {
+                    Log.Error("[Bootstrapper] Could not resolve settings page {PageName}, skipping.", descriptor.Name);
 
-                if (descriptor.ViewFactory != null)
-                {
-                    view = descriptor.ViewFactory(provider);
-                }
-                else if (descriptor.ViewType != null)
-                {
-                    view = provider.GetService(descriptor.ViewType) as UserControl;
-
-                    if (view == null)
-                    {
-                        Log.Error("[Bootstrapper] Could not resolve view type {ViewType} for settings page {PageName}, skipping.",
-                            descriptor.ViewType.FullName, descriptor.Name);
-                        continue;
-                    }
-                }
-                else
-                {
-                    Log.Error("[Bootstrapper] No view factory or view type provided for settings page {PageName}, skipping.",
-                        descriptor.Name);
                     continue;
                 }
-
-                #endregion
-
-                #region PluginsSettingPages: Resolve ViewModel
-
-                if (descriptor.ViewModelFactory != null)
-                {
-                    viewModel = descriptor.ViewModelFactory(provider);
-                }
-                else if (descriptor.ViewModelType != null)
-                {
-                    viewModel = provider.GetService(descriptor.ViewModelType) as BaseViewModel;
-
-                    if (viewModel == null)
-                    {
-                        Log.Error("[Bootstrapper] Could not resolve viewmodel type {ViewModelType} for settings page {PageName}, skipping.",
-                            descriptor.ViewModelType.FullName, descriptor.Name);
-                        continue;
-                    }
-                }
-                else
-                {
-                    Log.Error("[Bootstrapper] No viewmodel factory or viewmodel type provided for settings page {PageName}, skipping.",
-                        descriptor.Name);
-                    continue;
-                }
-
-                #endregion
-
-                ContentItemViewModel page = new(descriptor.ViewType!, descriptor.ViewModelType!, descriptor.Name, descriptor.IconSource)
-                {
-                    Control = view,
-                    ViewModel = viewModel
-                };
-                view.DataContext = viewModel;
 
                 settingsViewModel.AddSettingsPage(descriptor.Group, page);
             }
 
-            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.",
-                orderedDescriptors.Count);
+            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", orderedDescriptors.Count);
         }
 
         private static void PluginAppServices(IServiceProvider provider)
@@ -921,9 +785,7 @@ namespace PlugHub.Bootstrap
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex,
-                        "[Bootstrapper] Failed to apply service setup for plugin {PluginID}",
-                        descriptor.PluginID);
+                    Log.Error(ex, "[Bootstrapper] Failed to apply service setup for plugin {PluginID}", descriptor.PluginID);
                 }
             }
 

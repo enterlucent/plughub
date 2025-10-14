@@ -1,5 +1,7 @@
 ﻿using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
 using PlugHub.Shared.Attributes;
+using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
 using PlugHub.Shared.ViewModels;
 
@@ -38,8 +40,25 @@ namespace PlugHub.Shared.Interfaces.Plugins
         IEnumerable<PluginDescriptorReference>? LoadBefore = null,
         IEnumerable<PluginDescriptorReference>? LoadAfter = null,
         IEnumerable<PluginDescriptorReference>? DependsOn = null,
-        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) :
-            PluginPageDescriptor(PluginID, DescriptorID, Version, ViewType, ViewModelType, Name, IconSource, ViewFactory, ViewModelFactory, LoadBefore, LoadAfter, DependsOn, ConflictsWith);
+        IEnumerable<PluginDescriptorReference>? ConflictsWith = null) : PluginPageDescriptor(PluginID, DescriptorID, Version, ViewType, ViewModelType, Name, IconSource, ViewFactory, ViewModelFactory, LoadBefore, LoadAfter, DependsOn, ConflictsWith)
+    {
+        /// <summary>
+        /// Creates a <see cref="ContentItemViewModel"/> from the specified
+        /// <see cref="SettingsPageDescriptor"/> using the provided <see cref="IServiceProvider"/>.
+        /// </summary>
+        /// <param name="provider">The service provider used to resolve the view, view model, and their dependencies.</param>
+        /// <param name="descriptor">The descriptor containing type and factory information for the settings page.</param>
+        /// <returns>
+        /// A fully constructed <see cref="ContentItemViewModel"/> with its view and view model instantiated and bound, or <c>null</c> if either cannot be resolved.
+        /// </returns>
+        public static ContentItemViewModel? GetItemViewModel(IServiceProvider provider, SettingsPageDescriptor descriptor)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return PluginPageDescriptor.GetItemViewModel(provider, descriptor);
+        }
+    }
 
     /// <summary>
     /// Interface for plugins that provide settings or configuration pages.

@@ -3,5 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         x:Class="PlugHub.Views.Windows.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
-        MinWidth="800" MinHeight="450"/>
+        Title="{Binding WindowTitle}"
+        Icon= "{Binding WindowIcon}"
+        MinWidth="{Binding WindowMinWidth}"
+		MinHeight="{Binding WindowMinHeight}"/>

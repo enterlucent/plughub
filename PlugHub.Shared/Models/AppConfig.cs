@@ -116,5 +116,16 @@ namespace PlugHub.Shared.Models
             = Path.Combine(AppContext.BaseDirectory, "Plugins");
 
         #endregion
+
+        #region AppConfig: Main View
+
+        /// <summary>
+        /// Gets or sets the identifier of the main view to load at startup.
+        /// This should match the composite key of a plugin-provided main view
+        /// (e.g., "Namespace.ViewType:Key"). If not set, the default main view is used.
+        /// </summary>
+        public string? MainViewKey { get; set; }
+
+        #endregion
     }
 }

@@ -1,28 +1,69 @@
-﻿using FluentAvalonia.UI.Windowing;
+﻿using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using PlugHub.Shared.Interfaces.Accessors;
+using PlugHub.Shared.Interfaces.Plugins;
+using PlugHub.Shared.Interfaces.Services.Configuration;
+using PlugHub.Shared.Interfaces.Services.Plugins;
+using PlugHub.Shared.Models;
+using PlugHub.Shared.ViewModels;
+using PlugHub.ViewModels;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PlugHub.Views.Windows
 {
-    /// <summary>
-    /// Represents the main application window for PlugHub, with custom title bar and developer tools support.
-    /// </summary>
-    public partial class MainWindow : AppWindow
+    public partial class MainWindow : Window
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="MainWindow"/> class.
-        /// Configures the window to use a fully custom title bar by extending content into the title bar area
-        /// and enabling complex hit testing for custom window controls. Also attaches Avalonia developer tools.
-        /// </summary>
         public MainWindow()
         {
-            this.TitleBar.ExtendsContentIntoTitleBar = true;
-            this.TitleBar.TitleBarHitTestType = TitleBarHitTestType.Complex;
-
             this.InitializeComponent();
         }
-        public MainWindow(MainView mainView)
+        public MainWindow(IServiceProvider serviceProvider, IConfigService configService)
             : this()
         {
-            this.Content = mainView;
+            this.SystemDecorations = SystemDecorations.BorderOnly;
+            this.ExtendClientAreaToDecorationsHint = true;
+            this.ExtendClientAreaTitleBarHeightHint = 0;
+            this.TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+
+            IPluginResolver pluginResolver = serviceProvider.GetRequiredService<IPluginResolver>();
+            IEnumerable<IPluginMainView> viewProviders = serviceProvider.GetServices<IPluginMainView>();
+            IReadOnlyList<PluginMainViewDescriptor> orderedDescriptors = pluginResolver.ResolveAndOrder<IPluginMainView, PluginMainViewDescriptor>(viewProviders);
+
+            IConfigAccessorFor<AppConfig> appConfig = configService.GetAccessor<AppConfig>();
+            IConfigAccessorFor<AppEnv> appEnv = configService.GetAccessor<AppEnv>();
+
+            string? mainViewKey = string.IsNullOrWhiteSpace(appConfig.Get().MainViewKey)
+                ? appEnv.Get().MainViewKey
+                : appConfig.Get().MainViewKey;
+
+            PluginMainViewDescriptor? found = orderedDescriptors
+                .FirstOrDefault(d => string.Equals($"{d.ViewType.FullName}:{d.Key}", mainViewKey, StringComparison.OrdinalIgnoreCase));
+
+            UserControl view;
+            BaseViewModel viewModel;
+
+            if (found != null)
+            {
+                view = found.ViewFactory != null
+                    ? found.ViewFactory(serviceProvider)
+                    : serviceProvider.GetService(found.ViewType) as UserControl
+                      ?? (UserControl)ActivatorUtilities.CreateInstance(serviceProvider, found.ViewType);
+
+                viewModel = found.ViewModelFactory != null
+                    ? found.ViewModelFactory(serviceProvider)
+                    : serviceProvider.GetService(found.ViewModelType) as BaseViewModel
+                      ?? (BaseViewModel)ActivatorUtilities.CreateInstance(serviceProvider, found.ViewModelType);
+            }
+            else
+            {
+                view = serviceProvider.GetRequiredService<MainView>();
+                viewModel = serviceProvider.GetRequiredService<MainViewModel>();
+            }
+
+            this.Content = view;
+            this.DataContext = viewModel;
         }
     }
 }
