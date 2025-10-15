@@ -134,8 +134,8 @@ namespace PlugHub.ViewModels
         [RelayCommand]
         private void GoHome()
         {
-            var previous = this.IsHomeVisible ? this.mainPage : this.settingsPage;
-            var next = this.mainPage;
+            ContentItemViewModel? previous = this.IsHomeVisible ? this.mainPage : this.settingsPage;
+            ContentItemViewModel? next = this.mainPage;
 
             this.IsSettingsVisible = true;
             this.IsHomeVisible = false;
@@ -146,8 +146,8 @@ namespace PlugHub.ViewModels
         [RelayCommand]
         private void OpenSettings()
         {
-            var previous = this.IsHomeVisible ? this.mainPage : this.settingsPage;
-            var next = this.settingsPage;
+            ContentItemViewModel? previous = this.IsHomeVisible ? this.mainPage : this.settingsPage;
+            ContentItemViewModel? next = this.settingsPage;
 
             this.IsSettingsVisible = false;
             this.IsHomeVisible = true;

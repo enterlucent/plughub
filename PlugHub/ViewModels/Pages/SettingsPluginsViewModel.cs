@@ -237,7 +237,6 @@ namespace PlugHub.ViewModels.Pages
                 this.FilteredInterfaceDescriptorData.Add(item);
         }
 
-
         private void OnPluginEnabledChanged(PluginViewModel plugin)
         {
             if (this.isUpdating) return;
@@ -250,40 +249,50 @@ namespace PlugHub.ViewModels.Pages
             bool isIndeterminate = plugin.IsEnabled == null;
 
             if (isIndeterminate == false)
-            {
-                foreach (PluginDescriptorViewModel ifaceVm in plugin.ProvidedDescriptors)
-                    if (!ifaceVm.IsSystem)
-                        ifaceVm.IsEnabled = true;
-
-                this.pluginRegistrar.SetAllEnabled(plugin.PluginID, enabled: true);
-
-                plugin.IsEnabled = true;
-            }
+                this.ApplyPluginState(plugin, true);
             else
-            {
-                foreach (PluginDescriptorViewModel ifaceVm in plugin.ProvidedDescriptors)
-                    if (!ifaceVm.IsSystem)
-                        ifaceVm.IsEnabled = false;
-
-                this.pluginRegistrar.SetAllEnabled(plugin.PluginID, enabled: false);
-
-                foreach (PluginDescriptorViewModel? defaultIface in plugin.ProvidedDescriptors.Where(i => i.IsSystem))
-                {
-                    Type interfaceType = plugin.PluginType.GetInterface(defaultIface.Name)
-                        ?? throw new InvalidOperationException($"Interface {defaultIface.Name} not found on type");
-
-                    this.pluginRegistrar.SetEnabled(plugin.PluginID, interfaceType, enabled: true);
-                }
-
-                bool anyEnabled = plugin.ProvidedDescriptors.Any(i => i.IsEnabled);
-
-                plugin.IsEnabled = anyEnabled ? null : false;
-            }
+                this.ApplyPluginState(plugin, false);
 
             this.UpdateShowRestartBanner();
             this.isPluginCheckboxUpdating = false;
             this.isUpdating = false;
         }
+        private void ApplyPluginState(PluginViewModel plugin, bool targetEnabled)
+        {
+            var systemStates = plugin.ProvidedDescriptors
+                .Where(d => d.IsSystem)
+                .Select(d => new { d.Name, WasEnabled = d.IsEnabled })
+                .ToList();
+
+            foreach (PluginDescriptorViewModel d in plugin.ProvidedDescriptors)
+                if (!d.IsSystem)
+                    d.IsEnabled = targetEnabled;
+
+            this.pluginRegistrar.SetAllEnabled(plugin.PluginID, targetEnabled);
+
+            foreach (var system in systemStates)
+            {
+                Type iface = plugin.PluginType.GetInterface(system.Name)
+                    ?? throw new InvalidOperationException($"Interface {system.Name} not found on type");
+
+                this.pluginRegistrar.SetEnabled(plugin.PluginID, iface, enabled: system.WasEnabled);
+
+                PluginDescriptorViewModel vm = plugin.ProvidedDescriptors.First(d => d.IsSystem && d.Name == system.Name);
+
+                vm.IsEnabled = system.WasEnabled;
+            }
+
+            bool allEnabled = plugin.ProvidedDescriptors.All(d => d.IsEnabled);
+            bool noneEnabled = plugin.ProvidedDescriptors.All(d => !d.IsEnabled);
+
+            if (allEnabled)
+                plugin.IsEnabled = true;
+            else if (noneEnabled)
+                plugin.IsEnabled = false;
+            else
+                plugin.IsEnabled = null;
+        }
+
         private void OnInterfaceEnabledChanged(PluginViewModel plugin, PluginDescriptorViewModel ifaceVm)
         {
             if (this.isUpdating) return;
