@@ -1,136 +1,140 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:v="using:PlugHub.Views"
-             xmlns:vm="using:PlugHub.ViewModels.Pages"
-             xmlns:c="using:PlugHub.Converters"
-             xmlns:ui="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
-             
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             
-             x:Class="PlugHub.Views.SettingsView"
-             x:DataType="vm:SettingsViewModel">
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:PlugHub.ViewModels.Pages"
+	xmlns:c="using:PlugHub.Converters"
+			 
+	mc:Ignorable="d" d:DesignWidth="1230" d:DesignHeight="720"
+			 
+	x:Class="PlugHub.Views.SettingsView"
+	x:DataType="vm:SettingsViewModel"
+			 
+	Background="{DynamicResource PlugHub.QuarternaryBackgroundBrush}">
 
-  <UserControl.Resources>
-    <c:CollapsedHeightConverter x:Key="CollapsedHeightConverter" CollapsedHeight="0"/>
-  </UserControl.Resources>
+	<UserControl.Resources>
+		<c:CollapsedHeightConverter x:Key="CollapsedHeightConverter" CollapsedHeight="0"/>
+	</UserControl.Resources>
 
-  <UserControl.Styles>
-    <Style Selector="AutoCompleteBox">
-      <Setter Property="InnerRightContent">
-        <Template>
-          <Button Width="16"
-                  Height="16"
-                  HorizontalAlignment="Right"
-                  VerticalAlignment="Center"
-                  Margin="0,0,8,0"
-                  Padding="0"
-                  Background="Transparent"
-                  BorderBrush="Transparent"
-                  IsTabStop="False">
+	<UserControl.Styles>
+		<Style Selector="AutoCompleteBox">
+			<Setter Property="InnerRightContent">
+				<Template>
+					<PathIcon Data="{StaticResource sidebar_search_ltr_regular}"
+							  Margin="0,0,8,0"
+							  Width="16" Height="16"
+							  HorizontalAlignment="Right" VerticalAlignment="Center"/>
+				</Template>
+			</Setter>
+		</Style>
+	</UserControl.Styles>
 
-            <PathIcon Data="{StaticResource sidebar_search_ltr_regular}" Width="16" Height="16"/>
-          </Button>
-        </Template>
-      </Setter>
-    </Style>
-  </UserControl.Styles>
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*" />
+			<ColumnDefinition Width="5" />
+			<ColumnDefinition Width="200" MinWidth="100" MaxWidth="500" />
+		</Grid.ColumnDefinitions>
 
-  <Grid>
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="*"/>
-      <ColumnDefinition Width="300"/>
-    </Grid.ColumnDefinitions>
+		<!-- Main content -->
+		<Border Grid.Column="0">
+			<TransitioningContentControl Content="{Binding SelectedSettingsPageContent}" />
+		</Border>
 
-    <Border Grid.Column="1"
-            BorderThickness="3,0,0,0">
+		<!-- Splitter -->
+		<GridSplitter
+			Grid.Column="1"
+			Width="5"
+			ResizeDirection="Columns"
+			ResizeBehavior="PreviousAndNext"
+			HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+			<GridSplitter.Template>
+				<ControlTemplate>
+					<Border Background="Transparent">
+						<Rectangle
+							Width="1"
+							Fill="{TemplateBinding Background}"
+							HorizontalAlignment="Center"
+							VerticalAlignment="Stretch"/>
+					</Border>
+				</ControlTemplate>
+			</GridSplitter.Template>
+		</GridSplitter>
 
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+		<!-- Category/search panel -->
+		<Border Grid.Column="2">
+			<Grid RowDefinitions="Auto,*">
 
-        <Grid Grid.Column="1"
-              Grid.Row="0"
-              VerticalAlignment="Center">
+				<!-- Search -->
+				<AutoCompleteBox
+					Grid.Row="0"
+					Name="SettingsSearchBox"
+					Watermark="Search ..."
+					Margin="8,8,16,8"
+					Text="{Binding SearchText, Mode=TwoWay}"
+					ItemsSource="{Binding SearchSuggestions}"
+					FilterMode="Contains" />
 
-          <AutoCompleteBox x:Name="SettingsSearchBox"
-                           Grid.Row="0"
-                           Watermark="Search ..."
-                           Margin="10,10,13,0"
-                           Text="{Binding SearchText, Mode=TwoWay}"
-                           ItemsSource="{Binding SearchSuggestions}"
-                           FilterMode="Contains"/>
-        </Grid>
+				<!-- Category list -->
+				<ScrollViewer
+					Grid.Row="1"
+					VerticalScrollBarVisibility="Auto"
+					HorizontalScrollBarVisibility="Disabled"
+					Margin="8,0">
 
-        <ScrollViewer Grid.Row="1"
-                      FlowDirection="RightToLeft"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="8,8,0,0"
-                      Margin="0">
+					<ItemsControl ItemsSource="{Binding SettingsPageItemSource}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<StackPanel>
 
-          <ItemsControl FlowDirection="LeftToRight"
-                        ItemsSource="{Binding SettingsPageItemSource}">
+									<!-- Group header -->
+									<Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,2">
+										<TextBlock
+											Text="{Binding GroupName}"
+											FontWeight="Bold"
+											Margin="8"
+											FontSize="16"
+											VerticalAlignment="Center"
+											HorizontalAlignment="Right"
+											PointerReleased="TextBlock_PointerReleased"/>
+									</Border>
 
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <StackPanel>
+									<!-- Group items -->
+									<ListBox
+										SelectedItem="{Binding DataContext.SelectedSettingsPageItem, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+										ItemsSource="{Binding Items}"
+										Margin="0,0,0,8"
+										SelectionChanged="ListBox_SelectionChanged"
+										Height="{Binding IsCollapsed, Converter={StaticResource CollapsedHeightConverter}}">
 
-                  <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                          BorderThickness="0,0,0,2"
-                          Margin="8,0,0,0">
+										<ListBox.ItemTemplate>
+											<DataTemplate>
+												<Grid ColumnDefinitions="Auto,*">
+													<!-- Icon -->
+													<PathIcon
+														Grid.Column="0"
+														Width="16" Height="16"
+														Data="{Binding Icon}"/>
 
-                    <TextBlock Text="{Binding GroupName}"
-                               FontWeight="Bold"
-                               Margin="10"
-                               HorizontalAlignment="Right"
-                               FontSize="16"
-                               PointerReleased="TextBlock_PointerReleased"/>
-                  </Border>
+													<!-- Label -->
+													<TextBlock
+														Grid.Column="1"
+														VerticalAlignment="Center"
+														HorizontalAlignment="Right"
+														Text="{Binding Label}"/>
+												</Grid>
+											</DataTemplate>
+										</ListBox.ItemTemplate>
+									</ListBox>
 
-                  <ListBox SelectedItem="{Binding DataContext.SelectedSettingsPageItem, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
-                           ItemsSource="{Binding Items}"
-                           Margin="0,0,0,10"
-                           FlowDirection="RightToLeft"
-                           Padding="0"
-                           SelectionChanged="ListBox_SelectionChanged"
-                           Height="{Binding Path=IsCollapsed, Converter={StaticResource CollapsedHeightConverter}}">
+								</StackPanel>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
 
-                    <ListBox.ItemTemplate>
-                      <DataTemplate>
-                        <Grid>
-                          <TextBlock Text="{Binding Label}"
-                                     VerticalAlignment="Center"
-                                     Margin="0"
-                                     HorizontalAlignment="Left"/>
-
-                          <PathIcon Data="{Binding Icon}"
-                                    Width="16"
-                                    Height="16"
-                                    VerticalAlignment="Center"
-                                    Margin="0"
-                                    HorizontalAlignment="Right"/>
-                        </Grid>
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-
-          </ItemsControl>
-
-        </ScrollViewer>
-      </Grid>
-    </Border>
-
-    <Border Grid.Column="0">
-      <TransitioningContentControl Content="{Binding SelectedSettingsPageContent}"/>
-    </Border>
-
-  </Grid>
+				</ScrollViewer>
+			</Grid>
+		</Border>
+	</Grid>
 </UserControl>

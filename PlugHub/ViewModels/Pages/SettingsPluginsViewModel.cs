@@ -35,57 +35,29 @@ namespace PlugHub.ViewModels.Pages
         private readonly IPluginResolver pluginResolver;
         private readonly IPluginCache pluginCache;
 
-
         private bool isUpdating = false;
         private bool isPluginCheckboxUpdating = false;
         private readonly string originalManifestJson = string.Empty;
 
-
-        [ObservableProperty]
-        private ObservableCollection<PluginViewModel> originalPlugins = [];
-
-        [ObservableProperty]
-        private ObservableCollection<PluginViewModel> plugins = [];
-
-        [ObservableProperty]
-        private ObservableCollection<PluginViewModel> filteredPlugins = [];
-
-        [ObservableProperty]
-        private ObservableCollection<string> availableCategories = [];
-
-        [ObservableProperty]
-        private ObservableCollection<string> selectedCategories = [];
-
-        [ObservableProperty]
-        private string pluginSearchText = string.Empty;
-
-        [ObservableProperty]
-        private bool hasSearchOrCategorySelected = false;
-
-        [ObservableProperty]
-        private bool isPanelVisible = false;
-
-        [ObservableProperty]
-        private string selectedInterface = string.Empty;
-
-        [ObservableProperty]
-        private string descriptorSearchText = string.Empty;
+        [ObservableProperty] private ObservableCollection<PluginViewModel> originalPlugins = [];
+        [ObservableProperty] private ObservableCollection<PluginViewModel> plugins = [];
+        [ObservableProperty] private ObservableCollection<PluginViewModel> filteredPlugins = [];
+        [ObservableProperty] private ObservableCollection<string> availableCategories = [];
+        [ObservableProperty] private ObservableCollection<string> selectedCategories = [];
+        [ObservableProperty] private string pluginSearchText = string.Empty;
+        [ObservableProperty] private bool hasSearchOrCategorySelected = false;
+        [ObservableProperty] private bool isPanelVisible = false;
+        [ObservableProperty] private string selectedInterface = string.Empty;
+        [ObservableProperty] private string descriptorSearchText = string.Empty;
+        [ObservableProperty] private ObservableCollection<PluginInterfaceDescriptorData> pluginInterfaceDescriptorData = [];
+        [ObservableProperty] private ObservableCollection<PluginInterfaceDescriptorData> filteredInterfaceDescriptorData = [];
+        [ObservableProperty] private bool showRestartBanner = false;
 
         [ObservableProperty]
         private PluginInterfaceDescriptorData? selectedDescriptor = new()
         {
             Descriptor = new PluginInjectorDescriptor(Guid.Empty, Guid.Empty, "", typeof(object))
         };
-
-        [ObservableProperty]
-        private ObservableCollection<PluginInterfaceDescriptorData> pluginInterfaceDescriptorData = [];
-
-        [ObservableProperty]
-        private ObservableCollection<PluginInterfaceDescriptorData> filteredInterfaceDescriptorData = [];
-
-        [ObservableProperty]
-        private bool showRestartBanner = false;
-
 
         public SettingsPluginsViewModel(ILogger<SettingsPluginsViewModel> logger, IConfigService configService, IPluginCache pluginCache, IPluginRegistrar pluginRegistrar, IPluginResolver pluginResolver)
         {
@@ -112,7 +84,6 @@ namespace PlugHub.ViewModels.Pages
             foreach (PluginViewModel plugin in this.Plugins)
                 plugin.IsEnabledChanged += this.OnPluginEnabledChanged;
         }
-
 
         private void GatherPlugins(IEnumerable<PluginReference> pluginMetadatas, List<PluginLoadState> interfaceStates)
         {
@@ -177,7 +148,6 @@ namespace PlugHub.ViewModels.Pages
                     .OrderBy(c => c)];
         }
 
-
         partial void OnPluginSearchTextChanged(string value)
         {
             this.UpdateHasSearchOrCategorySelected();
@@ -190,6 +160,7 @@ namespace PlugHub.ViewModels.Pages
         }
         private void UpdateHasSearchOrCategorySelected() =>
             this.HasSearchOrCategorySelected = !string.IsNullOrEmpty(this.PluginSearchText) || (this.SelectedCategories?.Any() ?? false);
+
         public void ApplyPluginFilters()
         {
             string searchLower = (this.PluginSearchText ?? "").Trim().ToLowerInvariant();
@@ -215,7 +186,6 @@ namespace PlugHub.ViewModels.Pages
             this.SelectedCategories.Clear();
             this.ApplyPluginFilters();
         }
-
 
         partial void OnDescriptorSearchTextChanged(string value)
         {
@@ -293,18 +263,18 @@ namespace PlugHub.ViewModels.Pages
                 plugin.IsEnabled = null;
         }
 
-        private void OnInterfaceEnabledChanged(PluginViewModel plugin, PluginDescriptorViewModel ifaceVm)
+        private void OnInterfaceEnabledChanged(PluginViewModel plugin, PluginDescriptorViewModel descVM)
         {
             if (this.isUpdating) return;
             this.isUpdating = true;
 
             Type? interfaceType = plugin.PluginType
                 .GetInterfaces()
-                .FirstOrDefault(t => t.Name == ifaceVm.Name);
+                .FirstOrDefault(t => t.Name == descVM.Name);
 
             if (interfaceType != null)
             {
-                if (ifaceVm.IsEnabled)
+                if (descVM.IsEnabled)
                 {
                     this.pluginRegistrar.SetEnabled(plugin.PluginID, interfaceType, enabled: true);
                 }
@@ -335,35 +305,32 @@ namespace PlugHub.ViewModels.Pages
                 ).Any(diff => diff);
         }
 
-
         [RelayCommand]
-        private void OpenDescriptorInfo(PluginDescriptorViewModel ifaceVm)
+        private void OpenDescriptorInfo(PluginDescriptorViewModel descVM)
         {
-            if (ifaceVm.Name == this.SelectedInterface)
+            if (descVM.Name == this.SelectedInterface)
             {
                 this.CloseDescriptorInfo();
                 return;
             }
-            if (ifaceVm.Type == null)
+            if (descVM.Type == null)
             {
-                this.logger.LogWarning("PluginInterfaceViewModel.Type was null for interface '{InterfaceName}'", ifaceVm.Name);
+                this.logger.LogWarning("PluginInterfaceViewModel.Type was null for interface '{InterfaceName}'", descVM.Name);
                 this.CloseDescriptorInfo();
                 return;
             }
 
             this.IsPanelVisible = true;
-            this.SelectedInterface = ifaceVm.Name;
+            this.SelectedInterface = descVM.Name;
 
-            this.PopulatePluginInterfaceDescriptorData(ifaceVm);
+            this.PopulatePluginInterfaceDescriptorData(descVM);
         }
-
         [RelayCommand]
         private void CloseDescriptorInfo()
         {
             this.IsPanelVisible = false;
             this.SelectedInterface = string.Empty;
         }
-
         [RelayCommand]
         private void RevertPluginChanges()
         {
@@ -404,19 +371,19 @@ namespace PlugHub.ViewModels.Pages
             this.ShowRestartBanner = false;
         }
 
-        private void PopulatePluginInterfaceDescriptorData(PluginDescriptorViewModel ifaceVm)
+        private void PopulatePluginInterfaceDescriptorData(PluginDescriptorViewModel descVM)
         {
-            ArgumentNullException.ThrowIfNull(ifaceVm);
-            ArgumentNullException.ThrowIfNull(ifaceVm.Type);
+            ArgumentNullException.ThrowIfNull(descVM);
+            ArgumentNullException.ThrowIfNull(descVM.Type);
 
             List<PluginLoadState> manifestStates = this.pluginManifest.Get().DescriptorStates;
 
             DescriptorProviderAttribute? providesDescAttr =
-                ifaceVm.Type.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
+                descVM.Type.GetCustomAttribute<DescriptorProviderAttribute>(inherit: false);
 
             DescriptorSortContext sortContext = providesDescAttr?.SortContext ?? DescriptorSortContext.None;
 
-            IEnumerable<PluginDescriptor> descriptors = this.pluginRegistrar.GetDescriptorsForInterface(ifaceVm.Type);
+            IEnumerable<PluginDescriptor> descriptors = this.pluginRegistrar.GetDescriptorsForInterface(descVM.Type);
             PluginResolutionContext<PluginDescriptor> context = this.pluginResolver.ResolveContext(descriptors);
             IReadOnlyList<PluginDescriptor> sortedDescriptors = context.GetSorted();
 

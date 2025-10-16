@@ -33,10 +33,6 @@ namespace PlugHub.ViewModels
         private readonly ContentItemViewModel? mainPage;
         private readonly ContentItemViewModel? settingsPage;
 
-        [ObservableProperty] private string appName = "PlugHub";
-        [ObservableProperty] private IImage? appIcon = null;
-        [ObservableProperty] private string appLink = string.Empty;
-
         [ObservableProperty] private Control? selectedMainPageContent;
 
         [ObservableProperty] private bool isMaximizeVisible = true;
@@ -44,29 +40,37 @@ namespace PlugHub.ViewModels
         [ObservableProperty] private bool isSettingsVisible = true;
         [ObservableProperty] private bool isHomeVisible = false;
 
-        [ObservableProperty] private WindowIcon? windowIcon = null;
-        [ObservableProperty] private string? windowTitle = null;
-        [ObservableProperty] private int windowMinWidth = 0;
-        [ObservableProperty] private int windowMinHeight = 0;
+        [ObservableProperty] private WindowIcon? windowIcon;
+        [ObservableProperty] private string? windowTitle;
+        [ObservableProperty] private double? windowMinWidth;
+        [ObservableProperty] private double? windowMinHeight;
+        [ObservableProperty] private double? windowWidth;
+        [ObservableProperty] private double? windowHeight;
+        [ObservableProperty] private WindowState? windowStartupState;
+        [ObservableProperty] private WindowStartupLocation? windowStartupLocation;
+        [ObservableProperty] private WindowTransparencyLevel? transparencyPreference;
+        [ObservableProperty] private bool? canResize;
+        [ObservableProperty] private bool? showInTaskbar;
+        [ObservableProperty] private SystemDecorations? systemDecorations;
+        [ObservableProperty] private bool? extendClientAreaToDecorationsHint;
+        [ObservableProperty] private int? extendClientAreaTitleBarHeightHint;
 
-        public MainViewModel(ILogger<MainViewModel> logger, IServiceProvider serviceProvider, IConfigService configService, SettingsView settingsView, SettingsViewModel settingsViewModel, IEnumerable<IPluginPages> pages, IPluginResolver resolver)
+        [ObservableProperty] private string? appName;
+        [ObservableProperty] private IImage? appIcon;
+        [ObservableProperty] private string? appLink;
+
+        public MainViewModel(ILogger<MainViewModel> logger, IConfigService configService, IServiceProvider serviceProvider, SettingsView settingsView, SettingsViewModel settingsViewModel, IPluginResolver resolver, IEnumerable<IPluginPages> pages)
         {
             this.logger = logger;
             this.configService = configService;
             this.serviceProvider = serviceProvider;
 
+            IConfigAccessorFor<AppConfig> appConfig = configService.GetAccessor<AppConfig>();
             IConfigAccessorFor<AppEnv> appEnv = configService.GetAccessor<AppEnv>();
 
-            this.AppIcon = new Bitmap(AssetLoader.Open(new Uri("avares://PlugHub/Assets/avalonia-logo.ico")));
-            this.AppName = appEnv.Get().AppName;
-            this.AppLink = "https://enterlucent.com";
+            this.ApplyConfigValues(appConfig.Get(), appEnv.Get());
 
-            this.WindowIcon = new WindowIcon(AssetLoader.Open(new Uri("avares://PlugHub/Assets/avalonia-logo.ico")));
-            this.WindowTitle = this.AppName;
-            this.WindowMinWidth = 640;
-            this.WindowMinHeight = 480;
-
-            this.settingsPage = new(typeof(SettingsView), typeof(SettingsViewModel), "", "")
+            this.settingsPage = new(typeof(SettingsView), typeof(SettingsViewModel), "", null!)
             {
                 Control = settingsView,
                 ViewModel = settingsViewModel
@@ -84,6 +88,37 @@ namespace PlugHub.ViewModels
 
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is Window w)
                 this.OnWindowStateChanged(w.WindowState);
+        }
+        private void ApplyConfigValues(AppConfig appConfig, AppEnv appEnv)
+        {
+            string iconPath = !string.IsNullOrWhiteSpace(appEnv.WindowIconPath) ? appEnv.WindowIconPath : appConfig.WindowIconPath;
+
+            if (!string.IsNullOrWhiteSpace(iconPath))
+                this.WindowIcon = new WindowIcon(AssetLoader.Open(new Uri(iconPath)));
+
+            this.WindowTitle = !string.IsNullOrWhiteSpace(appEnv.WindowTitle) ? appEnv.WindowTitle : appConfig.WindowTitle;
+            this.WindowMinWidth = appEnv.WindowMinWidth ?? appConfig.WindowMinWidth;
+            this.WindowMinHeight = appEnv.WindowMinHeight ?? appConfig.WindowMinHeight;
+            this.WindowWidth = appEnv.WindowWidth ?? appConfig.WindowWidth;
+            this.WindowHeight = appEnv.WindowHeight ?? appConfig.WindowHeight;
+
+            this.WindowStartupState = appEnv.WindowStartupState ?? appConfig.WindowStartupState;
+            this.WindowStartupLocation = appEnv.WindowStartupLocation ?? appConfig.WindowStartupLocation;
+            this.TransparencyPreference = appEnv.TransparencyPreference ?? appConfig.TransparencyPreference;
+            this.SystemDecorations = appEnv.SystemDecorations ?? appConfig.SystemDecorations;
+
+            this.CanResize = appEnv.CanResize ?? appConfig.CanResize;
+            this.ShowInTaskbar = appEnv.ShowInTaskbar ?? appConfig.ShowInTaskbar;
+            this.ExtendClientAreaToDecorationsHint = appEnv.ExtendClientAreaToDecorationsHint ?? appConfig.ExtendClientAreaToDecorationsHint;
+            this.ExtendClientAreaTitleBarHeightHint = appEnv.ExtendClientAreaTitleBarHeightHint ?? appConfig.ExtendClientAreaTitleBarHeightHint;
+
+            string appIconPath = !string.IsNullOrWhiteSpace(appEnv.AppIconPath) ? appEnv.AppIconPath : appConfig.AppIconPath;
+
+            if (!string.IsNullOrWhiteSpace(appIconPath))
+                this.AppIcon = new Bitmap(AssetLoader.Open(new Uri(appIconPath)));
+
+            this.AppName = !string.IsNullOrWhiteSpace(appEnv.AppName) ? appEnv.AppName : appConfig.AppName;
+            this.AppLink = !string.IsNullOrWhiteSpace(appEnv.AppLink) ? appEnv.AppLink : appConfig.AppLink;
         }
 
         private void OnWindowStateChanged(WindowState state)

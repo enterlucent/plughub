@@ -1,6 +1,5 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 
 namespace PlugHub.Shared.ViewModels
 {
@@ -18,12 +17,31 @@ namespace PlugHub.Shared.ViewModels
         /// <param name="iconName">The resource key for the navigation icon.</param>
         public ContentItemViewModel(Type viewType, Type viewModelType, string label, string iconName)
         {
-            Application.Current!.TryFindResource(iconName, out object? res);
+            #region PluginPageDescriptor: Resolve Icon
+
+            object? iconData = null;
+
+            if (!string.IsNullOrWhiteSpace(iconName))
+            {
+                if (iconName.StartsWith("avares://", StringComparison.OrdinalIgnoreCase))
+                {
+                    iconData = new Avalonia.Media.Imaging.Bitmap(iconName);
+                }
+                else
+                {
+                    Application? app = Application.Current;
+
+                    if (app != null && app.TryFindResource(iconName, out object? resource))
+                        iconData = resource;
+                }
+            }
+
+            #endregion
 
             this.ViewType = viewType;
             this.ViewModelType = viewModelType;
             this.Label = label;
-            this.Icon = (StreamGeometry)res!;
+            this.Icon = iconData;
         }
 
 
@@ -46,7 +64,7 @@ namespace PlugHub.Shared.ViewModels
         /// <summary>
         /// Gets the icon geometry for the navigation item.
         /// </summary>
-        public StreamGeometry Icon { get; }
+        public object? Icon { get; }
 
 
         /// <summary>

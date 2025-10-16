@@ -22,11 +22,6 @@ namespace PlugHub.Views.Windows
         public MainWindow(IServiceProvider serviceProvider, IConfigService configService)
             : this()
         {
-            this.SystemDecorations = SystemDecorations.BorderOnly;
-            this.ExtendClientAreaToDecorationsHint = true;
-            this.ExtendClientAreaTitleBarHeightHint = 0;
-            this.TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-
             IPluginResolver pluginResolver = serviceProvider.GetRequiredService<IPluginResolver>();
             IEnumerable<IPluginMainView> viewProviders = serviceProvider.GetServices<IPluginMainView>();
             IReadOnlyList<PluginMainViewDescriptor> orderedDescriptors = pluginResolver.ResolveAndOrder<IPluginMainView, PluginMainViewDescriptor>(viewProviders);

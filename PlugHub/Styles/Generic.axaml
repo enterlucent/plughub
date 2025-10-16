@@ -1,0 +1,82 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:av="clr-namespace:Avalonia.Styling;assembly=Avalonia.Base">
+
+	<ResourceDictionary.ThemeDictionaries>
+		<ResourceDictionary x:Key="{x:Static av:ThemeVariant.Light}">
+			<SolidColorBrush x:Key="PlugHub.PrimaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorBase}" />
+			<SolidColorBrush x:Key="PlugHub.SecondaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorSecondary}" />
+			<SolidColorBrush x:Key="PlugHub.TertiaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorTertiary}" />
+			<SolidColorBrush x:Key="PlugHub.QuarternaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorQuarternary}" />
+
+			<SolidColorBrush x:Key="PlugHub.SecondaryControlAltBrush"
+							 Color="{DynamicResource ControlAltFillColorSecondary}" />
+			<SolidColorBrush x:Key="PlugHub.TertiaryControlAltBrush"
+							 Color="{DynamicResource ControlAltFillColorTertiary}" />
+			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrongBrush"
+							 Color="{DynamicResource ControlStrongFillColorDefault}" />
+			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrokeBrush"
+							 Color="{DynamicResource ControlStrokeColorDefault}" />
+
+			<SolidColorBrush x:Key="PlugHub.PrimaryTextBrush"
+							 Color="{DynamicResource TextFillColorPrimary}" />
+			<SolidColorBrush x:Key="PlugHub.SecondaryTextBrush"
+							 Color="{DynamicResource TextFillColorSecondary}" />
+
+			<SolidColorBrush x:Key="PlugHub.AccentFillBrush"
+							 Color="{DynamicResource SystemAccentColor}" />
+
+			<SolidColorBrush x:Key="PlugHub.FillColorCautionBrush"
+							 Color="{DynamicResource SystemFillColorCaution}" />
+			<SolidColorBrush x:Key="PlugHub.FillColorCriticalBrush"
+							 Color="{DynamicResource SystemFillColorCritical}" />
+
+			<SolidColorBrush x:Key="PlugHub.FillColorExitBackgroundBrush"
+							 Color="#FFFF0000" />
+			<SolidColorBrush x:Key="PlugHub.FillColorExitForegroundBrush"
+							 Color="#FFFFFFFF" />
+		</ResourceDictionary>
+
+		<ResourceDictionary x:Key="{x:Static av:ThemeVariant.Dark}">
+			<SolidColorBrush x:Key="PlugHub.PrimaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorBase}" />
+			<SolidColorBrush x:Key="PlugHub.SecondaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorSecondary}" />
+			<SolidColorBrush x:Key="PlugHub.TertiaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorTertiary}" />
+			<SolidColorBrush x:Key="PlugHub.QuarternaryBackgroundBrush"
+							 Color="{DynamicResource SolidBackgroundFillColorQuarternary}" />
+
+			<SolidColorBrush x:Key="PlugHub.SecondaryControlAltBrush"
+							 Color="{DynamicResource ControlAltFillColorSecondary}" />
+			<SolidColorBrush x:Key="PlugHub.TertiaryControlAltBrush"
+							 Color="{DynamicResource ControlAltFillColorTertiary}" />
+			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrongBrush"
+							 Color="{DynamicResource ControlStrongFillColorDefault}" />
+			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrokeBrush"
+							 Color="{DynamicResource ControlStrokeColorDefault}" />
+
+			<SolidColorBrush x:Key="PlugHub.PrimaryTextBrush"
+							 Color="{DynamicResource TextFillColorPrimary}" />
+			<SolidColorBrush x:Key="PlugHub.SecondaryTextBrush"
+							 Color="{DynamicResource TextFillColorSecondary}" />
+
+			<SolidColorBrush x:Key="PlugHub.AccentFillBrush"
+							 Color="{DynamicResource SystemAccentColor}" />
+
+			<SolidColorBrush x:Key="PlugHub.FillColorCautionBrush"
+							 Color="{DynamicResource SystemFillColorCaution}" />
+			<SolidColorBrush x:Key="PlugHub.FillColorCriticalBrush"
+							 Color="{DynamicResource SystemFillColorCritical}" />
+
+			<SolidColorBrush x:Key="PlugHub.FillColorExitBackgroundBrush"
+							 Color="#FFFF0000" />
+			<SolidColorBrush x:Key="PlugHub.FillColorExitForegroundBrush"
+							 Color="#FFFFFFFF" />
+		</ResourceDictionary>
+	</ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

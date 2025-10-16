@@ -1,7 +1,4 @@
-﻿using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Markup.Xaml.Styling;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PlugHub.Models;
 using PlugHub.Services.Configuration;
@@ -16,8 +13,6 @@ using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Models.Plugins;
 using PlugHub.Shared.Utility;
-using PlugHub.Shared.ViewModels;
-using PlugHub.ViewModels;
 using PlugHub.ViewModels.Pages;
 using PlugHub.Views;
 using Serilog;
@@ -102,9 +97,6 @@ namespace PlugHub.Bootstrap
             configService.RegisterConfig(typeof(AppEnv), new ConfigFileParams(Owner: tokenSet.Owner, Read: Token.Public, Write: Token.Public));
 
             PluginsConfigs(provider);
-            PluginsStyleInclude(provider);
-            PluginsSettingPages(provider);
-
             PluginAppServices(provider);
 
             return provider;
@@ -663,7 +655,6 @@ namespace PlugHub.Bootstrap
 
             return appEnv;
         }
-
         private static void PluginsConfigs(IServiceProvider provider)
         {
             ArgumentNullException.ThrowIfNull(provider);
@@ -686,87 +677,6 @@ namespace PlugHub.Bootstrap
             Log.Information("[Bootstrapper] PluginsConfigs completed: Added {ConfigCount} configuration descriptors from plugins.",
                 orderedDescriptors.Count);
         }
-        private static void PluginsStyleInclude(IServiceProvider provider)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-
-            IEnumerable<IPluginStyleInclusion> styleIncludeProviders = provider.GetServices<IPluginStyleInclusion>();
-            ILogger<Bootstrapper> logger = provider.GetRequiredService<ILogger<Bootstrapper>>();
-            IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-
-            IReadOnlyList<PluginStyleIncludeDescriptor> orderedDescriptors =
-                pluginResolver.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(styleIncludeProviders);
-
-            HashSet<string> loadedResourceDictionaries = [];
-            HashSet<Type> loadedFactoryTypes = [];
-
-            foreach (PluginStyleIncludeDescriptor descriptor in orderedDescriptors)
-            {
-                if (Application.Current?.Styles is null)
-                    continue;
-
-                try
-                {
-                    if (descriptor.Factory is not null)
-                    {
-                        Avalonia.Styling.IStyle style = descriptor.Factory();
-
-                        if (loadedFactoryTypes.Add(style.GetType()))
-                            Application.Current.Styles.Add(style);
-                        else
-                            logger.LogDebug("[Bootstrapper] Skipped duplicate factory style of type {StyleType}", style.GetType().FullName);
-                    }
-                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) &&
-                             loadedResourceDictionaries.Add(descriptor.ResourceUri))
-                    {
-                        Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
-                            ? new Uri("avares://PlugHub/")
-                            : new Uri(descriptor.BaseUri);
-
-                        StyleInclude styleInclude = new(baseUri)
-                        {
-                            Source = new Uri(descriptor.ResourceUri)
-                        };
-
-                        Application.Current.Styles.Add(styleInclude);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[Bootstrapper] Failed to load style from {Source}", descriptor.ResourceUri ?? descriptor.Factory?.Method?.Name ?? "unknown");
-                }
-            }
-
-            logger.LogInformation("[Bootstrapper] PluginsStyleIncludes completed: Added {ResourceCount} unique resource dictionaries and {FactoryCount} unique factory styles.", loadedResourceDictionaries.Count, loadedFactoryTypes.Count);
-        }
-        private static void PluginsSettingPages(IServiceProvider provider)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-
-            SettingsViewModel settingsViewModel = provider.GetRequiredService<SettingsViewModel>();
-            IPluginResolver pluginResolver = provider.GetRequiredService<IPluginResolver>();
-            IEnumerable<IPluginSettingsPages> settingsProviders = provider.GetServices<IPluginSettingsPages>();
-
-            IReadOnlyList<SettingsPageDescriptor> orderedDescriptors =
-                pluginResolver.ResolveAndOrder<IPluginSettingsPages, SettingsPageDescriptor>(settingsProviders);
-
-            foreach (SettingsPageDescriptor descriptor in orderedDescriptors)
-            {
-                ContentItemViewModel? page = SettingsPageDescriptor.GetItemViewModel(provider, descriptor);
-
-                if (page == null)
-                {
-                    Log.Error("[Bootstrapper] Could not resolve settings page {PageName}, skipping.", descriptor.Name);
-
-                    continue;
-                }
-
-                settingsViewModel.AddSettingsPage(descriptor.Group, page);
-            }
-
-            Log.Information("[Bootstrapper] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", orderedDescriptors.Count);
-        }
-
         private static void PluginAppServices(IServiceProvider provider)
         {
             ArgumentNullException.ThrowIfNull(provider);

@@ -1,11 +1,7 @@
-<Application xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:fs="using:FluentAvalonia.Styling"
-             x:Class="PlugHub.App"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-  <Application.Styles>
-    <StyleInclude Source="avares://PlugHub/Styles/Icons.axaml"/>
-    <fs:FluentAvaloniaTheme PreferUserAccentColor="True" PreferSystemTheme="True" />
-  </Application.Styles>
+<Application
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="PlugHub.App">
+	<!-- Plugin authors should contribute their own styles via IPluginStyleInclusion. -->
+	<Application.Styles />
 </Application>

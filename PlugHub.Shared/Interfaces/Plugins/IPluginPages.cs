@@ -65,7 +65,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
             UserControl? view;
             BaseViewModel? viewModel;
 
-            #region PluginsPages: Resolve View
+            #region PluginPageDescriptor: Resolve View
 
             if (descriptor.ViewFactory != null)
             {
@@ -74,14 +74,13 @@ namespace PlugHub.Shared.Interfaces.Plugins
             else if (descriptor.ViewType != null)
             {
                 view = provider.GetService(descriptor.ViewType) as UserControl;
-
                 if (view is null) return null;
             }
             else return null;
 
             #endregion
 
-            #region PluginPages: Resolve ViewModel
+            #region PluginPageDescriptor: Resolve ViewModel
 
             if (descriptor.ViewModelFactory != null)
             {
@@ -90,7 +89,6 @@ namespace PlugHub.Shared.Interfaces.Plugins
             else if (descriptor.ViewModelType != null)
             {
                 viewModel = provider.GetService(descriptor.ViewModelType) as BaseViewModel;
-
                 if (viewModel is null) return null;
             }
             else return null;

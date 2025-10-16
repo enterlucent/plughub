@@ -1,7 +1,11 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Styling;
+using FluentAvalonia.Styling;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,8 +18,10 @@ using PlugHub.Services.Configuration;
 using PlugHub.Services.Configuration.Providers;
 using PlugHub.Shared.Interfaces.Accessors;
 using PlugHub.Shared.Interfaces.Platform.Storage;
+using PlugHub.Shared.Interfaces.Plugins;
 using PlugHub.Shared.Interfaces.Services;
 using PlugHub.Shared.Interfaces.Services.Configuration;
+using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models;
 using PlugHub.Shared.Models.Configuration.Parameters;
 using PlugHub.Shared.Utility;
@@ -25,6 +31,7 @@ using PlugHub.Views;
 using PlugHub.Views.Windows;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -69,9 +76,13 @@ namespace PlugHub
 
             serviceProvider = Bootstrapper.BuildEnv(services, configService, tokenSet, baseConfig, baseEnv);
 
+            configService = serviceProvider.GetRequiredService<IConfigService>();
+
             ConfigureSystemLogs(configService, tokenSet);
             ConfigureStorageLocation(serviceProvider, configService, tokenSet);
+            ConfigureTheme(configService, tokenSet, this.Styles, this.Resources);
         }
+
         public override void OnFrameworkInitializationCompleted()
         {
             if (serviceProvider == null)
@@ -90,6 +101,8 @@ namespace PlugHub
             }
             else if (this.ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
             {
+                //TODO: This needs to be integrated with the new MainView selection code
+                //        which means it will need ot be extracted into something reusable
                 singleViewPlatform.MainView = serviceProvider.GetRequiredService<MainView>();
             }
 
@@ -138,7 +151,7 @@ namespace PlugHub
 
         #endregion
 
-        #region App: System Logging and Storage Configuration
+        #region App: Post-Init Configuration
 
         private static void ConfigureSystemLogs(IConfigService configService, TokenSet tokenSet)
         {
@@ -219,6 +232,105 @@ namespace PlugHub
 
             if (storageFolder != null)
                 secureStorage.Initialize(storageFolder);
+        }
+        private static void ConfigureTheme(IConfigService configService, TokenSet tokenSet, Styles styles, IResourceDictionary resources)
+        {
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ArgumentNullException.ThrowIfNull(configService);
+            ArgumentNullException.ThrowIfNull(tokenSet);
+
+            IEnumerable<IPluginStyleInclusion> styleIncludeProviders = serviceProvider.GetServices<IPluginStyleInclusion>();
+            ILogger<App> logger = serviceProvider.GetRequiredService<ILogger<App>>();
+            IPluginResolver pluginResolver = serviceProvider.GetRequiredService<IPluginResolver>();
+
+            IReadOnlyList<PluginStyleIncludeDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(styleIncludeProviders);
+
+            HashSet<string> loadedResourceDictionaries = [];
+            HashSet<Type> loadedFactoryTypes = [];
+
+            IConfigAccessorFor<AppConfig> configAccessor = configService.GetAccessor<AppConfig>(owner: tokenSet.Owner);
+            IConfigAccessorFor<AppEnv> envAccessor = configService.GetAccessor<AppEnv>(owner: tokenSet.Owner);
+
+            AppConfig appConfig = configAccessor.Get();
+            AppEnv appEnv = envAccessor.Get();
+
+            bool useDefaultTheme = appEnv.UseDefaultTheme ?? appConfig.UseDefaultTheme;
+            bool preferSystemTheme = appEnv.PreferSystemTheme ?? appConfig.PreferSystemTheme;
+            bool preferUserAccentColor = appEnv.PreferUserAccentColor ?? appConfig.PreferUserAccentColor;
+
+            string systemThemeStr =
+                !string.IsNullOrWhiteSpace(appEnv.SystemTheme)
+                    ? appEnv.SystemTheme!
+                    : appConfig.SystemTheme;
+
+            if (!useDefaultTheme)
+                return;
+
+            ThemeVariant requested = systemThemeStr?.Trim().ToLowerInvariant() switch
+            {
+                "light" => ThemeVariant.Light,
+                "dark" => ThemeVariant.Dark,
+                _ => ThemeVariant.Default
+            };
+
+            if (Application.Current != null)
+                Application.Current.RequestedThemeVariant = requested;
+
+            styles.Add(new StyleInclude(new Uri("avares://PlugHub/"))
+            {
+                Source = new Uri("avares://PlugHub/Styles/Icons.axaml")
+            });
+
+            styles.Add(new FluentAvaloniaTheme
+            {
+                PreferSystemTheme = preferSystemTheme,
+                PreferUserAccentColor = preferUserAccentColor
+            });
+
+            resources.MergedDictionaries.Add(new ResourceInclude(new Uri("avares://PlugHub/"))
+            {
+                Source = new Uri("avares://PlugHub/Styles/Generic.axaml")
+            });
+
+
+            foreach (PluginStyleIncludeDescriptor descriptor in orderedDescriptors)
+            {
+                if (Application.Current?.Styles is null)
+                    continue;
+
+                try
+                {
+                    if (descriptor.Factory is not null)
+                    {
+                        IStyle style = descriptor.Factory();
+
+                        if (loadedFactoryTypes.Add(style.GetType()))
+                            Application.Current.Styles.Add(style);
+                        else
+                            logger.LogDebug("[App] Skipped duplicate factory style of type {StyleType}", style.GetType().FullName);
+                    }
+                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) && loadedResourceDictionaries.Add(descriptor.ResourceUri))
+                    {
+                        Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
+                            ? new Uri("avares://PlugHub/")
+                            : new Uri(descriptor.BaseUri);
+
+                        StyleInclude styleInclude = new(baseUri)
+                        {
+                            Source = new Uri(descriptor.ResourceUri)
+                        };
+
+                        Application.Current.Styles.Add(styleInclude);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[App] Failed to load style from {Source}", descriptor.ResourceUri ?? descriptor.Factory?.Method?.Name ?? "unknown");
+                }
+            }
+
+            logger.LogInformation("[App] PluginsStyleIncludes completed: Added {ResourceCount} unique resource dictionaries and {FactoryCount} unique factory styles.", loadedResourceDictionaries.Count, loadedFactoryTypes.Count);
         }
 
         #endregion

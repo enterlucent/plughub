@@ -171,7 +171,10 @@ namespace PlugHub.Plugin.Mock
                     DescriptorID: Guid.Parse("ba543295-88e8-474a-b370-74594dcc76a8"),
                     Version: Version,
                     AppEnv: liveAppEnv => {
-                        liveAppEnv.AppName = "👽 MockHub 👽";
+                        liveAppEnv.WindowTitle = "MockHub";
+                        liveAppEnv.WindowIconPath = "avares://PlugHub.Plugin.Mock/Assets/alien-bob.png";
+                        liveAppEnv.AppName = "MockHub";
+                        liveAppEnv.AppIconPath = "avares://PlugHub.Plugin.Mock/Assets/alien-bob.png";
                     },
                     LoadBefore: [],
                     LoadAfter: [],

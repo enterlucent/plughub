@@ -1,7 +1,5 @@
 ﻿using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
 using PlugHub.Shared.Attributes;
-using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.Models.Plugins;
 using PlugHub.Shared.ViewModels;
 

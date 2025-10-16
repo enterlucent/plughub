@@ -1,8 +1,11 @@
 ﻿using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using PlugHub.Shared.Interfaces.Plugins;
+using PlugHub.Shared.Interfaces.Services.Plugins;
 using PlugHub.Shared.ViewModels;
 using PlugHub.Views;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -17,72 +20,69 @@ namespace PlugHub.ViewModels.Pages
         private CancellationTokenSource? searchDebounceCts;
         private readonly ILogger<SettingsViewModel> logger;
 
-        [ObservableProperty]
-        private ObservableCollection<ContentItemGroupViewModel> settingsPageItems = [];
+        [ObservableProperty] private ObservableCollection<ContentItemGroupViewModel> settingsPageItems = [];
+        [ObservableProperty] private ObservableCollection<ContentItemGroupViewModel> settingsPageItemSource = [];
+        [ObservableProperty] private ObservableCollection<string> searchSuggestions = [];
+        [ObservableProperty] private string searchText = string.Empty;
+        [ObservableProperty] private ContentItemViewModel? selectedSettingsPageItem;
+        [ObservableProperty] private Control? selectedSettingsPageContent;
 
-        [ObservableProperty]
-        private ObservableCollection<ContentItemGroupViewModel> settingsPageItemSource = [];
-
-        [ObservableProperty]
-        private ObservableCollection<string> searchSuggestions = [];
-
-        [ObservableProperty]
-        private string searchText = string.Empty;
-
-        [ObservableProperty]
-        private ContentItemViewModel? selectedSettingsPageItem;
-
-        [ObservableProperty]
-        private Control? selectedSettingsPageContent;
-
-
-        public SettingsViewModel(ILogger<SettingsViewModel> logger, SettingsPluginsView? settingsPluginsView, SettingsPluginsViewModel? settingPluginsViewModel)
+        public SettingsViewModel(ILogger<SettingsViewModel> logger, SettingsPluginsView? settingsPluginsView, SettingsPluginsViewModel? settingPluginsViewModel, IServiceProvider provider, IPluginResolver pluginResolver, IEnumerable<IPluginSettingsPages> settingsProviders)
         {
             this.logger = logger;
 
             this.AddPluginSettingsPage(settingsPluginsView, settingPluginsViewModel);
 
+            IReadOnlyList<SettingsPageDescriptor> orderedDescriptors =
+                pluginResolver.ResolveAndOrder<IPluginSettingsPages, SettingsPageDescriptor>(settingsProviders);
+
+            foreach (SettingsPageDescriptor descriptor in orderedDescriptors)
+            {
+                ContentItemViewModel? page = SettingsPageDescriptor.GetItemViewModel(provider, descriptor);
+
+                if (page == null)
+                {
+                    Log.Error("[SettingsViewModel] Could not resolve settings page {PageName}, skipping.", descriptor.Name);
+
+                    continue;
+                }
+
+                this.AddSettingsPage(descriptor.Group, page);
+            }
+
+            Log.Information("[SettingsViewModel] PluginsSettingPages completed: added {SettingsPageCount} plugin-provided settings pages, grouped appropriately.", orderedDescriptors.Count);
+
             this.UpdateSetting();
         }
-
 
         public void AddSettingsPage(string groupName, ContentItemViewModel item)
         {
             ContentItemGroupViewModel? group = this.SettingsPageItems.FirstOrDefault(g => g.GroupName == groupName);
 
-            group ??= new ContentItemGroupViewModel
+            if (group == null)
             {
-                GroupName = groupName,
-                Items = []
-            };
+                group = new ContentItemGroupViewModel
+                {
+                    GroupName = groupName,
+                    Items = []
+                };
+                this.SettingsPageItems.Add(group);
+            }
 
             if (group.Items.Any(i => i.Label == item.Label))
             {
                 this.logger.LogWarning("Item with label '{ItemLabel}' already exists in the group '{GroupName}'.", item.Label, groupName);
-
                 return;
             }
 
-            if (this.SettingsPageItems.FirstOrDefault(g => g.GroupName == groupName) == null)
-                this.SettingsPageItems.Add(group);
-
             group.Items.Add(item);
-
             this.UpdateSetting();
         }
         private void AddPluginSettingsPage(SettingsPluginsView? settingsPluginsView, SettingsPluginsViewModel? settingPluginsViewModel)
         {
-            if (settingsPluginsView == null)
+            if (settingsPluginsView == null || settingPluginsViewModel == null)
             {
-                this.logger.LogWarning("[SettingsViewModel] SettingsPluginsView is null. Plugin UI may not function correctly.");
-
-                return;
-            }
-
-            if (settingPluginsViewModel == null)
-            {
-                this.logger.LogWarning("[SettingsViewModel] SettingsPluginsViewModel is null. Plugin UI may not function correctly.");
-
+                this.logger.LogWarning("[SettingsViewModel] Plugin settings view or viewmodel is null. Plugin UI may not function correctly.");
                 return;
             }
 
@@ -92,15 +92,15 @@ namespace PlugHub.ViewModels.Pages
                 ViewModel = settingPluginsViewModel
             };
 
-            this.SettingsPageItems.Add(new ContentItemGroupViewModel()
+            ContentItemGroupViewModel group = new()
             {
                 GroupName = "General Settings",
                 Items = [item]
-            });
+            };
 
+            this.SettingsPageItems.Add(group);
             this.OnSelectedSettingsItemChanged(item);
         }
-
 
         public void OnSelectedSettingsItemChanged(ContentItemViewModel viewModel)
         {
@@ -108,27 +108,27 @@ namespace PlugHub.ViewModels.Pages
 
             this.SelectedSettingsPageItem = viewModel;
             this.SelectedSettingsPageContent = viewModel.Control ?? new TextBlock { Text = "Unable to find content" };
+
+            // Option B: MVVM‑pure
+            //this.SelectedSettingsPageKey = viewModel.TemplateKey;
         }
         public void OnSettingsGroupPointerReleased(ContentItemGroupViewModel viewModel)
         {
-            ContentItemGroupViewModel? groupViewModel = this.SettingsPageItems
-                .OfType<ContentItemGroupViewModel>()
-                .FirstOrDefault(group => group.GroupName == viewModel.GroupName);
+            ContentItemGroupViewModel? original = this.SettingsPageItems
+                .FirstOrDefault(g => g.GroupName == viewModel.GroupName);
 
-            if (groupViewModel != null)
-            {
-                viewModel.IsCollapsed = !viewModel.IsCollapsed;
+            if (original == null) return;
 
-                groupViewModel.IsCollapsed = viewModel.IsCollapsed;
-            }
+            original.IsCollapsed = !original.IsCollapsed;
+
+            this.UpdateSetting();
         }
-
-
         partial void OnSearchTextChanged(string value)
         {
-            DebouncedUpdateSettingsPageItemSource();
+            _ = DebouncedUpdateSettingsPageItemSource();
         }
-        private async void DebouncedUpdateSettingsPageItemSource()
+
+        private async Task DebouncedUpdateSettingsPageItemSource()
         {
             this.searchDebounceCts?.Cancel();
             this.searchDebounceCts = new CancellationTokenSource();
@@ -137,15 +137,11 @@ namespace PlugHub.ViewModels.Pages
             try
             {
                 await Task.Delay(300, token);
-
                 if (!token.IsCancellationRequested)
-                {
-                    this.UpdateSettingsPageItemSource();
-                }
+                    this.UpdateSetting();
             }
-            catch (TaskCanceledException) { }
+            catch (TaskCanceledException) { /* swallow */ }
         }
-
 
         private void UpdateSetting()
         {
@@ -156,46 +152,44 @@ namespace PlugHub.ViewModels.Pages
         {
             bool isSearchTextEmpty = string.IsNullOrEmpty(this.SearchText);
 
-            List<ContentItemGroupViewModel> searchItems = [.. this.SettingsPageItems
+            var filteredGroups = this.SettingsPageItems
                 .Select(group =>
                 {
-                    if (!isSearchTextEmpty)
-                    {
-                        group.IsCollapsed = !group.Items.Any(item =>
+                    IEnumerable<ContentItemViewModel> matchingItems = isSearchTextEmpty
+                        ? group.Items
+                        : group.Items.Where(item =>
                             item.Label.Contains(this.SearchText, StringComparison.OrdinalIgnoreCase) ||
-                            group.GroupName.Contains(this.SearchText, StringComparison.OrdinalIgnoreCase)) && group.IsCollapsed;
-                    }
+                            group.GroupName.Contains(this.SearchText, StringComparison.OrdinalIgnoreCase));
 
-                    return new ContentItemGroupViewModel
-                    {
-                        GroupName = group.GroupName,
-                        IsCollapsed = group.IsCollapsed,
-                        Items = isSearchTextEmpty
-                            ? [.. group.Items]
-                            : [.. group.Items.Where(item =>
-                                    item.Label.Contains(this.SearchText, StringComparison.OrdinalIgnoreCase) ||
-                                    group.GroupName.Contains(this.SearchText, StringComparison.OrdinalIgnoreCase))]
-                    };
+                    return new { Group = group, Items = matchingItems.ToList() };
                 })
-                .Where(group => isSearchTextEmpty || !group.IsCollapsed)
-                .Where(group => group.Items.Count > 0)];
+                // Keep headers even when collapsed; the ListBox height will be 0 when IsCollapsed is true
+                .Where(x => x.Items.Count > 0);
 
             this.SettingsPageItemSource.Clear();
 
-            foreach (ContentItemGroupViewModel group in searchItems)
-                this.SettingsPageItemSource.Add(group);
-
-            this.UpdateSearchSuggestions();
+            foreach (var entry in filteredGroups)
+            {
+                this.SettingsPageItemSource.Add(new ContentItemGroupViewModel
+                {
+                    GroupName = entry.Group.GroupName,
+                    IsCollapsed = entry.Group.IsCollapsed,
+                    Items = new ObservableCollection<ContentItemViewModel>(entry.Items)
+                });
+            }
         }
         private void UpdateSearchSuggestions()
         {
             this.SearchSuggestions.Clear();
 
-            foreach (string? suggestion in this.SettingsPageItems
+            foreach (string suggestion in this.SettingsPageItems
                 .SelectMany(group => group.Items)
                 .Select(item => item.Label)
                 .Distinct()
-                .OrderBy(label => label)) this.SearchSuggestions.Add(suggestion);
+                .OrderBy(label => label))
+            {
+                this.SearchSuggestions.Add(suggestion);
+            }
         }
     }
 }
