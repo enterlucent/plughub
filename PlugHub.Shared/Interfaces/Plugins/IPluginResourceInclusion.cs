@@ -15,7 +15,7 @@ namespace PlugHub.Shared.Interfaces.Plugins
     /// <param name="Version">Version of the descriptor.</param>
     /// <param name="ResourceUri">URI of the AXAML resource to be loaded as a ResourceInclude.</param>
     /// <param name="BaseUri">Base URI for resolving relative resource paths (defaults to plugin's base URI).</param>
-    /// <param name="Factory">Optional delegate that creates one or more <see cref="IStyle"/> or <see cref="IResourceProvider"/> instances at runtime.</param>
+    /// <param name="Factory">Optional delegate that creates one or more <see cref="IResourceDictionary"/> or <see cref="IResourceProvider"/> instances at runtime.</param>
     /// <param name="LoadBefore">Descriptors that should be applied after this one to maintain order.</param>
     /// <param name="LoadAfter">Descriptors that should be applied before this one to maintain order.</param>
     /// <param name="DependsOn">Descriptors that this descriptor explicitly depends on.</param>
