@@ -239,15 +239,7 @@ namespace PlugHub
             ArgumentNullException.ThrowIfNull(configService);
             ArgumentNullException.ThrowIfNull(tokenSet);
 
-            IEnumerable<IPluginStyleInclusion> styleIncludeProviders = serviceProvider.GetServices<IPluginStyleInclusion>();
             ILogger<App> logger = serviceProvider.GetRequiredService<ILogger<App>>();
-            IPluginResolver pluginResolver = serviceProvider.GetRequiredService<IPluginResolver>();
-
-            IReadOnlyList<PluginStyleIncludeDescriptor> orderedDescriptors =
-                pluginResolver.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(styleIncludeProviders);
-
-            HashSet<string> loadedResourceDictionaries = [];
-            HashSet<Type> loadedFactoryTypes = [];
 
             IConfigAccessorFor<AppConfig> configAccessor = configService.GetAccessor<AppConfig>(owner: tokenSet.Owner);
             IConfigAccessorFor<AppEnv> envAccessor = configService.GetAccessor<AppEnv>(owner: tokenSet.Owner);
@@ -264,9 +256,6 @@ namespace PlugHub
                     ? appEnv.SystemTheme!
                     : appConfig.SystemTheme;
 
-            if (!useDefaultTheme)
-                return;
-
             ThemeVariant requested = systemThemeStr?.Trim().ToLowerInvariant() switch
             {
                 "light" => ThemeVariant.Light,
@@ -277,51 +266,121 @@ namespace PlugHub
             if (Application.Current != null)
                 Application.Current.RequestedThemeVariant = requested;
 
-            styles.Add(new StyleInclude(new Uri("avares://PlugHub/"))
+            if (useDefaultTheme)
             {
-                Source = new Uri("avares://PlugHub/Styles/Icons.axaml")
-            });
-
-            styles.Add(new FluentAvaloniaTheme
-            {
-                PreferSystemTheme = preferSystemTheme,
-                PreferUserAccentColor = preferUserAccentColor
-            });
+                styles.Add(new FluentAvaloniaTheme
+                {
+                    PreferSystemTheme = preferSystemTheme,
+                    PreferUserAccentColor = preferUserAccentColor
+                });
+            }
 
             resources.MergedDictionaries.Add(new ResourceInclude(new Uri("avares://PlugHub/"))
             {
                 Source = new Uri("avares://PlugHub/Styles/Generic.axaml")
             });
 
+            AddPluginResources(resources, logger);
 
-            foreach (PluginStyleIncludeDescriptor descriptor in orderedDescriptors)
+            styles.Add(new StyleInclude(new Uri("avares://PlugHub/"))
             {
-                if (Application.Current?.Styles is null)
-                    continue;
+                Source = new Uri("avares://PlugHub/Styles/Icons.axaml")
+            });
 
+            AddPluginStyles(styles, logger);
+        }
+
+        private static void AddPluginResources(IResourceDictionary resources, ILogger<App> logger)
+        {
+            IEnumerable<IPluginResourceInclusion>? providers = serviceProvider?.GetServices<IPluginResourceInclusion>();
+            IPluginResolver? resolver = serviceProvider?.GetRequiredService<IPluginResolver>();
+
+            IReadOnlyList<PluginResourceIncludeDescriptor>? descriptors = resolver?.ResolveAndOrder<IPluginResourceInclusion, PluginResourceIncludeDescriptor>(providers);
+
+            HashSet<string> loadedUris = [];
+            HashSet<Type> loadedFactories = [];
+
+            foreach (PluginResourceIncludeDescriptor descriptor in descriptors ?? [])
+            {
+                try
+                {
+                    if (descriptor.Factory is not null)
+                    {
+                        IResourceDictionary? dict = descriptor.Factory();
+
+                        if (dict is not null && loadedFactories.Add(dict.GetType()))
+                        {
+                            resources.MergedDictionaries.Add(dict);
+                        }
+                        else
+                        {
+                            logger.LogDebug("[App] Skipped duplicate resource factory of type {Type}", dict?.GetType().FullName);
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) && loadedUris.Add(descriptor.ResourceUri))
+                    {
+                        Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
+                            ? new Uri("avares://PlugHub/")
+                            : new Uri(descriptor.BaseUri);
+
+                        ResourceInclude include = new(baseUri)
+                        {
+                            Source = new Uri(descriptor.ResourceUri)
+                        };
+
+                        resources.MergedDictionaries.Add(include);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[App] Failed to load resource from {Source}", descriptor.ResourceUri ?? descriptor.Factory?.Method?.Name ?? "unknown");
+                }
+            }
+
+            logger.LogInformation("[App] Added {UriCount} URI-based resource dictionaries and {FactoryCount} factory dictionaries", loadedUris.Count, loadedFactories.Count);
+        }
+        private static void AddPluginStyles(Styles styles, ILogger<App> logger)
+        {
+            if (Application.Current?.Styles is null)
+                return;
+
+            IEnumerable<IPluginStyleInclusion>? providers = serviceProvider?.GetServices<IPluginStyleInclusion>();
+            IPluginResolver? resolver = serviceProvider?.GetRequiredService<IPluginResolver>();
+
+            IReadOnlyList<PluginStyleIncludeDescriptor>? descriptors = resolver?.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(providers);
+
+            HashSet<Type> loadedFactories = [];
+            HashSet<string> loadedIncludes = [];
+
+            foreach (PluginStyleIncludeDescriptor descriptor in descriptors ?? [])
+            {
                 try
                 {
                     if (descriptor.Factory is not null)
                     {
                         IStyle style = descriptor.Factory();
 
-                        if (loadedFactoryTypes.Add(style.GetType()))
-                            Application.Current.Styles.Add(style);
+                        if (loadedFactories.Add(style.GetType()))
+                        {
+                            styles.Add(style);
+                        }
                         else
+                        {
                             logger.LogDebug("[App] Skipped duplicate factory style of type {StyleType}", style.GetType().FullName);
+                        }
                     }
-                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) && loadedResourceDictionaries.Add(descriptor.ResourceUri))
+                    else if (!string.IsNullOrEmpty(descriptor.ResourceUri) && loadedIncludes.Add(descriptor.ResourceUri))
                     {
                         Uri baseUri = string.IsNullOrEmpty(descriptor.BaseUri)
                             ? new Uri("avares://PlugHub/")
                             : new Uri(descriptor.BaseUri);
 
-                        StyleInclude styleInclude = new(baseUri)
+                        StyleInclude include = new(baseUri)
                         {
                             Source = new Uri(descriptor.ResourceUri)
                         };
 
-                        Application.Current.Styles.Add(styleInclude);
+                        styles.Add(include);
                     }
                 }
                 catch (Exception ex)
@@ -330,7 +389,7 @@ namespace PlugHub
                 }
             }
 
-            logger.LogInformation("[App] PluginsStyleIncludes completed: Added {ResourceCount} unique resource dictionaries and {FactoryCount} unique factory styles.", loadedResourceDictionaries.Count, loadedFactoryTypes.Count);
+            logger.LogInformation("[App] Added {FactoryCount} factory styles and {IncludeCount} style includes", loadedFactories.Count, loadedIncludes.Count);
         }
 
         #endregion
