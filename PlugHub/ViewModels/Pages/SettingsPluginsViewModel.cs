@@ -416,7 +416,7 @@ namespace PlugHub.ViewModels.Pages
                     {
                         PluginName = pluginName,
                         Descriptor = descriptor,
-                        SortOrder = null,
+                        SortOrder = -100,
                         State = "❌",
                         Message = "Interface disabled"
                     });
@@ -426,13 +426,13 @@ namespace PlugHub.ViewModels.Pages
                 if (context.DependencyDisabled.Contains(descriptor))
                 {
                     state = "🚫";
-                    sortOrder = -1;
+                    sortOrder = -200;
                     message = "Missing dependency: \nPlease check logs for details!";
                 }
                 else if (context.ConflictDisabled.Contains(descriptor))
                 {
                     state = "⚡";
-                    sortOrder = -2;
+                    sortOrder = -300;
                     IEnumerable<PluginDescriptorReference> conflicts = descriptor.ConflictsWith ?? [];
                     IEnumerable<string> conflictingNames = conflicts.Select(conf =>
                     {
@@ -447,7 +447,7 @@ namespace PlugHub.ViewModels.Pages
                 else if (context.DuplicateIDDisabled.Contains(descriptor))
                 {
                     state = "🌀";
-                    sortOrder = -3;
+                    sortOrder = -400;
                     message = "Ignored due to duplicate DescriptorID.";
                 }
                 else if (sortedIndexLookup.TryGetValue(descriptor, out int index))
