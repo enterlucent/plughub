@@ -9,19 +9,16 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<AvaloniaResource Include="Assets\**" />
+		<AvaloniaResource Include="Themes\**\*.axaml" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!--Avalonia-->
 		<PackageReference Include="Avalonia" Version="11.3.2" />
 		<!--Avalonia Extras-->
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="FluentAvaloniaUI" Version="2.4.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<AvaloniaResource Include="Assets\ic_fluent_chat_24_regular.png" />
-		<AvaloniaResource Include="Assets\ic_fluent_link_24_filled.png" />
-		<AvaloniaResource Include="Assets\ic_fluent_link_dismiss_24_filled.png" />
-		<AvaloniaResource Include="Assets\alien-bob.png" />
-		<AvaloniaResource Include="Styles\Icons.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>

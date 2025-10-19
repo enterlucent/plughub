@@ -24,7 +24,7 @@ namespace PlugHub.Plugin.Mock
     /// Demonstration plugin showcasing PlugHub's multi-interface architecture.
     /// Implements branding (application identity override), configuration (token-secured configuration), and dependency injection (service provision to other plugins) simultaneously.
     /// </summary>
-    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginAppEnv, IPluginConfiguration, IPluginStyleInclusion, IPluginPages, IPluginSettingsPages
+    public class PluginMock : PluginBase, IPluginDependencyInjection, IPluginAppConfig, IPluginAppEnv, IPluginConfiguration, IPluginResourceInclusion, IPluginStyleInclusion, IPluginPages, IPluginSettingsPages
     {
         private static Token owner;
 
@@ -217,7 +217,31 @@ namespace PlugHub.Plugin.Mock
         #region PluginMock: IPluginStyleInclusion
 
         /// <summary>
-        /// Demonstrates how a plugin can contribute XAML style resources (icons, themes, control templates) that are merged into the host application.
+        /// Demonstrates how a plugin can contribute XAML resources (icons, themes, control templates) that are merged into the host application.
+        /// This allows plugins to visually extend or customize the UI consistently.
+        /// </summary>
+        public IEnumerable<PluginResourceIncludeDescriptor> GetResourceIncludeDescriptors()
+        {
+            return [
+                new PluginResourceIncludeDescriptor(
+                    PluginID: PluginID,
+                    DescriptorID: Guid.Parse("f9e88050-b8c3-43b3-b76e-79f16595acff"),
+                    Version: Version,
+                    "avares://PlugHub.Plugin.Mock/Themes/FluentAvalonia/Theme.axaml",
+                    LoadBefore: [],
+                    LoadAfter: [],
+                    ConflictsWith: [],
+                    DependsOn: []
+                ),
+            ];
+        }
+
+        #endregion
+
+        #region PluginMock: IPluginStyleInclusion
+
+        /// <summary>
+        /// Demonstrates how a plugin can contribute XAML styles that are merged into the host application.
         /// This allows plugins to visually extend or customize the UI consistently.
         /// </summary>
         public IEnumerable<PluginStyleIncludeDescriptor> GetStyleIncludeDescriptors()
@@ -227,7 +251,7 @@ namespace PlugHub.Plugin.Mock
                     PluginID: PluginID,
                     DescriptorID: Guid.Parse("f9e88050-b8c3-43b3-b76e-79f16595acff"),
                     Version: Version,
-                    "avares://PlugHub.Plugin.Mock/Styles/Icons.axaml",
+                    "avares://PlugHub.Plugin.Mock/Themes/FluentAvalonia/Style.axaml",
                     LoadBefore: [],
                     LoadAfter: [],
                     ConflictsWith: [],

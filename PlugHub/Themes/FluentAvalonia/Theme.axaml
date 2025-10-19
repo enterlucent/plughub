@@ -1,6 +1,7 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:av="clr-namespace:Avalonia.Styling;assembly=Avalonia.Base">
+<ResourceDictionary
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:av="clr-namespace:Avalonia.Styling;assembly=Avalonia.Base">
 
 	<ResourceDictionary.ThemeDictionaries>
 		<ResourceDictionary x:Key="{x:Static av:ThemeVariant.Light}">
@@ -15,6 +16,9 @@
 			<SolidColorBrush x:Key="PlugHub.TertiaryAltControlBrush" Color="{DynamicResource ControlAltFillColorTertiary}" />
 			<SolidColorBrush x:Key="PlugHub.PrimaryStrongControlBrush" Color="{DynamicResource ControlStrongFillColorDefault}" />
 			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrokeBrush" Color="{DynamicResource ControlStrokeColorDefault}" />
+
+			<!-- Cards -->
+			<SolidColorBrush x:Key="PlugHub.PrimaryCardBrush" Color="{DynamicResource CardBackgroundFillColorDefault}" />
 
 			<!-- Text -->
 			<SolidColorBrush x:Key="PlugHub.PrimaryTextBrush" Color="{DynamicResource TextFillColorPrimary}" />
@@ -48,6 +52,9 @@
 			<SolidColorBrush x:Key="PlugHub.TertiaryAltControlBrush" Color="{DynamicResource ControlAltFillColorTertiary}" />
 			<SolidColorBrush x:Key="PlugHub.PrimaryStrongControlBrush" Color="{DynamicResource ControlStrongFillColorDefault}" />
 			<SolidColorBrush x:Key="PlugHub.PrimaryControlStrokeBrush" Color="{DynamicResource ControlStrokeColorDefault}" />
+
+			<!-- Cards -->
+			<SolidColorBrush x:Key="PlugHub.PrimaryCardBrush" Color="{DynamicResource CardBackgroundFillColorDefault}" />
 
 			<!-- Text -->
 			<SolidColorBrush x:Key="PlugHub.PrimaryTextBrush" Color="{DynamicResource TextFillColorPrimary}" />

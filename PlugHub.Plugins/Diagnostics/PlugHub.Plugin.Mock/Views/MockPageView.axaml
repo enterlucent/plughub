@@ -10,7 +10,7 @@
 	x:Class="PlugHub.Plugin.Mock.Views.MockPageView"
 	x:DataType="vm:MockPageViewModel"
 	
-	Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}">
+	Background="{DynamicResource PlugHub.QuarternaryBackgroundBrush}">
 
 	<UserControl.Styles>
 		<Style Selector="HeaderedContentControl.GroupBox">
@@ -28,11 +28,12 @@
 
 						<Border
 							ZIndex="1"
-							Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+							Background="{DynamicResource PlugHub.QuarternaryBackgroundBrush}"
 							Padding="8,0,8,0"
 							Margin="8,0,0,0"
 							Height="32"
 							VerticalAlignment="Top">
+
 							<TextBlock
 								Text="{TemplateBinding Header}"
 								FontWeight="Bold"
@@ -46,7 +47,7 @@
 							Grid.ColumnSpan="2"
 							CornerRadius="4"
 							Margin="0,16,0,0"
-							BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}"
+							BorderBrush="{DynamicResource PlugHub.PrimaryStrongControlBrush}"
 							BorderThickness="1">
 							<ContentPresenter
 								Name="PART_ContentPresenter"
@@ -68,7 +69,11 @@
 			Padding="8">
 
 			<Grid>
-				<ScrollViewer x:Name="MessagesScrollViewer" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False">
+				<ScrollViewer
+					x:Name="MessagesScrollViewer"
+					VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled"
+					AllowAutoHide="False">
+
 					<ItemsControl ItemsSource="{Binding Messages}" >
 						<!--
 						<ItemsControl.Items>
@@ -81,12 +86,12 @@
 								<StackPanel Margin="0,4,0,0">
 									<Grid>
 										<Border
-											BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}"
+											BorderBrush="{DynamicResource PlugHub.PrimaryStrongControlBrush}"
 											BorderThickness="0,1,0,0"
 											Margin="0,8,0,0"/>
 
 										<Border
-											Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+											Background="{DynamicResource PlugHub.QuarternaryBackgroundBrush}"
 											Height="16"
 											Padding="4,0,4,0"
 											Margin="8,0,0,0"
@@ -97,20 +102,22 @@
 												FontWeight="Bold"
 												FontSize="12"
 												HorizontalAlignment="Left"
-												Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+												Foreground="{DynamicResource PlugHub.PrimaryTextBrush}" />
 										</Border>
 									</Grid>
 
 									<Border
-										Background="{DynamicResource CardBackgroundFillColorDefault}"
+										Background="{DynamicResource PlugHub.PrimaryCardBrush}"
 										Padding="4,12,4,8"
 										Margin="0,-8,0,0"
 										CornerRadius="{DynamicResource ControlCornerRadius}"
 										BorderBrush="{DynamicResource ControlStrongFillColorDefaultBrush}">
 
-										<TextBlock Text="{Binding MessageText}"
-												   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-												   TextWrapping="Wrap" />
+										<TextBlock
+											Text="{Binding MessageText}"
+											Foreground="{DynamicResource PlugHub.PrimaryTextBrush}"
+											TextWrapping="Wrap" />
+
 									</Border>
 								</StackPanel>
 							</DataTemplate>

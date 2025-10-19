@@ -292,7 +292,7 @@ namespace PlugHub
 
         private static void AddPluginResources(IResourceDictionary resources, ILogger<App> logger)
         {
-            IEnumerable<IPluginResourceInclusion>? providers = serviceProvider?.GetServices<IPluginResourceInclusion>();
+            IEnumerable<IPluginResourceInclusion> providers = serviceProvider?.GetServices<IPluginResourceInclusion>() ?? [];
             IPluginResolver? resolver = serviceProvider?.GetRequiredService<IPluginResolver>();
 
             IReadOnlyList<PluginResourceIncludeDescriptor>? descriptors = resolver?.ResolveAndOrder<IPluginResourceInclusion, PluginResourceIncludeDescriptor>(providers);
@@ -344,7 +344,7 @@ namespace PlugHub
             if (Application.Current?.Styles is null)
                 return;
 
-            IEnumerable<IPluginStyleInclusion>? providers = serviceProvider?.GetServices<IPluginStyleInclusion>();
+            IEnumerable<IPluginStyleInclusion> providers = serviceProvider?.GetServices<IPluginStyleInclusion>() ?? [];
             IPluginResolver? resolver = serviceProvider?.GetRequiredService<IPluginResolver>();
 
             IReadOnlyList<PluginStyleIncludeDescriptor>? descriptors = resolver?.ResolveAndOrder<IPluginStyleInclusion, PluginStyleIncludeDescriptor>(providers);

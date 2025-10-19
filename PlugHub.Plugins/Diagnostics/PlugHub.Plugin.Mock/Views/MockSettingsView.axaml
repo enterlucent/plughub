@@ -1,88 +1,94 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:PlugHub.Plugin.Mock.ViewModels"
-             mc:Ignorable="d"
-             d:DesignWidth="600" d:DesignHeight="300"
-             x:Class="PlugHub.Plugin.Mock.Views.MockSettingsView"
-             x:DataType="vm:MockSettingsViewModel">
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:vm="using:PlugHub.Plugin.Mock.ViewModels"
+	
+	mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="300"
+	
+	x:Class="PlugHub.Plugin.Mock.Views.MockSettingsView"
+	x:DataType="vm:MockSettingsViewModel">
 
-  <UserControl.Styles>
+	<Grid>
 
-  </UserControl.Styles>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*"/>
+			<ColumnDefinition Width="4*"/>
+		</Grid.ColumnDefinitions>
 
-  <Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="56"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
 
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="*"/>
-      <ColumnDefinition Width="4*"/>
-    </Grid.ColumnDefinitions>
+		<Border
+			Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="2"
+			VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
 
-    <Grid.RowDefinitions>
-      <RowDefinition Height="56"/>
-      <RowDefinition Height="*"/>
-    </Grid.RowDefinitions>
+			<TextBlock
+				Text="Mock Plugin Settings"
+				FontSize="24"
+				Padding="16"/>
+		</Border>
 
-    <Border Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="2"
-            VerticalAlignment="Stretch"
-            HorizontalAlignment="Stretch">
-      <TextBlock Text="Mock Plugin Settings"
-                 FontSize="24"
-                 Padding="16"/>
-    </Border>
+		<Border
+			Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="1"
+			VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+			Padding="16">
 
-    <Border Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="1"
-            VerticalAlignment="Stretch"
-            HorizontalAlignment="Stretch"
-            Padding="16">
-      <StackPanel>
-        <Border Padding="4"
-                CornerRadius="4,4,0,0">
-          <TextBlock Text="Categories" FontWeight="Bold"></TextBlock>
-        </Border>
-        <Border CornerRadius="0,0,4,4">
-          <ListBox MinHeight="100">
-            <ListBox.Items>
-              <ListBoxItem IsSelected="True">Settings</ListBoxItem>
-            </ListBox.Items>
-          </ListBox>
-        </Border>
-      </StackPanel>
-    </Border>
+			<StackPanel>
+				<Border
+					Padding="4"
+					CornerRadius="4,4,0,0">
+					<TextBlock Text="Categories" FontWeight="Bold"></TextBlock>
+				</Border>
+				<Border CornerRadius="0,0,4,4">
+					<ListBox MinHeight="100">
+						<ListBox.Items>
+							<ListBoxItem IsSelected="True">Settings</ListBoxItem>
+						</ListBox.Items>
+					</ListBox>
+				</Border>
+			</StackPanel>
+		</Border>
 
-    <Border Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="1"
-            VerticalAlignment="Stretch"
-            HorizontalAlignment="Stretch"
-            Padding="16">
-      <StackPanel>
-        <Expander>
-          <Expander.Header>
-            <TextBlock Text="Pan Galactic Settings"></TextBlock>
-          </Expander.Header>
-          <Expander.Content>
-            <StackPanel>
-              <Grid ColumnDefinitions="*,*" RowDefinitions="*,*">
-                <TextBlock Grid.Column="0" Grid.Row="0"
-                           Text="The Answer To Everything"/>
+		<Border
+			Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="1"
+			VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+			Padding="16">
 
-                <TextBox Grid.Column="1" Grid.Row="0"
-                         Width="100"
-                         Text="{Binding AnswerToEverything, Mode=TwoWay}"
-                         DataValidationErrors.ErrorConverter="{Binding ExceptionConverter}"
-                         HorizontalAlignment="Right">
-                  <TextBox.Styles>
-                    <Style Selector="DataValidationErrors">
-                      <Setter Property="Theme" Value="{DynamicResource TooltipDataValidationErrors}" />
-                    </Style>
-                  </TextBox.Styles>
-                </TextBox>
+			<StackPanel>
+				<Expander>
+					<Expander.Header>
+						<TextBlock Text="Pan Galactic Settings"></TextBlock>
+					</Expander.Header>
+					<Expander.Content>
+						<StackPanel>
+							<Grid ColumnDefinitions="*,*" RowDefinitions="*,*">
+								<TextBlock
+									Grid.Column="0" Grid.Row="0"
+									Text="The Answer To Everything"/>
 
-              </Grid>
-            </StackPanel>
-          </Expander.Content>
-        </Expander>
-      </StackPanel>
-    </Border>
-  </Grid>
+								<TextBox
+									Grid.Column="1" Grid.Row="0"
+									Width="100"
+									Text="{Binding AnswerToEverything, Mode=TwoWay}"
+									DataValidationErrors.ErrorConverter="{Binding ExceptionConverter}"
+									HorizontalAlignment="Right">
+
+									<TextBox.Styles>
+										<Style Selector="DataValidationErrors">
+											<Setter Property="Theme" Value="{DynamicResource TooltipDataValidationErrors}" />
+										</Style>
+									</TextBox.Styles>
+								</TextBox>
+
+							</Grid>
+						</StackPanel>
+					</Expander.Content>
+				</Expander>
+			</StackPanel>
+		</Border>
+	</Grid>
 </UserControl>
