@@ -21,10 +21,11 @@
 		<Style Selector="AutoCompleteBox">
 			<Setter Property="InnerRightContent">
 				<Template>
-					<PathIcon Data="{StaticResource sidebar_search_ltr_regular}"
-							  Margin="0,0,8,0"
-							  Width="16" Height="16"
-							  HorizontalAlignment="Right" VerticalAlignment="Center"/>
+					<PathIcon
+						Data="{StaticResource sidebar_search_ltr_regular}"
+						Margin="0,0,8,0"
+						Width="16" Height="16"
+						HorizontalAlignment="Right" VerticalAlignment="Center"/>
 				</Template>
 			</Setter>
 		</Style>
@@ -49,6 +50,7 @@
 			ResizeDirection="Columns"
 			ResizeBehavior="PreviousAndNext"
 			HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+
 			<GridSplitter.Template>
 				<ControlTemplate>
 					<Border Background="Transparent">
@@ -89,7 +91,7 @@
 								<StackPanel>
 
 									<!-- Group header -->
-									<Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,2">
+									<Border BorderBrush="{DynamicResource PlugHub.PrimaryControlStrokeBrush}" BorderThickness="0,0,0,2">
 										<TextBlock
 											Text="{Binding GroupName}"
 											FontWeight="Bold"

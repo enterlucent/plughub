@@ -5,7 +5,7 @@
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:vm="using:PlugHub.ViewModels.Pages"
 	xmlns:c="using:PlugHub.Converters"
-             
+
 	mc:Ignorable="d" d:DesignWidth="1230" d:DesignHeight="720"
 
 	x:Class="PlugHub.Views.SettingsPluginsView"
@@ -14,41 +14,6 @@
 	KeyDown="UserControl_KeyDown">
 
 	<UserControl.Styles>
-
-		<Style Selector="AutoCompleteBox.ClearButtonBox Button:disabled Path">
-			<Setter Property="Stroke" Value="Transparent" />
-			<Setter Property="Fill" Value="Transparent" />
-		</Style>
-		<Style Selector="AutoCompleteBox.ClearButtonBox Button">
-			<Setter Property="Template">
-				<ControlTemplate>
-					<Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-						<ContentPresenter
-							HorizontalAlignment="Center"
-							VerticalAlignment="Center"
-							Content="{TemplateBinding Content}" />
-					</Grid>
-				</ControlTemplate>
-			</Setter>
-		</Style>
-		<Style Selector="AutoCompleteBox.DesciptorSearch">
-			<Setter Property="InnerRightContent">
-				<Template>
-					<Button
-						Width="16" Height="16"
-						HorizontalAlignment="Right" VerticalAlignment="Center"
-						Margin="0,0,8,0" Padding="0"
-						Background="Transparent"
-						BorderBrush="Transparent"
-						IsTabStop="False">
-
-						<PathIcon
-							Width="16" Height="16"
-							Data="{StaticResource sidebar_search_ltr_regular}"/>
-					</Button>
-				</Template>
-			</Setter>
-		</Style>
 
 		<Style Selector="Expander">
 			<Setter Property="Template">
@@ -104,7 +69,7 @@
 			<Setter Property="Background" Value="Transparent"/>
 		</Style>
 		<Style Selector="Border.interface-row:pointerover">
-			<Setter Property="Background" Value="{DynamicResource PlugHub.TertiaryControlAltBrush}"/>
+			<Setter Property="Background" Value="{DynamicResource PlugHub.TertiaryAltControlBrush}"/>
 		</Style>
 
 		<Style Selector="HeaderedContentControl.GroupBox">
@@ -138,7 +103,7 @@
 							Padding="0,8,0,0" Margin="0,8,0,0"
 							BorderThickness="1"
 							CornerRadius="4"
-							BorderBrush="{DynamicResource PlugHub.PrimaryControlStrongBrush}">
+							BorderBrush="{DynamicResource PlugHub.PrimaryStrongControlBrush}">
 
 							<ContentPresenter
 								Name="PART_ContentPresenter"
@@ -169,9 +134,8 @@
 		<Style Selector="Button.NoPointerOver:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="Transparent"/>
 		</Style>
-
 		<Style Selector="Button.DescriptorDetailsClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-			<Setter Property="Background" Value="{DynamicResource PlugHub.FillColorExitBackgroundBrush}"/>
+			<Setter Property="Background" Value="{DynamicResource PlugHub.ExitBackgroundBrush}"/>
 		</Style>
 
 	</UserControl.Styles>
@@ -202,12 +166,32 @@
 
 					<!-- Plugin Search Box -->
 					<AutoCompleteBox
-						Classes="ClearButtonBox"
 						Margin="8,0,0,16"
 						Watermark="Search plugins..."
 						Text="{Binding PluginSearchText}">
 
 						<AutoCompleteBox.Styles>
+							<!-- Override the clear button template -->
+							<Style Selector="AutoCompleteBox Button">
+								<Setter Property="Template">
+									<ControlTemplate>
+										<Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+											<ContentPresenter
+												HorizontalAlignment="Center"
+												VerticalAlignment="Center"
+												Content="{TemplateBinding Content}" />
+										</Grid>
+									</ControlTemplate>
+								</Setter>
+							</Style>
+
+							<!-- Disabled state for the clear button path -->
+							<Style Selector="AutoCompleteBox Button:disabled Path">
+								<Setter Property="Stroke" Value="Transparent" />
+								<Setter Property="Fill" Value="Transparent" />
+							</Style>
+
+							<!-- Provide the actual clear button in the right content -->
 							<Style Selector="AutoCompleteBox">
 								<Setter Property="InnerRightContent">
 									<Template>
@@ -222,7 +206,7 @@
 											IsEnabled="{Binding DataContext.HasSearchOrCategorySelected, RelativeSource={RelativeSource AncestorType=UserControl}}">
 
 											<Path
-												Data="{StaticResource PlugHub.ClearSearchIconGeometry}"
+												Data="{StaticResource PlugHub.ClearSearchIcon}"
 												Fill="Transparent"
 												Stroke="{DynamicResource PlugHub.SecondaryTextBrush}"
 												StrokeThickness="2"/>
@@ -233,7 +217,7 @@
 						</AutoCompleteBox.Styles>
 					</AutoCompleteBox>
 
-					<!-- Plugin Categoriy Header -->
+					<!-- Plugin Category Header -->
 					<Border
 						BorderBrush="{DynamicResource PlugHub.PrimaryControlStrokeBrush}"
 						BorderThickness="0,0,0,2"
@@ -272,7 +256,7 @@
 			</Border>
 		</ScrollViewer>
 
-		<!-- Splitter -->
+		<!-- Left Hand Splitter -->
 		<GridSplitter
 			Grid.Column="1"
 			Width="5"
@@ -301,6 +285,7 @@
 			SelectionChanged="ListBox_SelectionChanged"
 			ScrollViewer.AllowAutoHide="False">
 
+			<!-- Plugin List -->
 			<ListBox.Styles>
 				<Style Selector="ListBoxItem">
 					<Setter Property="Template">
@@ -316,7 +301,7 @@
 				</Style>
 			</ListBox.Styles>
 
-			<!-- Plugin List -->
+			<!-- Plugin Items -->
 			<ListBox.ItemTemplate>
 				<DataTemplate>
 					<Border
@@ -326,7 +311,66 @@
 						BorderBrush="{DynamicResource PlugHub.PrimaryControlStrokeBrush}"
 						Background="Transparent">
 
+						<!--Interface Details -->
 						<Expander>
+
+							<!-- Template -->
+							<Expander.Template>
+								<ControlTemplate TargetType="Expander">
+									<Grid>
+										<Grid.RowDefinitions>
+											<RowDefinition Height="Auto"/>
+											<RowDefinition Height="Auto"/>
+										</Grid.RowDefinitions>
+
+										<Grid.ColumnDefinitions>
+											<ColumnDefinition Width="*" MinWidth="585"/>
+										</Grid.ColumnDefinitions>
+
+										<!-- Header toggle -->
+										<ToggleButton
+											Grid.Column="0"
+											IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+											BorderThickness="0"
+											Padding="0"
+											HorizontalAlignment="Stretch">
+
+											<ToggleButton.Template>
+												<ControlTemplate TargetType="ToggleButton">
+													<ContentPresenter
+														Content="{TemplateBinding Content}"
+														HorizontalAlignment="Stretch"
+														VerticalAlignment="Center"/>
+												</ControlTemplate>
+											</ToggleButton.Template>
+
+											<ContentPresenter
+												Content="{TemplateBinding Header}"
+												HorizontalAlignment="Stretch"/>
+										</ToggleButton>
+
+										<!-- Content row -->
+										<Grid
+											Grid.Row="1" Grid.Column="0"
+											IsVisible="{TemplateBinding IsExpanded}">
+
+											<Border
+												Padding="96,0,64,0"
+												HorizontalAlignment="Stretch"
+												ClipToBounds="True">
+
+												<ContentPresenter
+													Content="{TemplateBinding Content}"
+													HorizontalAlignment="Stretch"
+													VerticalAlignment="Center"/>
+											</Border>
+										</Grid>
+
+									</Grid>
+								</ControlTemplate>
+							</Expander.Template>
+
+							<!--Header -->
 							<Expander.Header>
 								<Grid Background="Transparent">
 									<Grid.RowDefinitions>
@@ -510,10 +554,11 @@
 								</Grid>
 							</Expander.Header>
 
+							<!-- Content -->
 							<Expander.Content>
 								<StackPanel Background="Transparent">
 
-									<!-- Assembly file (metadata row) -->
+									<!-- Assembly Information -->
 									<Border BorderThickness="0,0,0,1" Padding="8">
 										<Grid>
 											<Grid.ColumnDefinitions>
@@ -532,22 +577,27 @@
 										</Grid>
 									</Border>
 
-									<!-- Table (header + rows), visible only if interfaces exist -->
+									<!-- Plugin Interface List -->
 									<StackPanel IsVisible="{Binding HasNoDescriptors, Converter={StaticResource BooleanNegationConverter}}">
+
+										<!-- Header row -->
 										<Border
 											BorderThickness="1,0,1,1"
 											Padding="8"
-											Background="{DynamicResource PlugHub.SecondaryControlAltBrush}">
-
+											Background="{DynamicResource PlugHub.SecondaryAltControlBrush}">
 											<Grid>
 												<Grid.ColumnDefinitions>
 													<ColumnDefinition Width="3*"/>
 													<ColumnDefinition Width="0.5*"/>
 												</Grid.ColumnDefinitions>
+
+												<!-- Header: Interface -->
 												<TextBlock
 													Grid.Column="0"
 													Text="Interface"
 													FontWeight="Bold"/>
+
+												<!-- Header: Enabled -->
 												<TextBlock
 													Grid.Column="1"
 													Text="Enabled"
@@ -556,9 +606,12 @@
 											</Grid>
 										</Border>
 
+										<!-- Descriptor rows -->
 										<ItemsControl ItemsSource="{Binding ProvidedDescriptors}">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
+
+													<!-- Row container -->
 													<Border
 														Classes="interface-row"
 														Padding="8"
@@ -571,11 +624,13 @@
 																<ColumnDefinition Width="0.5*"/>
 															</Grid.ColumnDefinitions>
 
+															<!-- Descriptor Name -->
 															<Button
 																Grid.Column="0"
 																Classes="NoPointerOver"
 																Background="Transparent"
-																HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+																HorizontalAlignment="Stretch"
+																VerticalAlignment="Stretch"
 																HorizontalContentAlignment="Left"
 																Padding="0"
 																BorderThickness="0"
@@ -589,11 +644,15 @@
 																	Foreground="{DynamicResource PlugHub.SecondaryTextBrush}"/>
 															</Button>
 
+															<!-- Enable/disable toggle -->
 															<ToggleSwitch
+																Grid.Column="1"
+																HorizontalAlignment="Center"
 																IsChecked="{Binding IsEnabled, Mode=TwoWay}"
 																IsEnabled="{Binding IsSystem, Converter={StaticResource BooleanNegationConverter}}"
-																Grid.Column="1"
-																HorizontalAlignment="Center"/>
+																OnContent=""
+																OffContent=""/>
+
 														</Grid>
 													</Border>
 												</DataTemplate>
@@ -601,7 +660,7 @@
 										</ItemsControl>
 									</StackPanel>
 
-									<!-- No interfaces placeholder row -->
+									<!-- No Interface Banner -->
 									<Border
 										Classes="interface-row"
 										BorderThickness="0,0,0,1"
@@ -624,7 +683,7 @@
 
 		</ListBox>
 
-		<!-- The overlay panel -->
+		<!-- Descriptor Details Panel -->
 		<Border
 			Grid.Row="0" Grid.Column="2"
 			x:Name="InterfaceDetailPanel"
@@ -644,7 +703,7 @@
 			<Grid RowDefinitions="Auto, *, Auto">
 				<StackPanel>
 
-					<!-- Name and Hide Button at Top Right -->
+					<!-- Interface Detail Header -->
 					<Grid
 						ColumnDefinitions="*,Auto"
 						Margin="0,0,0,8"
@@ -668,19 +727,40 @@
 							<PathIcon
 								Width="12" Height="12"
 								Foreground="{DynamicResource PlugHub.PrimaryTextBrush}"
-								Data="{StaticResource PlugHub.CloseDescriptorDetailsIconGeometry}" />
+								Data="{StaticResource PlugHub.CloseDescriptorDetailsIcon}" />
 						</Button>
 
 					</Grid>
 
-					<!-- Interface Search -->
+					<!-- Interface Descriptor Search -->
 					<AutoCompleteBox
-						Watermark="Filter plugins..."
-						Classes="DesciptorSearch"
+						Watermark="Filter descriptors..."
 						Text="{Binding DescriptorSearchText, Mode=TwoWay}"
 						Grid.Column="0"
 						MinWidth="100"
-						HorizontalAlignment="Stretch"/>
+						HorizontalAlignment="Stretch">
+
+						<AutoCompleteBox.Styles>
+							<Style Selector="AutoCompleteBox">
+								<Setter Property="InnerRightContent">
+									<Template>
+										<Button
+											Width="16" Height="16"
+											HorizontalAlignment="Right" VerticalAlignment="Center"
+											Margin="0,0,8,0" Padding="0"
+											Background="Transparent"
+											BorderBrush="Transparent"
+											IsTabStop="False">
+
+											<PathIcon
+												Width="16" Height="16"
+												Data="{StaticResource sidebar_search_ltr_regular}"/>
+										</Button>
+									</Template>
+								</Setter>
+							</Style>
+						</AutoCompleteBox.Styles>
+					</AutoCompleteBox>
 
 				</StackPanel>
 
@@ -723,7 +803,7 @@
 
 				</DataGrid>
 
-				<!-- Interface Details Panel -->
+				<!-- Descriptor Details Panel -->
 				<HeaderedContentControl
 					Grid.Row="2"
 					Classes="GroupBox"
@@ -784,20 +864,21 @@
 		<!-- Restart Banner -->
 		<Border Grid.Row="1" Grid.Column="2"
 				IsVisible="{Binding ShowRestartBanner}"
-				Background="#DAA520"
-				BorderBrush="#CC9A00"
+				Background="{DynamicResource PlugHub.CautionBackgroundBrush}"
+				BorderBrush="{DynamicResource PlugHub.AttentionBorderBrush}"
 				BorderThickness="1"
 				CornerRadius="4"
 				Padding="8"
 				Margin="0,4,0,4">
 			<DockPanel>
 				<!-- Left: icon substitute -->
-				<TextBlock Text="⚠"
-						   FontSize="18"
-						   Margin="0,0,8,0"
-						   VerticalAlignment="Center"
-						   Foreground="#2A1C12"
-						   DockPanel.Dock="Left"/>
+				<TextBlock
+					Text="⚠"
+					FontSize="18"
+					Margin="0,0,8,0"
+					VerticalAlignment="Center"
+					Foreground="{DynamicResource PlugHub.AttentionTextBrush}"
+					DockPanel.Dock="Left"/>
 
 				<!-- Right: action button -->
 				<Button Content="Revert"
@@ -810,37 +891,39 @@
 						<!-- Base state -->
 						<Style x:SetterTargetType="Button">
 							<Setter Property="Background" Value="Transparent"/>
-							<Setter Property="Foreground" Value="#2A1C12"/>
-							<Setter Property="BorderBrush" Value="#FFEEBA"/>
+							<Setter Property="Foreground" Value="{DynamicResource PlugHub.TextFillColorDisabled}"/>
+							<Setter Property="BorderBrush" Value="{DynamicResource PlugHub.SecondaryAltControlBrush}"/>
 							<Setter Property="BorderThickness" Value="2"/>
 							<Setter Property="CornerRadius" Value="4"/>
 						</Style>
 
 						<!-- Hover state -->
 						<Style Selector=":pointerover" x:SetterTargetType="Button">
-							<Setter Property="Background" Value="#FF4500"/>
-							<Setter Property="Foreground" Value="#FFFDE7"/>
-							<Setter Property="BorderBrush" Value="#FF0000"/>
+							<Setter Property="Background" Value="{DynamicResource PlugHub.ExitBackgroundBrush}"/>
+							<Setter Property="Foreground" Value="{DynamicResource PlugHub.AttentionInverseTextBrush}"/>
+							<Setter Property="BorderBrush" Value="{DynamicResource PlugHub.ExitBackgroundBrush}"/>
 						</Style>
 
 						<!-- Pressed state -->
 						<Style Selector=":pressed" x:SetterTargetType="Button">
-							<Setter Property="Background" Value="#2A2100"/>
-							<Setter Property="BorderBrush" Value="#2A2100"/>
+							<Setter Property="Background" Value="{DynamicResource PlugHub.PrimaryStrongControlBrush}"/>
+							<Setter Property="BorderBrush" Value="{DynamicResource PlugHub.PrimaryStrongControlBrush}"/>
 						</Style>
 					</Button.Styles>
 				</Button>
 
-
 				<!-- Center: title + message -->
 				<StackPanel>
-					<TextBlock Text="Restart Required"
-							   FontWeight="Bold"
-							   Foreground="#3B2F00"
-							   Margin="0,0,0,2"/>
-					<TextBlock Text="Please restart the application for plugin changes to take effect."
-							   TextWrapping="Wrap"
-							   Foreground="#3B2F00"/>
+					<TextBlock
+						Text="Restart Required"
+						FontWeight="Bold"
+						Foreground="{DynamicResource PlugHub.AttentionTextBrush}"
+						Margin="0,0,0,2"/>
+
+					<TextBlock
+						Text="Please restart the application for plugin changes to take effect."
+						TextWrapping="Wrap"
+						Foreground="{DynamicResource PlugHub.AttentionTextBrush}"/>
 				</StackPanel>
 			</DockPanel>
 		</Border>

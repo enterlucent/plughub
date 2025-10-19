@@ -4,12 +4,12 @@
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:vm="using:PlugHub.ViewModels"
-			 
+
 	mc:Ignorable="d" d:DesignWidth="1230" d:DesignHeight="720"
 			 
 	x:Class="PlugHub.Views.MainView"
 	x:DataType="vm:MainViewModel"
-			 
+
 	Background="{DynamicResource PlugHub.PrimaryBackgroundBrush}">
 
 	<UserControl.Styles>
@@ -21,13 +21,17 @@
 			<Setter Property="Height" Value="32"/>
 			<Setter Property="Template">
 				<ControlTemplate>
-					<Border Background="{TemplateBinding Background}"
-							BorderBrush="{TemplateBinding BorderBrush}"
-							BorderThickness="{TemplateBinding BorderThickness}">
-						<ContentPresenter Content="{TemplateBinding Content}"
-										  ContentTemplate="{TemplateBinding ContentTemplate}"
-										  HorizontalAlignment="Center"
-										  VerticalAlignment="Center"/>
+					<Border
+						Background="{TemplateBinding Background}"
+						BorderBrush="{TemplateBinding BorderBrush}"
+						BorderThickness="{TemplateBinding BorderThickness}">
+
+						<ContentPresenter
+							Content="{TemplateBinding Content}"
+							ContentTemplate="{TemplateBinding ContentTemplate}"
+							HorizontalAlignment="Center"
+							VerticalAlignment="Center"/>
+
 					</Border>
 				</ControlTemplate>
 			</Setter>
@@ -35,11 +39,11 @@
 
 		<Style Selector="Button.HeaderButton:pointerover">
 			<Setter Property="Background" Value="{DynamicResource PlugHub.AccentFillBrush}"/>
-			<Setter Property="Foreground" Value="{DynamicResource PlugHub.FillColorExitForegroundBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource PlugHub.ExitTextBrush}"/>
 		</Style>
 		<Style Selector="Button.HeaderButton.Close:pointerover">
-			<Setter Property="Background" Value="{DynamicResource PlugHub.FillColorExitBackgroundBrush}"/>
-			<Setter Property="Foreground" Value="{DynamicResource PlugHub.FillColorExitForegroundBrush}"/>
+			<Setter Property="Background" Value="{DynamicResource PlugHub.ExitBackgroundBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource PlugHub.ExitTextBrush}"/>
 		</Style>
 
 	</UserControl.Styles>
@@ -91,7 +95,7 @@
 							Width="16" Height="16"
 							StrokeThickness="1"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.SettingsIconGeometry}"
+							Data="{StaticResource PlugHub.SettingsIcon}"
 							Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 
@@ -105,7 +109,7 @@
 							Width="16" Height="16"
 							StrokeThickness="1"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.HomeIconGeometry}"
+							Data="{StaticResource PlugHub.HomeIcon}"
 							Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 
@@ -117,7 +121,7 @@
 							Width="8" Height="2"
 							StrokeThickness="2"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.MinimizeIconGeometry}"
+							Data="{StaticResource PlugHub.MinimizeIcon}"
 							Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 
@@ -130,7 +134,7 @@
 							Width="8" Height="8"
 							StrokeThickness="2"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.MaximizeIconGeometry}"
+							Data="{StaticResource PlugHub.MaximizeIcon}"
 							Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 
@@ -143,7 +147,7 @@
 							Width="8" Height="8"
 							StrokeThickness="2"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.RestoreIconGeometry}"
+							Data="{StaticResource PlugHub.RestoreIcon}"
 							Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 
@@ -156,7 +160,7 @@
 							Width="8" Height="8"
 							StrokeThickness="2"
 							Stretch="Uniform"
-							Data="{StaticResource PlugHub.CloseIconGeometry}"
+							Data="{StaticResource PlugHub.CloseIcon}"
 							Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
 					</Button>
 

@@ -277,14 +277,14 @@ namespace PlugHub
 
             resources.MergedDictionaries.Add(new ResourceInclude(new Uri("avares://PlugHub/"))
             {
-                Source = new Uri("avares://PlugHub/Styles/Generic.axaml")
+                Source = new Uri("avares://PlugHub/Themes/FluentAvalonia/Theme.axaml")
             });
 
             AddPluginResources(resources, logger);
 
             styles.Add(new StyleInclude(new Uri("avares://PlugHub/"))
             {
-                Source = new Uri("avares://PlugHub/Styles/Icons.axaml")
+                Source = new Uri("avares://PlugHub/Themes/FluentAvalonia/Style.axaml")
             });
 
             AddPluginStyles(styles, logger);
