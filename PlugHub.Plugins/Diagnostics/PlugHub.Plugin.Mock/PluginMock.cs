@@ -40,13 +40,12 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource { get; } = "avares://PlugHub.Plugin.Mock/Assets/ic_fluent_chat_24_regular.png";
         public new static string Name { get; } = "Plughub: Mock Service";
         public new static string Description { get; } = "A mock plugin that will test the plugin service features.";
-        public new static string Version { get; } = "0.0.1";
+        public new static string Version { get; } = "0.2.0";
         public new static string Author { get; } = "Enterlucent";
         public new static List<string> Categories { get; } =
         [
-            "Diagnostics",
-            "Branding",
             "Services",
+            "Configuration",
             "Pages",
             "Settings",
         ];
@@ -214,7 +213,7 @@ namespace PlugHub.Plugin.Mock
 
         #endregion
 
-        #region PluginMock: IPluginStyleInclusion
+        #region PluginMock: IPluginResourceInclusion
 
         /// <summary>
         /// Demonstrates how a plugin can contribute XAML resources (icons, themes, control templates) that are merged into the host application.

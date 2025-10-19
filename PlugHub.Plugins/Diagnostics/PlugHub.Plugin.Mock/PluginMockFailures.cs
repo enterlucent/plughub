@@ -21,14 +21,11 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "avares://PlugHub.Plugin.Mock/Assets/ic_fluent_link_24_filled.png";
         public new static string Name => "Plughub: Mock Depend";
         public new static string Description => "";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Depends",
-            "Services",
         ];
-
 
         #endregion
 
@@ -60,7 +57,7 @@ namespace PlugHub.Plugin.Mock
                         new PluginDescriptorReference(
                             Guid.Parse("8557da82-b6fc-4be1-8731-e32e449285ab"),
                             Guid.Parse("d018bc99-6156-46e5-ae7c-cf1f2c0255f0"),
-                            "0.0.1",
+                            "0.2.0",
                             "1.0.0"
                         )
                     ]
@@ -86,12 +83,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "avares://PlugHub.Plugin.Mock/Assets/ic_fluent_link_dismiss_24_filled.png";
         public new static string Name => "Plughub: Mock Conflict";
         public new static string Description => "";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Conflicts",
-            "Services",
         ];
 
         #endregion
@@ -149,12 +144,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "";
         public new static string Name => "Plughub: Mock Abstract";
         public new static string Description => "This plugin should never load as it's an abstract class.";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Abstract",
-            "Services",
         ];
 
         #endregion
@@ -184,11 +177,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "";
         public new static string Name => "Plughub: Mock No Interfaces";
         public new static string Description => "This plugin should never load as it implements no descriptor interfaces.";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Services",
         ];
 
         #endregion
@@ -218,11 +210,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "";
         public new static string Name => "Plughub: Mock Duplicate A";
         public new static string Description => "This plugin is a duplicate of no interfaces.";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Services",
         ];
 
         #endregion
@@ -274,11 +265,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "";
         public new static string Name => "Plughub: Mock Duplicate B";
         public new static string Description => "This plugin is a duplicate of PluginMockDuplicateA plugin with unique descriptor.";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Services",
         ];
 
         #endregion
@@ -330,11 +320,10 @@ namespace PlugHub.Plugin.Mock
         public new static string IconSource => "";
         public new static string Name => "Plughub: Mock Duplicate C";
         public new static string Description => "This plugin is a duplicate of PluginMockDuplicateB's descriptor.";
-        public new static string Version => "0.0.1";
+        public new static string Version => "0.2.0";
         public new static string Author => "Enterlucent";
         public new static List<string> Categories { get; } = [
             "Diagnostics",
-            "Services",
         ];
 
         #endregion
