@@ -47,7 +47,6 @@ namespace PlugHub.Plugin.Mock
             "Services",
             "Configuration",
             "Pages",
-            "Settings",
         ];
 
         #endregion
